@@ -1,6 +1,5 @@
 #ifndef HANDLERS_H
 #define HANDLERS_H
-
 #include <winsock2.h>
 
 void handle_root(SOCKET client_socket, const char *body);

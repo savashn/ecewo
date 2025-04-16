@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-void send_response(SOCKET client_socket, const char *status, const char *content_type, const char *body)
+void res(SOCKET client_socket, const char *status, const char *content_type, const char *body)
 {
     char response[4096];
     snprintf(response, sizeof(response),

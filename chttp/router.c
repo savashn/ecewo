@@ -1,15 +1,9 @@
 #include "router.h"
-#include "handlers.h"
+#include "../src/handlers.h"
 #include "utils.h"
-#include "structs.h"
+#include "../src/routes.h"
 #include <string.h>
 #include <stdio.h>
-
-Route routes[] = {
-    {"GET", "/", handle_root},
-    {"GET", "/user", handle_user},
-    {"POST", "/echo", handle_post_echo},
-};
 
 const int route_count = sizeof(routes) / sizeof(Route);
 
@@ -30,5 +24,5 @@ void route_request(SOCKET client_socket, const char *request)
         }
     }
 
-    send_response(client_socket, "404 Not Found", "text/plain", "There is no such route");
+    res(client_socket, "404 Not Found", "text/plain", "There is no such route");
 }
