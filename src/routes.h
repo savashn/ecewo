@@ -1,7 +1,7 @@
 #ifndef ROUTES_H
 #define ROUTES_H
 #include "handlers.h"
-#include "../chttp/router.h"
+#include "chttp/router.h"
 
 Route routes[] = {
     {"GET", "/", handle_root},

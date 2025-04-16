@@ -13,6 +13,9 @@ typedef struct
 typedef struct
 {
     SOCKET client_socket;
+    char *status;
+    char *content_type;
+    char *body;
 } Res;
 
 typedef void (*RequestHandler)(Req *req, Res *res);
@@ -25,5 +28,6 @@ typedef struct
 } Route;
 
 void route_request(SOCKET client_socket, const char *request);
+void reply(Res *res, const char *status, const char *content_type, const char *body);
 
 #endif
