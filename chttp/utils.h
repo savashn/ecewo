@@ -2,7 +2,8 @@
 #define UTILS_H
 
 #include <winsock2.h>
+#include "router.h"
 
-void res(SOCKET client_socket, const char *status, const char *content_type, const char *body);
+void reply(Res *res, const char *status, const char *content_type, const char *body);
 
 #endif

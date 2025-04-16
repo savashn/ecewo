@@ -2,19 +2,19 @@
 #include "handlers.h"
 #include "../chttp/utils.h"
 
-void handle_root(SOCKET client_socket, const char *body)
+void handle_root(Req *req, Res *res)
 {
-    res(client_socket, "200 OK", "application/json", "{\"message\": \"Ana sayfa\"}");
+    reply(res, "200 OK", "application/json", "{\"message\": \"Main Page\"}");
 }
 
-void handle_user(SOCKET client_socket, const char *body)
+void handle_user(Req *req, Res *res)
 {
-    res(client_socket, "200 OK", "application/json", "{\"id\": 1, \"name\": \"Ahmet\"}");
+    reply(res, "200 OK", "application/json", "{\"id\": 1, \"name\": \"John\", \"surname\": \"Doe\"}");
 }
 
-void handle_post_echo(SOCKET client_socket, const char *body)
+void handle_post_echo(Req *req, Res *res)
 {
     char json[4096];
-    snprintf(json, sizeof(json), "{\"echo\": \"%s\"}", body);
-    res(client_socket, "200 OK", "application/json", json);
+    snprintf(json, sizeof(json), "{\"echo\": \"%s\"}", req->body);
+    reply(res, "200 OK", "application/json", json);
 }

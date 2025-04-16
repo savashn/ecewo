@@ -15,14 +15,17 @@ void route_request(SOCKET client_socket, const char *request)
 
     sscanf(request, "%s %s", method, path);
 
+    Req req = {client_socket, method, path, body};
+    Res res = {client_socket};
+
     for (int i = 0; i < route_count; i++)
     {
         if (strcmp(method, routes[i].method) == 0 && strcmp(path, routes[i].path) == 0)
         {
-            routes[i].handler(client_socket, body);
+            routes[i].handler(&req, &res);
             return;
         }
     }
 
-    res(client_socket, "404 Not Found", "text/plain", "There is no such route");
+    reply(&res, "404 Not Found", "text/plain", "There is no such route");
 }

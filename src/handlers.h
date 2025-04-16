@@ -1,9 +1,10 @@
 #ifndef HANDLERS_H
 #define HANDLERS_H
 #include <winsock2.h>
+#include "../chttp/router.h"
 
-void handle_root(SOCKET client_socket, const char *body);
-void handle_user(SOCKET client_socket, const char *body);
-void handle_post_echo(SOCKET client_socket, const char *body);
+void handle_root(Req *req, Res *res);
+void handle_user(Req *req, Res *res);
+void handle_post_echo(Req *req, Res *res);
 
 #endif

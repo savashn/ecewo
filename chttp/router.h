@@ -2,8 +2,20 @@
 #define ROUTER_H
 #include <winsock2.h>
 
-typedef void (*RequestHandler)(SOCKET client_socket, const char *body);
-void route_request(SOCKET client_socket, const char *request);
+typedef struct
+{
+    SOCKET client_socket;
+    const char *method;
+    const char *path;
+    const char *body;
+} Req;
+
+typedef struct
+{
+    SOCKET client_socket;
+} Res;
+
+typedef void (*RequestHandler)(Req *req, Res *res);
 
 typedef struct
 {
@@ -11,5 +23,7 @@ typedef struct
     const char *path;
     RequestHandler handler;
 } Route;
+
+void route_request(SOCKET client_socket, const char *request);
 
 #endif
