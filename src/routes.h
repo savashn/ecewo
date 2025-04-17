@@ -7,6 +7,7 @@ Route routes[] = {
     {"GET", "/", handle_root},
     {"GET", "/user", handle_user},
     {"POST", "/echo", handle_post_echo},
+    {"POST", "/user", handle_create_user},
 };
 
 #endif

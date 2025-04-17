@@ -5,7 +5,7 @@
 const int PORT = 4000;
 const int BUFFER_SIZE = 2048;
 
-int main()
+void run()
 {
     WSADATA wsa;
     SOCKET server_socket, client_socket;
@@ -16,7 +16,7 @@ int main()
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
     {
         printf("WSAStartup error: %d\n", WSAGetLastError());
-        return 0;
+        return;
     }
 
     server_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -24,7 +24,7 @@ int main()
     {
         printf("Socket error: %d\n", WSAGetLastError());
         WSACleanup();
-        return 0;
+        return;
     }
 
     server.sin_family = AF_INET;
@@ -36,7 +36,7 @@ int main()
         printf("Bind error: %d\n", WSAGetLastError());
         closesocket(server_socket);
         WSACleanup();
-        return 0;
+        return;
     }
 
     listen(server_socket, 5);
@@ -61,5 +61,4 @@ int main()
     free(buffer);
     closesocket(server_socket);
     WSACleanup();
-    return 0;
 }

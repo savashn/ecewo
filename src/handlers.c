@@ -2,6 +2,9 @@
 #include "handlers.h"
 #include "chttp/router.h"
 #include "chttp/lib/cjson.h"
+#include "chttp/lib/sqlite3.h"
+
+extern sqlite3 *db;
 
 void handle_root(Req *req, Res *res)
 {
@@ -49,4 +52,55 @@ void handle_post_echo(Req *req, Res *res)
     char json[4096];
     snprintf(json, sizeof(json), "{\"echo\": \"%s\"}", req->body);
     reply(res, "200 OK", "application/json", json);
+}
+
+void handle_create_user(Req *req, Res *res)
+{
+    cJSON *json = cJSON_Parse(req->body);
+
+    if (!json)
+    {
+        reply(res, "400 Bad Request", "application/json", "{\"error\": \"Invalid JSON\"}");
+        return;
+    }
+
+    cJSON *username_item = cJSON_GetObjectItemCaseSensitive(json, "username");
+
+    if (cJSON_IsString(username_item) || username_item->valuestring == NULL)
+    {
+        cJSON_Delete(json);
+        reply(res, "400 Bad Request", "application/json", "{\"error\": \"Missing or invalid 'username' field\"}");
+        return;
+    }
+
+    const char *username = username_item->valuestring;
+
+    const char *sql = "INSERT INTO users (username) VALUES (?)";
+    sqlite3_stmt *stmt;
+
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK)
+    {
+        cJSON_Delete(json);
+        reply(res, "500 Internal Server Error", "application/json", "{\"error\": \"Failed to prepare statement\"}");
+        return;
+    }
+
+    sqlite3_bind_text(stmt, 1, username, -1, SQLITE_STATIC);
+
+    if (sqlite3_step(stmt) != SQLITE_DONE)
+    {
+        sqlite3_finalize(stmt);
+        cJSON_Delete(json);
+        reply(res, "500 Internal Server Error", "application/json", "{\"error\": \"Failed to insert user\"}");
+        return;
+    }
+
+    sqlite3_finalize(stmt);
+    cJSON_Delete(json);
+
+    char response[256];
+    snprintf(response, sizeof(response),
+             "{\"message\": \"User '%s' added successfully\"}",
+             username);
+    reply(res, "201 Created", "application/json", response);
 }

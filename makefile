@@ -3,11 +3,13 @@ CFLAGS = -I./src -I./chttp -I./chttp/lib -I./
 LDFLAGS = -lws2_32
 
 SRC = \
-	chttp/main.c \
+	chttp/server.c \
 	chttp/router.c \
 	chttp/lib/sqlite3.c \
 	chttp/lib/cjson.c \
+	src/main.c \
 	src/handlers.c \
+	src/db.c \
 
 OUT = server.exe
 
@@ -19,4 +21,10 @@ $(OUT): $(SRC)
 clean:
 	rm -f $(OUT)
 
-.PHONY: all clean
+clean-db:
+	rm -f sql.db
+
+nuke:
+	make clean && make clean-db
+
+.PHONY: all clean clean-db nuke
