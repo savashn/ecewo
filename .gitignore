@@ -1,2 +1,3 @@
-server.exe
 .vscode
+server.exe
+sql.db

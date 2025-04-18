@@ -18,6 +18,9 @@ all: $(OUT)
 $(OUT): $(SRC)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
+run: all
+	./${OUT}
+
 clean:
 	rm -f $(OUT)
 
@@ -27,4 +30,4 @@ clean-db:
 nuke:
 	make clean && make clean-db
 
-.PHONY: all clean clean-db nuke
+.PHONY: all run clean clean-db nuke

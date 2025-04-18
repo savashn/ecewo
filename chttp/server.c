@@ -54,7 +54,7 @@ void run()
 
         memset(buffer, 0, BUFFER_SIZE);
         recv(client_socket, buffer, BUFFER_SIZE, 0);
-        route_request(client_socket, buffer);
+        router(client_socket, buffer);
         closesocket(client_socket);
     }
 

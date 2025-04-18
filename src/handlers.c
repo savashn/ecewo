@@ -104,3 +104,85 @@ void handle_create_user(Req *req, Res *res)
              username);
     reply(res, "201 Created", "application/json", response);
 }
+
+void handle_params(Req *req, Res *res)
+{
+    printf("req->params pointer: %p\n", (void *)&req->params);
+
+    const char *slug = params_get(&req->params, "slug");
+
+    if (slug == NULL)
+    {
+        reply(res, "400 Bad Request", "text/plain", "Missing required parameters: slug or id");
+        return;
+    }
+
+    printf("Slug: %s\n", slug);
+
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddStringToObject(json, "slug", slug);
+    char *json_string = cJSON_PrintUnformatted(json);
+
+    reply(res, "200 OK", "application/json", json_string);
+
+    cJSON_Delete(json);
+    free(json_string);
+}
+
+void handle_query(Req *req, Res *res)
+{
+    printf("req->query pointer: %p\n", (void *)&req->query);
+
+    const char *name = query_get(&req->query, "name");
+    const char *surname = query_get(&req->query, "surname");
+
+    if (name == NULL || surname == NULL)
+    {
+        reply(res, "400 Bad Request", "text/plain", "Missing required parameters: name or surname");
+        return;
+    }
+
+    printf("Name: %s\n", name);
+    printf("Surname: %s\n", surname);
+
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddStringToObject(json, "name", name);
+    cJSON_AddStringToObject(json, "surname", surname);
+    char *json_string = cJSON_PrintUnformatted(json);
+
+    reply(res, "200 OK", "application/json", json_string);
+
+    cJSON_Delete(json);
+    free(json_string);
+}
+
+void handle_params_and_query(Req *req, Res *res)
+{
+    const char *slug = params_get(&req->params, "slug");
+    const char *id = params_get(&req->params, "id");
+    const char *name = query_get(&req->query, "name");
+    const char *surname = query_get(&req->query, "surname");
+
+    if (slug == NULL || id == NULL)
+    {
+        reply(res, "400 Bad Request", "text/plain", "Missing required parameters: slug or id");
+        return;
+    }
+
+    printf("Slug: %s\n", slug);
+    printf("ID: %s\n", id);
+    printf("Name: %s\n", name);
+    printf("Surname: %s\n", surname);
+
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddStringToObject(json, "slug", slug);
+    cJSON_AddStringToObject(json, "id", id);
+    cJSON_AddStringToObject(json, "name", name);
+    cJSON_AddStringToObject(json, "surname", surname);
+    char *json_string = cJSON_PrintUnformatted(json);
+
+    reply(res, "200 OK", "application/json", json_string);
+
+    cJSON_Delete(json);
+    free(json_string);
+}

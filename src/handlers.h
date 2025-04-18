@@ -7,5 +7,8 @@ void handle_root(Req *req, Res *res);
 void handle_user(Req *req, Res *res);
 void handle_post_echo(Req *req, Res *res);
 void handle_create_user(Req *req, Res *res);
+void handle_params(Req *req, Res *res);
+void handle_query(Req *req, Res *res);
+void handle_params_and_query(Req *req, Res *res);
 
 #endif
