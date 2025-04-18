@@ -3,14 +3,14 @@
 #include "handlers.h"
 #include "chttp/router.h"
 
-Route routes[] = {
+Router routes[] = {
+    {"GET", "/test-query", handle_query},
+    {"GET", "/test-slug/:slug", handle_params},
+    {"GET", "/test/:slug/id/:id", handle_params_and_query},
+    {"GET", "/user/:slug", get_user_by_params},
+    {"GET", "/users", get_all_users},
+    {"POST", "/user", add_user},
     {"GET", "/", handle_root},
-    {"GET", "/user", handle_user},
-    {"POST", "/echo", handle_post_echo},
-    {"POST", "/user", handle_create_user},
-    {"GET", "/deneme", handle_query},
-    {"GET", "/deneme/:slug/id/:id", handle_params_and_query},
-    {"GET", "/deneme/:slug", handle_params},
 };
 
 #endif

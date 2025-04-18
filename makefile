@@ -7,6 +7,8 @@ SRC = \
 	chttp/router.c \
 	chttp/lib/sqlite3.c \
 	chttp/lib/cjson.c \
+	chttp/lib/params.c \
+	chttp/lib/query.c \
 	src/main.c \
 	src/handlers.c \
 	src/db.c \

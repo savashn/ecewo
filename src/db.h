@@ -6,6 +6,5 @@
 extern sqlite3 *db;
 
 int init_db();
-int users_table();
 
 #endif

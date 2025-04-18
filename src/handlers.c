@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include "handlers.h"
 #include "chttp/router.h"
 #include "chttp/lib/cjson.h"
 #include "chttp/lib/sqlite3.h"
@@ -9,7 +8,7 @@ extern sqlite3 *db;
 void handle_root(Req *req, Res *res)
 {
     cJSON *json = cJSON_CreateObject();
-    cJSON_AddStringToObject(json, "message", "Main Page");
+    cJSON_AddStringToObject(json, "hello", "world");
 
     char *json_string = cJSON_PrintUnformatted(json);
 
@@ -19,90 +18,154 @@ void handle_root(Req *req, Res *res)
     free(json_string);
 }
 
-void handle_user(Req *req, Res *res)
+void get_all_users(Req *req, Res *res)
 {
-    cJSON *json = cJSON_CreateObject();
+    const char *sql = "SELECT * FROM users;";
 
-    cJSON *users = cJSON_CreateArray();
-    cJSON_AddItemToObject(json, "Users", users);
+    sqlite3_stmt *stmt;
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
 
-    cJSON *user1 = cJSON_CreateObject();
-    cJSON_AddNumberToObject(user1, "id", 1);
-    cJSON_AddStringToObject(user1, "name", "John");
-    cJSON_AddStringToObject(user1, "surname", "Doe");
+    if (rc != SQLITE_OK)
+    {
+        reply(res, "500 Internal Server Error", "text/plain", "DB prepare failed");
+        return;
+    }
 
-    cJSON *user2 = cJSON_CreateObject();
-    cJSON_AddNumberToObject(user2, "id", 2);
-    cJSON_AddStringToObject(user2, "name", "Jane");
-    cJSON_AddStringToObject(user2, "surname", "Doe");
+    cJSON *json_array = cJSON_CreateArray();
 
-    cJSON_AddItemToArray(users, user1);
-    cJSON_AddItemToArray(users, user2);
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW)
+    {
+        const int id = sqlite3_column_int(stmt, 0);
+        const char *username = (const char *)sqlite3_column_text(stmt, 1);
+        const char *name = (const char *)sqlite3_column_text(stmt, 2);
 
-    char *json_string = cJSON_PrintUnformatted(json);
+        cJSON *user_json = cJSON_CreateObject();
+        cJSON_AddNumberToObject(user_json, "id", id);
+        cJSON_AddStringToObject(user_json, "username", username);
+        cJSON_AddStringToObject(user_json, "name", name);
+
+        cJSON_AddItemToArray(json_array, user_json);
+    }
+
+    if (rc != SQLITE_DONE)
+    {
+        reply(res, "500 Internal Server Error", "text/plain", "DB step failed");
+        sqlite3_finalize(stmt);
+        return;
+    }
+
+    char *json_string = cJSON_PrintUnformatted(json_array);
 
     reply(res, "200 OK", "application/json", json_string);
 
-    cJSON_Delete(json);
+    cJSON_Delete(json_array);
     free(json_string);
+
+    sqlite3_finalize(stmt);
 }
 
-void handle_post_echo(Req *req, Res *res)
+void add_user(Req *req, Res *res)
 {
-    char json[4096];
-    snprintf(json, sizeof(json), "{\"echo\": \"%s\"}", req->body);
-    reply(res, "200 OK", "application/json", json);
-}
+    const char *body = req->body;
+    if (body == NULL)
+    {
+        reply(res, "400 Bad Request", "text/plain", "Missing request body");
+        return;
+    }
 
-void handle_create_user(Req *req, Res *res)
-{
-    cJSON *json = cJSON_Parse(req->body);
-
+    cJSON *json = cJSON_Parse(body);
     if (!json)
     {
-        reply(res, "400 Bad Request", "application/json", "{\"error\": \"Invalid JSON\"}");
+        reply(res, "400 Bad Request", "text/plain", "Invalid JSON");
         return;
     }
 
-    cJSON *username_item = cJSON_GetObjectItemCaseSensitive(json, "username");
+    const char *username = cJSON_GetObjectItem(json, "username")->valuestring;
+    const char *name = cJSON_GetObjectItem(json, "name")->valuestring;
 
-    if (cJSON_IsString(username_item) || username_item->valuestring == NULL)
+    if (!username || !name)
     {
         cJSON_Delete(json);
-        reply(res, "400 Bad Request", "application/json", "{\"error\": \"Missing or invalid 'username' field\"}");
+        reply(res, "400 Bad Request", "text/plain", "Missing fields");
         return;
     }
 
-    const char *username = username_item->valuestring;
-
-    const char *sql = "INSERT INTO users (username) VALUES (?)";
+    const char *sql = "INSERT INTO users (username, name) VALUES (?, ?);";
     sqlite3_stmt *stmt;
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
 
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK)
+    if (rc != SQLITE_OK)
     {
         cJSON_Delete(json);
-        reply(res, "500 Internal Server Error", "application/json", "{\"error\": \"Failed to prepare statement\"}");
+        reply(res, "500 Internal Server Error", "text/plain", "DB prepare failed");
         return;
     }
 
     sqlite3_bind_text(stmt, 1, username, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, name, -1, SQLITE_STATIC);
 
-    if (sqlite3_step(stmt) != SQLITE_DONE)
-    {
-        sqlite3_finalize(stmt);
-        cJSON_Delete(json);
-        reply(res, "500 Internal Server Error", "application/json", "{\"error\": \"Failed to insert user\"}");
-        return;
-    }
-
+    rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
     cJSON_Delete(json);
 
-    char response[256];
-    snprintf(response, sizeof(response),
-             "{\"message\": \"User '%s' added successfully\"}",
-             username);
-    reply(res, "201 Created", "application/json", response);
+    if (rc != SQLITE_DONE)
+    {
+        reply(res, "500 Internal Server Error", "text/plain", "DB insert failed");
+        return;
+    }
+
+    reply(res, "201 Created", "application/json", "User created!");
+}
+
+void get_user_by_params(Req *req, Res *res)
+{
+    const char *slug = params_get(&req->params, "slug");
+
+    if (slug == NULL)
+    {
+        reply(res, "400 Bad Request", "text/plain", "Missing 'id' parameter");
+        return;
+    }
+
+    const char *sql = "SELECT id, username, name FROM users WHERE username = ?;";
+
+    sqlite3_stmt *stmt;
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+
+    if (rc != SQLITE_OK)
+    {
+        reply(res, "500 Internal Server Error", "text/plain", "DB prepare failed");
+        return;
+    }
+
+    sqlite3_bind_text(stmt, 1, slug, -1, SQLITE_STATIC);
+
+    rc = sqlite3_step(stmt);
+
+    if (rc == SQLITE_ROW)
+    {
+        const int id = sqlite3_column_int(stmt, 0);
+        const char *username = (const char *)sqlite3_column_text(stmt, 1);
+        const char *name = (const char *)sqlite3_column_text(stmt, 2);
+
+        cJSON *json = cJSON_CreateObject();
+        cJSON_AddNumberToObject(json, "id", id);
+        cJSON_AddStringToObject(json, "username", username);
+        cJSON_AddStringToObject(json, "name", name);
+
+        char *json_string = cJSON_PrintUnformatted(json);
+
+        reply(res, "200 OK", "application/json", json_string);
+
+        cJSON_Delete(json);
+        free(json_string);
+    }
+    else
+    {
+        reply(res, "404 Not Found", "text/plain", "User not found");
+    }
+
+    sqlite3_finalize(stmt);
 }
 
 void handle_params(Req *req, Res *res)
@@ -113,7 +176,8 @@ void handle_params(Req *req, Res *res)
 
     if (slug == NULL)
     {
-        reply(res, "400 Bad Request", "text/plain", "Missing required parameters: slug or id");
+        printf("Missing 'slug' parameter\n");
+        reply(res, "400 Bad Request", "text/plain", "Missing required parameters: slug");
         return;
     }
 
