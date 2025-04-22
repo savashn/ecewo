@@ -5,7 +5,7 @@
 const int PORT = 4000;
 const int BUFFER_SIZE = 2048;
 
-void run()
+void ecewo()
 {
     WSADATA wsa;
     SOCKET server_socket, client_socket;
@@ -40,6 +40,7 @@ void run()
     }
 
     listen(server_socket, 5);
+    printf("ecewo v0.8.0\n");
     printf("Server is running on: http://localhost:%d\n", PORT);
 
     while (1)

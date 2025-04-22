@@ -1,14 +1,14 @@
 CC = cc
-CFLAGS = -I./src -I./chttp -I./chttp/lib -I./
+CFLAGS =  -I./ -I./ecewo -I./src
 LDFLAGS = -lws2_32
 
 SRC = \
-	chttp/server.c \
-	chttp/router.c \
-	chttp/lib/sqlite3.c \
-	chttp/lib/cjson.c \
-	chttp/lib/params.c \
-	chttp/lib/query.c \
+	ecewo/server.c \
+	ecewo/router.c \
+	ecewo/lib/sqlite3.c \
+	ecewo/lib/cjson.c \
+	ecewo/utils/params.c \
+	ecewo/utils/query.c \
 	src/main.c \
 	src/handlers.c \
 	src/db.c \
@@ -29,7 +29,14 @@ clean:
 clean-db:
 	rm -f sql.db
 
-nuke:
-	make clean && make clean-db
+nuke: clean clean-db
 
-.PHONY: all run clean clean-db nuke
+build: all run
+
+rebuild: clean clean-db all run
+
+compile: clean all run
+
+migrate: clean-db run
+
+.PHONY: all run clean clean-db nuke build rebuild compile migrate

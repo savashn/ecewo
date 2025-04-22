@@ -2,10 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include "router.h"
-#include "src/handlers.h"
+#include "utils/params.h"
+#include "utils/query.h"
 #include "src/routes.h"
-#include "lib/params.h"
-#include "lib/query.h"
 
 const int route_count = sizeof(routes) / sizeof(Router);
 
@@ -44,9 +43,6 @@ void router(SOCKET client_socket, const char *request)
     {
         const char *route_method = routes[i].method;
         const char *route_path = routes[i].path;
-
-        printf("Checking Route Method: %s\n", route_method);
-        printf("Checking Route Path: %s\n", route_path);
 
         if (strcasecmp(method, route_method) != 0)
         {

@@ -1,11 +1,11 @@
 #include <stdio.h>
-#include "chttp/server.h"
+#include "ecewo/server.h"
 #include "db.h"
 
 int main()
 {
     init_db();
-    run();
+    ecewo();
     sqlite3_close(db);
     return 0;
 }
