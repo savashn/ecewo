@@ -19,7 +19,7 @@
   	- 6.4 Request Headers (oncoming feature)
  
 ## Introduction
-ecewo is a HTTP server written in C. It's not production ready yet and it doesn't need to be, because I'm building it as a hobby project to better understand programming and memory allocation.
+ecewo is an HTTP server written in C. It's not production ready yet and it doesn't need to be, because I'm building it as a hobby project to better understand programming and memory allocation.
 
 ## Installation
 ### Requirements
@@ -56,6 +56,7 @@ SRC = \
 	ecewo/lib/cjson.c \
 	ecewo/lib/params.c \
 	ecewo/lib/query.c \
+	ecewo/lib/headers.c \
 	src/main.c \
 	src/handlers.c \
 ```
@@ -65,15 +66,13 @@ For example; if you create a new `database.c` file in the `src` directory, you m
 There are some shortcuts at the bottom of the `makefile`:
 
 ```sh
-make		// compile the program
-make run	// run the program
-make build	// compile the program, create a db and run
-make clean	// destroy the existing 'program.exe'
-make clean-db	// destroy the existing 'db.sql'
-make nuke	// destroy both the 'program.exe' and 'db.sql'
-make rebuild	// destroy all, recompile and run the program
-make compile	// destroy the program, recompile and run
-make migrate	// destroy the database, recreate and run
+make		// compile the program.
+make run	// run the program.
+make clean	// destroy the program.
+make clean-db	// destroy the database.
+make build	// rebuild the program, and then run it.
+make build-all	// rebuild the program and the database, then run it.
+
 ```
 
 ## Folder Structure
@@ -124,8 +123,8 @@ We'll see following informations when our server is ready:
 
 ```sh
 Database connection successful
-ecewo v0.8.0
-Server is running on: http://localhost:4000
+ecewo v0.9.0
+Server is running at: http://localhost:4000
 ```
 
 When the program compiled and ran for the first time, two additional files will be created in the root directory: `program.exe` and `sql.db`.
@@ -142,7 +141,7 @@ If you see this message, everything is all right. Your server is working.
 ## Route Handling
 ### Handlers
 
-ecewo has strong built-in JSON library named [cJSON](https://github.com/DaveGamble/cJSON), thanks to [Dave Gamble](https://github.com/DaveGamble).
+ecewo has a strong built-in JSON library named [cJSON](https://github.com/DaveGamble/cJSON), thanks to [Dave Gamble](https://github.com/DaveGamble).
 So we are able to play with JSON objects easily.
 
 You'll see `handlers.c` and `handlers.h` files in the `src` folder in the root. They are default example files.
@@ -202,7 +201,7 @@ void hello_world(Req *req, Res *res);
 #endif
 ```
 
-All right, now we can route the request to the handler in the `routes.h` file.
+All right, now we can route the request to the handler in the `routes.h` file. See the next chapter.
 
 ### Routes
 
@@ -223,13 +222,7 @@ Router routes[] = {
 We should add all of our handlers to the `routes[]` array to route the requests to the handlers. We just wrote a `hello world` handler, so we add it to the array as `{"GET", "/", hello_world},`.
 The first parameter `GET` is the request method, the second one is the route, and the third one is our handler.
 
-So finally, we can run these commands:
-
-```sh
-make
-make run
-```
-
+Finally, we can run `make build` in the terminal to rebuild our server.
 After that, if you go to the `http://localhosh:4000/` address, you'll see this:
 ```sh
 {
@@ -346,9 +339,12 @@ int init_db()
 
 ```
 
-Now we can rebuild our program by running `make rebuild` command in the terminal.
+Now we can rebuild our program by running `make build-all` command in the terminal.
 
 If everything's went OK, you can see the 'users' table if you open the `db.sql`.
+
+Note: execute `make build-all` if you want the database to be rebuilt from scratch during the build phase.
+Execute `make build` if you only want to recompile the program without touching the database.
 
 ## Handling Requests
 ### Request Body
@@ -454,7 +450,7 @@ Router routes[] = {
 #endif
 ```
 
-Let's rebuild our server by running `make rebuild` command in the terminal. And then we'll send a `POST` request at `http://localhost:4000/user`.
+Let's rebuild our server by running `make build` command in the terminal. And then we'll send a `POST` request at `http://localhost:4000/user`.
 You can use `POSTMAN` or something else to send requests.
 
 We'll send a request, which has a body like:
@@ -531,9 +527,9 @@ void get_all_users(Req *req, Res *res)
 
 Why didn't we use `for` instead of `while`?
 
-We could use `for` loop too, but it would look more complicated and would have less readability.
+We could have used a `for` loop too, but it would be more complicated and less readable.
 
-If we wrote it with `for` it would be like this:
+If we had written it with a `for` loop, it would look like this:
 ```sh
 for (rc = sqlite3_step(stmt); rc == SQLITE_ROW; rc = sqlite3_step(stmt))
 {
@@ -603,7 +599,7 @@ Now send a requests to the `http://localhost:4000/users`, and you'll receive thi
 
 ### Request Params
 
-Let's take a specific user by params. We can access the params by `get_params()` function. Let's write a handler that gives us the "Jane Doe" by username.
+Let's take a specific user by params. We can access the params using the `get_params()` function and free the memory with `free_params()`. Let's write a handler that gives us the "Jane Doe" by username.
 But first, add `routes.h` the route:
 
 ```sh
@@ -621,7 +617,7 @@ Now we need to write the handler `get_user_by_params`:
 
 void get_user_by_params(Req *req, Res *res)
 {
-    const char *slug = params_get(&req->params, "slug");
+    const char *slug = params_get(&req->params, "slug"); // We got the params
 
     if (slug == NULL)
     {
@@ -657,15 +653,16 @@ void get_user_by_params(Req *req, Res *res)
 
         reply(res, "200 OK", "application/json", json_string);
 
-        cJSON_Delete(json); // free cJSON memory
-        free(json_string);  // free json_string memory
+        cJSON_Delete(json);		// free cJSON memory
+        free(json_string);		// free json_string memory
     }
     else
     {
         reply(res, "404 Not Found", "text/plain", "User not found");
     }
 
-    sqlite3_finalize(stmt); // free sql memory
+    free_params(&req->params);	// free params memory
+    sqlite3_finalize(stmt);	// free sql memory
 }
 ```
 
@@ -686,7 +683,7 @@ Run the `make compile` command and send a request to `http://localhost:4000/user
 
 ### Request Query
 
-Like the `get_params()`, we also have `get_query()` function to get the query in the request. Let's rewrite the same handler using `get_query()` this time: 
+Like the `get_params()` and `free_params()`, we also have `get_query()` function to get the query in the request and `free_query()` to free the memory. Let's rewrite the same handler using `get_query()` this time: 
 
 ```sh
 // routes.h:
@@ -745,7 +742,8 @@ void get_user_by_query(Req *req, Res *res)
         reply(res, "404 Not Found", "text/plain", "User not found");
     }
 
-    sqlite3_finalize(stmt); // free sql memory
+    free_query(&req->query);	// free query memory
+    sqlite3_finalize(stmt);	// free sql memory
 }
 ```
 
@@ -755,7 +753,7 @@ void get_user_by_query(Req *req, Res *res)
 void get_user_by_query(Req *req, Res *res)
 ```
 
-Let's recompile the program by running `make compile` and send a request to `http//localhost:4000/users?username=johndoe`. We'll receive the output:
+Let's recompile the program by running `make compile` and send a request to `http//localhost:4000/users?username=johndoe`. We'll receive that output:
 
 ```sh
 {

@@ -1,16 +1,80 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include "router.h"
-#include "utils/params.h"
-#include "utils/query.h"
+#include "utils/request.h"
 #include "src/routes.h"
+
+#define MAX_DYNAMIC_PARAMS 20
 
 const int route_count = sizeof(routes) / sizeof(Router);
 
+// Newly added function - checks if route matches
+bool matcher(const char *path, const char *route_path)
+{
+    // Create temporary copies to split paths by '/' character
+    char path_copy[256];
+    char route_copy[256];
+    strncpy(path_copy, path, sizeof(path_copy) - 1);
+    path_copy[sizeof(path_copy) - 1] = '\0';
+    strncpy(route_copy, route_path, sizeof(route_copy) - 1);
+    route_copy[sizeof(route_copy) - 1] = '\0';
+
+    // Arrays to hold path segments
+    char *path_segments[20];
+    char *route_segments[20];
+    int path_segment_count = 0;
+    int route_segment_count = 0;
+
+    // Split path segments
+    char *token = strtok(path_copy, "/");
+    while (token != NULL && path_segment_count < 20)
+    {
+        path_segments[path_segment_count++] = token;
+        token = strtok(NULL, "/");
+    }
+
+    // Split route segments
+    token = strtok(route_copy, "/");
+    while (token != NULL && route_segment_count < 20)
+    {
+        route_segments[route_segment_count++] = token;
+        token = strtok(NULL, "/");
+    }
+
+    // If segment counts differ, route doesn't match
+    if (path_segment_count != route_segment_count)
+    {
+        printf("Route segment count mismatch: %d vs %d\n",
+               path_segment_count, route_segment_count);
+        return false;
+    }
+
+    // Compare segments
+    for (int i = 0; i < path_segment_count; i++)
+    {
+        // If route segment starts with ':', it's a parameter and always matches
+        if (route_segments[i][0] == ':')
+        {
+            continue; // Parameter always matches, move to next segment
+        }
+        // Static segment check
+        else if (strcmp(route_segments[i], path_segments[i]) != 0)
+        {
+            printf("Static segment mismatch at position %d: '%s' vs '%s'\n",
+                   i, route_segments[i], path_segments[i]);
+            return false; // If static segment doesn't match, route doesn't match
+        }
+    }
+
+    // If all segments match, route matches
+    printf("Route matches: %s\n", route_path);
+    return true;
+}
+
 void router(SOCKET client_socket, const char *request)
 {
-
     char method[8], full_path[256], path[256], query[256];
     const char *body = strstr(request, "\r\n\r\n");
     body = body ? body + 4 : "";
@@ -36,91 +100,71 @@ void router(SOCKET client_socket, const char *request)
     printf("Parsed Path: %s\n", path);
     printf("Parsed Query: %s\n", query);
 
-    query_t parsed_query = {0};
-    parse_query_string(query, &parsed_query);
+    request_t parsed_query = {0};
+    parse_query(query, &parsed_query);
 
+    request_t headers = {0};
+    parse_headers(request, &headers);
+
+    // Start loop over routes
     for (int i = 0; i < route_count; i++)
     {
         const char *route_method = routes[i].method;
         const char *route_path = routes[i].path;
 
+        // Compare request method with route method
         if (strcasecmp(method, route_method) != 0)
         {
             continue;
         }
 
-        params_t dynamic_params = {0};
-        dynamic_params.params = malloc(sizeof(params_item_t) * MAX_DYNAMIC_PARAMS);
-        if (dynamic_params.params == NULL)
+        // Check if route matches
+        if (!matcher(path, route_path))
+        {
+            continue;
+        }
+
+        // Set up parameter array for dynamic parameters
+        request_t params = {0};
+        params.items = malloc(sizeof(*params.items) * MAX_DYNAMIC_PARAMS);
+        if (params.items == NULL)
         {
             printf("Memory allocation failed for dynamic params\n");
             return;
         }
 
-        parse_dynamic_params(path, route_path, &dynamic_params);
+        // Process dynamic parameters
+        parse_params(path, route_path, &params);
 
-        if (dynamic_params.count > 0)
+        printf("Route found, invoking handler\n");
+        printf("Dynamic Params Found:\n");
+        for (int j = 0; j < params.count; j++)
         {
-            printf("Route found, invoking handler\n");
-            printf("Dynamic Params Found:\n");
-            for (int i = 0; i < dynamic_params.count; i++)
-            {
-                printf("Key: %s, Value: %s\n", dynamic_params.params[i].key, dynamic_params.params[i].value);
-            }
-
-            Req req = {
-                .client_socket = client_socket,
-                .method = method,
-                .path = path,
-                .body = body,
-                .params = dynamic_params,
-                .query = parsed_query,
-            };
-
-            Res res = {
-                .client_socket = client_socket,
-                .status = "200 OK",
-                .content_type = "application/json",
-                .body = NULL,
-            };
-
-            routes[i].handler(&req, &res);
-
-            for (int j = 0; j < dynamic_params.count; j++)
-            {
-                free(dynamic_params.params[j].key);
-                free(dynamic_params.params[j].value);
-            }
-            free(dynamic_params.params);
-
-            return;
+            printf("Key: %s, Value: %s\n", params.items[j].key, params.items[j].value);
         }
-        else
-        {
-            if (strcmp(path, route_path) == 0)
-            {
-                Req req = {
-                    .client_socket = client_socket,
-                    .method = method,
-                    .path = path,
-                    .body = body,
-                    .params = dynamic_params,
-                    .query = parsed_query,
-                };
 
-                Res res = {
-                    .client_socket = client_socket,
-                    .status = "200 OK",
-                    .content_type = "application/json",
-                    .body = NULL,
-                };
+        Req req = {
+            .client_socket = client_socket,
+            .method = method,
+            .path = path,
+            .body = body,
+            .params = params,
+            .query = parsed_query,
+            .headers = headers,
+        };
 
-                routes[i].handler(&req, &res);
-                return;
-            }
-        }
+        Res res = {
+            .client_socket = client_socket,
+            .status = "200 OK",
+            .content_type = "application/json",
+            .body = NULL,
+        };
+
+        routes[i].handler(&req, &res);
+        return;
     }
 
+    // If no route matches, return 404
     printf("No matching route found\n");
 
     Res res = {

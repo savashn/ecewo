@@ -9,6 +9,7 @@ SRC = \
 	ecewo/lib/cjson.c \
 	ecewo/utils/params.c \
 	ecewo/utils/query.c \
+	ecewo/utils/headers.c \
 	src/main.c \
 	src/handlers.c \
 	src/db.c \
@@ -29,14 +30,8 @@ clean:
 clean-db:
 	rm -f sql.db
 
-nuke: clean clean-db
+build: clean all run
 
-build: all run
-
-rebuild: clean clean-db all run
-
-compile: clean all run
-
-migrate: clean-db run
+build-all: clean clean-db all run
 
 .PHONY: all run clean clean-db nuke build rebuild compile migrate

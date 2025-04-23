@@ -1,8 +1,7 @@
 #ifndef ROUTER_H
 #define ROUTER_H
 #include <winsock2.h>
-#include "utils/params.h"
-#include "utils/query.h"
+#include "utils/request.h"
 
 typedef struct
 {
@@ -10,8 +9,9 @@ typedef struct
     const char *method;
     const char *path;
     const char *body;
-    query_t query;
-    params_t params;
+    request_t headers;
+    request_t query;
+    request_t params;
 } Req;
 
 typedef struct
