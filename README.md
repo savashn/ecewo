@@ -1,4 +1,4 @@
-![ecewo](https://raw.githubusercontent.com/savashn/ecewo/main/assets/logo.svg)
+![ecewo](https://raw.githubusercontent.com/savashn/ecewo/main/ecewo/assets/logo.svg)
 
 # Table of Contents
 
