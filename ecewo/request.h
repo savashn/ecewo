@@ -14,15 +14,10 @@ typedef struct
 } request_t;
 
 void parse_query(const char *query_string, request_t *query);
-const char *query_get(request_t *query, const char *key);
-void free_query(request_t *query);
-
 void parse_params(const char *path, const char *route_path, request_t *params);
-const char *params_get(request_t *params, const char *key);
-void free_params(request_t *params);
-
 void parse_headers(const char *request, request_t *headers);
-const char *headers_get(request_t *headers, const char *key);
-void free_headers(request_t *headers);
+
+const char *get_req(request_t *request, const char *key);
+void free_req(request_t *request);
 
 #endif

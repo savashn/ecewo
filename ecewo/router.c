@@ -3,14 +3,13 @@
 #include <string.h>
 #include <stdbool.h>
 #include "router.h"
-#include "utils/request.h"
+#include "request.h"
 #include "src/routes.h"
 
 #define MAX_DYNAMIC_PARAMS 20
 
 const int route_count = sizeof(routes) / sizeof(Router);
 
-// Newly added function - checks if route matches
 bool matcher(const char *path, const char *route_path)
 {
     // Create temporary copies to split paths by '/' character
@@ -182,13 +181,27 @@ void reply(Res *res, const char *status, const char *content_type, const char *b
     char response[4096];
 
     snprintf(response, sizeof(response),
-             "HTTP/1.1 %s\r\n"
-             "Content-Type: %s\r\n"
-             "Content-Length: %lu\r\n"
-             "Connection: close\r\n"
-             "\r\n"
-             "%s",
-             status, content_type, strlen(body), body);
+             "HTTP/1.1 %s\r\n"         // Status code and status text
+             "%s"                      // Set-Cookie header, if any (if set_cookie is not empty, it is included)
+             "Content-Type: %s\r\n"    // Content-Type header
+             "Content-Length: %lu\r\n" // Content-Length header (length of the body)
+             "Connection: close\r\n"   // Connection header, indicating the connection will be closed after the response
+             "\r\n"                    // Blank line separating headers and body
+             "%s",                     // The response body
+             status,
+             res->set_cookie[0] ? res->set_cookie : "", // Include the Set-Cookie header if not empty
+             content_type,
+             strlen(body), // Content-Length is the length of the body
+             body);
 
     send(res->client_socket, response, strlen(response), 0);
+
+    res->set_cookie[0] = '\0'; // Reset the cookie header for the next request
+}
+
+void set_cookie(Res *res, const char *name, const char *value, int max_age)
+{
+    snprintf(res->set_cookie, sizeof(res->set_cookie),
+             "Set-Cookie: %s=%s; Max-Age=%d; HttpOnly\r\n", // Set-Cookie header format
+             name, value, max_age);                         // Set the cookie's name, value, and max age
 }

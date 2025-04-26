@@ -1,30 +1,38 @@
-# Documentation
+![ecewo](https://raw.githubusercontent.com/savashn/ecewo/main/assets/logo.svg)
 
-- 1. [Introduction](#introduction)
-- 2. [Installation](#installation)
+# Table of Contents
+
+1. [Introduction](#introduction)
+2. [Installation](#installation)
   	- 2.1 [Requirements](#requirements)
   	- 2.2 [Install](#install)
   	- 2.3 [Update](#update)
   	- 2.4 [Makefile](#makefile)
-- 3. [Folder Structure](#folder-structure)
-- 4. [Start Server](#start-server)
-- 5. [Route Handling](#route-handling)
+3. [Folder Structure](#folder-structure)
+4. [Start Server](#start-server)
+5. [Route Handling](#route-handling)
   	- 5.1 [Handlers](#handlers)
   	- 5.2 [Routes](#routes)
   	- 5.3 [Using A Database](#using-a-database)
-- 6. [Handling Requests](#handling-requests)
+6. [Handling Requests](#handling-requests)
   	- 6.1 [Request Body](#request-body)
   	- 6.2 [Request Params](#request-params)
   	- 6.3 [Request Query](#request-query)
-  	- 6.4 Request Headers (oncoming feature)
+  	- 6.4 [Request Headers](#request-headers)
+7. [Authentication](#authentication)
+    - 7.1 [Login](#login)
+    - 7.2 [Logout](#logout)
+    - 7.3 [Getting session data](#getting-session-data)
+    - 7.4 [Protected Routes](#protected-routes)
  
 ## Introduction
-ecewo is an HTTP server written in C. It's not production ready yet and it doesn't need to be, because I'm building it as a hobby project to better understand programming and memory allocation.
+ecewo is a minimal HTTP framework in C. Uses cJSON and SQLite as embedded libraries – no external linking or installation required.
+It's not production ready yet and it doesn't need to be, because I'm building it as a hobby project to better understand programming and memory allocation.
 
 ## Installation
 ### Requirements
 
-ecewo is running on Windows only for now. You need `MINGW-64` to compile and run the program.
+ecewo is running on Windows only for now. You need `MINGW-64` to compile and run the program. Support for Linux and macOS is planned to be added in the future.
 
 ### Install
 
@@ -52,13 +60,13 @@ At the begining, there will be some root files in it:
 SRC = \
 	ecewo/server.c \
 	ecewo/router.c \
-	ecewo/lib/sqlite3.c \
+	ecewo/request.c \
 	ecewo/lib/cjson.c \
-	ecewo/lib/params.c \
-	ecewo/lib/query.c \
-	ecewo/lib/headers.c \
+	ecewo/lib/sqlite3.c \
+	ecewo/lib/session.c \
 	src/main.c \
 	src/handlers.c \
+	src/db.c \
 ```
 
 For example; if you create a new `database.c` file in the `src` directory, you must add `src/database.c \` in the `SRC` list to compile that file.
@@ -82,15 +90,28 @@ When you cloned this repo, you'll see a folder structure like this:
 <pre>
 your-project/
 ├── ecewo/
+│   ├── request.c
+│   ├── request.h
+│   ├── router.c
+│   ├── router.h
+│   ├── server.c
+│   └── server.h
+│   └── lib/
+│       ├── cjson.c
+│       ├── cjson.h
+│       ├── session.c
+│       ├── session.h
+│       ├── sqlite3.c
+│       ├── sqlite3.h
 ├── src/
-│   └── main.c
-│   └── handlers.c
-│   └── handlers.h
+│   ├── main.c
+│   ├── handlers.c
+│   ├── handlers.h
 │   └── routes.h
 └── makefile
 </pre>
 
-There are system files in the `ecewo` folder, so you don't need to touch it. You'll use the `src` only. Let's explain the inside of the `src` folder:
+There are root files in the `ecewo` folder, so you don't need to touch it. You'll use the `src` only. Let's explain the inside of the `src` folder:
 
 - `main.c` is the main file of your program. The whole server is starting by it.
 - `handlers.c` is the file that you write your controllers/handlers in it.
@@ -123,7 +144,7 @@ We'll see following informations when our server is ready:
 
 ```sh
 Database connection successful
-ecewo v0.9.0
+ecewo v0.10.0
 Server is running at: http://localhost:4000
 ```
 
@@ -349,10 +370,10 @@ Execute `make build` if you only want to recompile the program without touching 
 ## Handling Requests
 ### Request Body
 
-We already created a 'Users' table. Now we will add a user to it. Let's begin with writing our POST handler:
+We already created a 'Users' table in the previously chapter. Now we will add a user to it. Let's begin with writing our POST handler:
 
 ```sh
-// handlers.c
+// src/handlers.c
 
 #include <stdio.h>
 #include "ecewo/router.h"
@@ -361,28 +382,34 @@ We already created a 'Users' table. Now we will add a user to it. Let's begin wi
 
 extern sqlite3 *db; // THIS IS IMPORTANT TO USE THE DATABASE
 
+// Function to add a user to the database
 void add_user(Req *req, Res *res)
 {
-    const char *body = req->body; // Reach the body of the request
+    const char *body = req->body; // Get the body of the request
 
+    // If there is no body, return a 400 Bad Request response
     if (body == NULL)
     {
         reply(res, "400 Bad Request", "text/plain", "Missing request body");
         return;
     }
 
-    cJSON *json = cJSON_Parse(body); // Parse the body
+    // Parse the body as JSON
+    cJSON *json = cJSON_Parse(body);
 
+    // If JSON parsing fails, return a 400 Bad Request response
     if (!json)
     {
         reply(res, "400 Bad Request", "text/plain", "Invalid JSON");
         return;
     }
 
-    const char *name = cJSON_GetObjectItem(json, "name")->valuestring;		// Take the 'name' field
-    const char *surname = cJSON_GetObjectItem(json, "surname")->valuestring;	// Take the 'surname' field
-    const char *username = cJSON_GetObjectItem(json, "username")->valuestring;	// Take the 'username' field
+    // Extract the 'name', 'surname', and 'username' fields from the JSON object
+    const char *name = cJSON_GetObjectItem(json, "name")->valuestring;
+    const char *surname = cJSON_GetObjectItem(json, "surname")->valuestring;
+    const char *username = cJSON_GetObjectItem(json, "username")->valuestring;
 
+    // If any of the required fields are missing, delete the JSON object and return a 400 error
     if (!name || !surname || !username)
     {
         cJSON_Delete(json);
@@ -390,10 +417,12 @@ void add_user(Req *req, Res *res)
         return;
     }
 
+    // SQL query to insert a new user into the database
     const char *sql = "INSERT INTO users (name, surname, username) VALUES (?, ?, ?);";
     sqlite3_stmt *stmt;
     int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
 
+    // If the SQL preparation fails, return a 500 Internal Server Error
     if (rc != SQLITE_OK)
     {
         cJSON_Delete(json);
@@ -401,20 +430,24 @@ void add_user(Req *req, Res *res)
         return;
     }
 
+    // Bind the values to the SQL query
     sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 2, surname, -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 3, username, -1, SQLITE_STATIC);
 
+    // Execute the SQL statement to insert the user
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
     cJSON_Delete(json);
 
+    // If the insert operation fails, return a 500 error
     if (rc != SQLITE_DONE)
     {
         reply(res, "500 Internal Server Error", "text/plain", "DB insert failed");
         return;
     }
 
+    // If everything is successful, return a 201 Created response
     reply(res, "201 Created", "text/plain", "User created!");
 }
 ```
@@ -464,7 +497,7 @@ We'll send a request, which has a body like:
 
 If everything is correct, the output will be `User created!`.
 
-Send one more request too for next example:
+Send one more request for the next example:
 
 ```sh
 {
@@ -599,7 +632,7 @@ Now send a requests to the `http://localhost:4000/users`, and you'll receive thi
 
 ### Request Params
 
-Let's take a specific user by params. We can access the params using the `get_params()` function and free the memory with `free_params()`. Let's write a handler that gives us the "Jane Doe" by username.
+Let's take a specific user by params. We can access the params using the `get_req(&req->params, "params")` function and free the memory with `free_req(&req->params)`. Let's write a handler that gives us the "Jane Doe" by username.
 But first, add `routes.h` the route:
 
 ```sh
@@ -617,7 +650,7 @@ Now we need to write the handler `get_user_by_params`:
 
 void get_user_by_params(Req *req, Res *res)
 {
-    const char *slug = params_get(&req->params, "slug"); // We got the params
+    const char *slug = get_req(&req->params, "slug"); // We got the params
 
     if (slug == NULL)
     {
@@ -632,6 +665,8 @@ void get_user_by_params(Req *req, Res *res)
 
     if (rc != SQLITE_OK)
     {
+	const char *errmsg = sqlite3_errmsg(db);
+        fprintf(stderr, "SQLite error: %s\n", errmsg); // Log
         reply(res, "500 Internal Server Error", "text/plain", "DB prepare failed");
         return;
     }
@@ -661,7 +696,7 @@ void get_user_by_params(Req *req, Res *res)
         reply(res, "404 Not Found", "text/plain", "User not found");
     }
 
-    free_params(&req->params);	// free params memory
+    free_req(&req->params);	// free params memory
     sqlite3_finalize(stmt);	// free sql memory
 }
 ```
@@ -672,7 +707,7 @@ void get_user_by_params(Req *req, Res *res)
 void get_user_by_params(Req *req, Res *res)
 ```
 
-Run the `make compile` command and send a request to `http://localhost:4000/users/janedoe`. We'll receive this:
+Run the `make build` command and send a request to `http://localhost:4000/users/janedoe`. We'll receive this:
 
 ```sh
 {
@@ -683,7 +718,7 @@ Run the `make compile` command and send a request to `http://localhost:4000/user
 
 ### Request Query
 
-Like the `get_params()` and `free_params()`, we also have `get_query()` function to get the query in the request and `free_query()` to free the memory. Let's rewrite the same handler using `get_query()` this time: 
+Like the `params`, we can use `get_req(&req->query, "query")` to get the query and `free_req(&req->query)` to free the memory. Let's rewrite the same handler via `query` this time: 
 
 ```sh
 // routes.h:
@@ -698,7 +733,7 @@ Router routes[] = {
 
 void get_user_by_query(Req *req, Res *res)
 {
-    const char *username = query_get(&req->query, "username");
+    const char *username = get_req(&req->query, "username"); // We got the query
 
     if (username == NULL)
     {
@@ -742,7 +777,7 @@ void get_user_by_query(Req *req, Res *res)
         reply(res, "404 Not Found", "text/plain", "User not found");
     }
 
-    free_query(&req->query);	// free query memory
+    free_req(&req->query);	// free query memory
     sqlite3_finalize(stmt);	// free sql memory
 }
 ```
@@ -759,5 +794,65 @@ Let's recompile the program by running `make compile` and send a request to `htt
 {
   "name": "John",
   "surname": "Doe"
+}
+```
+
+### Request Headers
+
+As like as the `params` and `query`, we can reach also the headers of the request via `get_req(&req->headers, "header")` function.
+We have some functions for authorization and authentication via sessions though, however, if you want to reach any item in the `request->headers`, you are able to do it.
+
+Normally, a standard `GET` request with POSTMAN have some headers like:
+
+```sh
+{
+    "User-Agent": "PostmanRuntime/7.43.3",
+    "Accept": "*/*",
+    "Postman-Token": "9b1c7dda-27f9-471a-9cdd-bfaf0d5b56a1",
+    "Host": "localhost:4000",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive"
+}
+```
+
+Let's say, we need the `User-Agent` header:
+
+```sh
+// handlers.c:
+
+void handler_get_user_agent_header(Req *req, Res *res)
+{
+    const char *header = get_req(&req->headers, "User-Agent");
+
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddStringToObject(json, "User Agent", header);
+
+    char *json_string = cJSON_PrintUnformatted(json);
+
+    reply(res, "200 OK", "application/json", json_string);
+
+    cJSON_Delete(json);
+    free(json_string);
+    free_req(&req->headers);
+}
+
+
+// handlers.h:
+
+void handler_get_user_agent_header(Req *req, Res *res);
+
+
+// routes.h:
+
+Router routes[] = {
+    {"GET", "/header", handler_get_user_agent_header},
+};
+```
+
+The output will be this:
+
+```sh
+{
+    "User Agent": "PostmanRuntime/7.43.3"
 }
 ```

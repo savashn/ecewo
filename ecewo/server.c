@@ -40,7 +40,7 @@ void ecewo()
     }
 
     listen(server_socket, 5);
-    printf("ecewo v0.9.0\n");
+    printf("ecewo v0.10.0\n");
     printf("Server is running at: http://localhost:%d\n", PORT);
 
     while (1)
