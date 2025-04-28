@@ -1,20 +1,17 @@
-# ecewo v0.10.0
-# 2025 © Savas <savashn> Sahin
+# ecewo v0.11.0
+# 2025 © Savas Sahin <savashn>
 
-CC = cc
-CFLAGS =  -I./ -I./ecewo -I./src
+CC = gcc
+CFLAGS =  -I./ -I./ecewo -I./ecewo/lib -I./src
 LDFLAGS = -lws2_32
 
 SRC = \
 	ecewo/server.c \
     ecewo/router.c \
+	ecewo/routes.c \
     ecewo/request.c \
     ecewo/lib/session.c \
-    ecewo/lib/sqlite3.c \
     ecewo/lib/cjson.c \
-	src/main.c \
-	src/handlers.c \
-	src/db.c \
 
 OUT = server.exe
 
@@ -29,11 +26,6 @@ run: all
 clean:
 	rm -f $(OUT)
 
-clean-db:
-	rm -f sql.db
-
 build: clean all run
 
-build-all: clean clean-db all run
-
-.PHONY: all run clean clean-db build build-all
+.PHONY: all run clean build

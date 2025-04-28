@@ -4,11 +4,9 @@
 #include <stdbool.h>
 #include "router.h"
 #include "request.h"
-#include "src/routes.h"
+#include "routes.h"
 
 #define MAX_DYNAMIC_PARAMS 20
-
-const int route_count = sizeof(routes) / sizeof(Router);
 
 bool matcher(const char *path, const char *route_path)
 {
@@ -75,8 +73,21 @@ bool matcher(const char *path, const char *route_path)
 void router(SOCKET client_socket, const char *request)
 {
     char method[8], full_path[256], path[256], query[256];
-    const char *body = strstr(request, "\r\n\r\n");
-    body = body ? body + 4 : "";
+    const char *body_start = strstr(request, "\r\n\r\n");
+    size_t body_length = 0;
+    char *body = NULL;
+
+    if (body_start)
+    {
+        body_start += 4; // Skip the "\r\n\r\n"
+        body_length = strlen(body_start);
+        body = malloc(body_length + 1);
+        if (body)
+        {
+            memcpy(body, body_start, body_length);
+            body[body_length] = '\0'; // null-terminate
+        }
+    }
 
     sscanf(request, "%s %s", method, full_path);
 
@@ -135,7 +146,6 @@ void router(SOCKET client_socket, const char *request)
         // Process dynamic parameters
         parse_params(path, route_path, &params);
 
-        printf("Route found, invoking handler\n");
         printf("Dynamic Params Found:\n");
         for (int j = 0; j < params.count; j++)
         {
@@ -160,6 +170,19 @@ void router(SOCKET client_socket, const char *request)
         };
 
         routes[i].handler(&req, &res);
+
+        if (body)
+            free(body);
+
+        if (parsed_query.items && parsed_query.count > 0)
+            free_req(&parsed_query);
+
+        if (headers.items && headers.count > 0)
+            free_req(&headers);
+
+        if (params.items && params.count > 0)
+            free_req(&params);
+
         return;
     }
 
@@ -168,12 +191,16 @@ void router(SOCKET client_socket, const char *request)
 
     Res res = {
         .client_socket = client_socket,
-        .status = "404 Not Found",
+        .status = "404",
         .content_type = "text/plain",
         .body = NULL,
     };
 
-    reply(&res, res.status, res.content_type, "There is no such route");
+    reply(&res, res.status, res.content_type, "404 Not Found");
+
+    free_req(&parsed_query);
+    free_req(&headers);
+    free(body);
 }
 
 void reply(Res *res, const char *status, const char *content_type, const char *body)

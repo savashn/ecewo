@@ -8,7 +8,7 @@ typedef struct
     SOCKET client_socket;
     const char *method;
     const char *path;
-    const char *body;
+    char *body;
     request_t headers;
     request_t query;
     request_t params;

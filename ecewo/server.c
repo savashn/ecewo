@@ -2,10 +2,9 @@
 #include <winsock2.h>
 #include "router.h"
 
-const int PORT = 4000;
 const int BUFFER_SIZE = 2048;
 
-void ecewo()
+void ecewo(const int port)
 {
     WSADATA wsa;
     SOCKET server_socket, client_socket;
@@ -29,7 +28,7 @@ void ecewo()
 
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = INADDR_ANY;
-    server.sin_port = htons(PORT);
+    server.sin_port = htons(port);
 
     if (bind(server_socket, (struct sockaddr *)&server, sizeof(server)) == SOCKET_ERROR)
     {
@@ -40,8 +39,8 @@ void ecewo()
     }
 
     listen(server_socket, 5);
-    printf("ecewo v0.10.0\n");
-    printf("Server is running at: http://localhost:%d\n", PORT);
+    printf("ecewo v0.11.0\n");
+    printf("Server is running at: http://localhost:%d\n", port);
 
     while (1)
     {

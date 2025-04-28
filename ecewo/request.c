@@ -165,11 +165,18 @@ const char *get_req(request_t *request, const char *key)
 
 void free_req(request_t *request)
 {
-    for (int i = 0; i < request->count; i++)
+    if (request && request->items)
     {
-        free(request->items[i].key);
-        free(request->items[i].value);
+        for (int i = 0; i < request->count; i++)
+        {
+            if (request->items[i].key)
+                free(request->items[i].key);
+            if (request->items[i].value)
+                free(request->items[i].value);
+        }
+        free(request->items);
+        request->items = NULL;
     }
-    free(request->items);
-    request->count = 0;
+    if (request)
+        request->count = 0;
 }
