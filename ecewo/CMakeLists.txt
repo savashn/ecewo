@@ -12,12 +12,12 @@ endif()
 
 # List of source files
 set(SRC_FILES
-    server.c
-    router.c
-    methods.c
-    request.c
-    lib/session.c
-    lib/cjson.c
+    server/start/server.c
+    server/router.c
+    server/methods.c
+    server/request.c
+    server/utils/session.c
+    server/lib/cjson.c
 )
 
 # Create library
@@ -27,14 +27,18 @@ add_library(ecewo STATIC ${SRC_FILES})
 target_include_directories(ecewo PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib
+    ${CMAKE_CURRENT_SOURCE_DIR}/config
+    ${CMAKE_CURRENT_SOURCE_DIR}/server
+    ${CMAKE_CURRENT_SOURCE_DIR}/server/start
+    ${CMAKE_CURRENT_SOURCE_DIR}/server/lib
+    ${CMAKE_CURRENT_SOURCE_DIR}/server/utils
     ${CMAKE_BINARY_DIR} # For the generated configuration file
 )
 
 # Create configuration file
 set(ECEWO_COPYRIGHT "2025 © Savas Sahin <savashn>")
 configure_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/config.h.in"
+    "${CMAKE_CURRENT_SOURCE_DIR}/config/config.h.in"
     "${CMAKE_BINARY_DIR}/ecewo_config.h"
 )
 

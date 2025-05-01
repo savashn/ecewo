@@ -1,7 +1,7 @@
 #ifndef ECEWO_H
 #define ECEWO_H
 
-#include "router.h"
+#include "server/router.h"
 
 #define MAX_ROUTES 100
 

@@ -2,12 +2,12 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
-#include "../compat.h"
 
+#include "compat.h"
 #include "session.h"
 #include "ecewo.h"
 #include "request.h"
-#include "lib/cjson.h"
+#include "cjson.h"
 
 #ifdef _WIN32
 #include <windows.h>
