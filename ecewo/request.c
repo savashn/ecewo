@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "request.h"
+#include "compat.h"
 
 #define MAX_HEADERS 50
 #define MAX_DYNAMIC_PARAMS 20
@@ -10,15 +11,23 @@
 void parse_query(const char *query_string, request_t *query)
 {
     query->count = 0;
+    query->items = NULL;
 
     if (!query_string || strlen(query_string) == 0)
         return;
 
-    query->items = malloc(sizeof(request_t) * MAX_QUERY_PARAMS);
+    query->items = malloc(sizeof(request_item_t) * MAX_QUERY_PARAMS);
     if (query->items == NULL)
     {
         printf("Memory allocation failed for query items\n");
         return;
+    }
+
+    // Initialize all items to NULL to prevent double-free issues
+    for (int i = 0; i < MAX_QUERY_PARAMS; i++)
+    {
+        query->items[i].key = NULL;
+        query->items[i].value = NULL;
     }
 
     char buffer[1024];
@@ -35,6 +44,19 @@ void parse_query(const char *query_string, request_t *query)
             *eq = '\0';
             query->items[query->count].key = strdup(pair);     // Copy the key
             query->items[query->count].value = strdup(eq + 1); // Copy the value
+
+            // Check if allocation succeeded
+            if (!query->items[query->count].key || !query->items[query->count].value)
+            {
+                printf("Memory allocation failed for query item\n");
+                // Cleanup allocated memory
+                if (query->items[query->count].key)
+                    free(query->items[query->count].key);
+                if (query->items[query->count].value)
+                    free(query->items[query->count].value);
+                continue;
+            }
+
             query->count++;
         }
         pair = strtok(NULL, "&");
@@ -45,6 +67,13 @@ void parse_params(const char *path, const char *route_path, request_t *params)
 {
     printf("Parsing dynamic params for path: %s, route: %s\n", path, route_path);
     params->count = 0;
+
+    // Initialize items to ensure we can safely free later
+    for (int i = 0; i < MAX_DYNAMIC_PARAMS; i++)
+    {
+        params->items[i].key = NULL;
+        params->items[i].value = NULL;
+    }
 
     char path_copy[256];
     char route_copy[256];
@@ -91,6 +120,16 @@ void parse_params(const char *path, const char *route_path, request_t *params)
             char *param_key = strdup(route_segments[i] + 1); // Remove the ":" from the key
             char *param_value = strdup(path_segments[i]);    // Get the corresponding value from path
 
+            if (!param_key || !param_value)
+            {
+                printf("Memory allocation failed for param key or value\n");
+                if (param_key)
+                    free(param_key);
+                if (param_value)
+                    free(param_value);
+                continue;
+            }
+
             if (params->count < MAX_DYNAMIC_PARAMS)
             {
                 params->items[params->count].key = param_key;
@@ -116,46 +155,99 @@ void parse_params(const char *path, const char *route_path, request_t *params)
 
 void parse_headers(const char *request, request_t *headers)
 {
-    headers->items = malloc(sizeof(request_t) * 20);
     headers->count = 0;
+    headers->items = malloc(sizeof(request_item_t) * MAX_HEADERS);
 
-    const char *header_start = request;
+    if (!headers->items)
+    {
+        printf("Memory allocation failed for header items\n");
+        return;
+    }
+
+    // Initialize all items to NULL to prevent double-free issues
+    for (int i = 0; i < MAX_HEADERS; i++)
+    {
+        headers->items[i].key = NULL;
+        headers->items[i].value = NULL;
+    }
+
+    // Skip the first line (HTTP request line)
+    const char *header_start = strstr(request, "\r\n");
+    if (!header_start)
+    {
+        printf("Invalid request format, no headers found\n");
+        return;
+    }
+
+    header_start += 2; // Skip the first \r\n
     const char *header_end;
     const char *colon_pos;
+    const char *headers_end = strstr(header_start, "\r\n\r\n");
 
-    while ((header_end = strstr(header_start, "\r\n")) != NULL)
+    if (!headers_end)
+    {
+        printf("Invalid request format, headers end not found\n");
+        return;
+    }
+
+    // Iterating through each header line until we reach the end of headers
+    while (header_start < headers_end && (header_end = strstr(header_start, "\r\n")) != NULL)
     {
         colon_pos = strchr(header_start, ':');
         if (colon_pos && colon_pos < header_end)
         {
-            int key_len = colon_pos - header_start;
-            int value_len = header_end - colon_pos - 2;
+            // Calculate lengths carefully to avoid buffer overflows
+            size_t key_len = colon_pos - header_start;
+            size_t value_len = header_end - (colon_pos + 2); // Skip ": "
 
             // Copy the header key and value
             headers->items[headers->count].key = malloc(key_len + 1);
+            if (!headers->items[headers->count].key)
+            {
+                printf("Memory allocation failed for header key\n");
+                header_start = header_end + 2;
+                continue;
+            }
+
             strncpy(headers->items[headers->count].key, header_start, key_len);
             headers->items[headers->count].key[key_len] = '\0';
 
             headers->items[headers->count].value = malloc(value_len + 1);
+            if (!headers->items[headers->count].value)
+            {
+                printf("Memory allocation failed for header value\n");
+                free(headers->items[headers->count].key);
+                headers->items[headers->count].key = NULL;
+                header_start = header_end + 2;
+                continue;
+            }
+
             strncpy(headers->items[headers->count].value, colon_pos + 2, value_len);
             headers->items[headers->count].value[value_len] = '\0';
 
             headers->count++;
+
+            if (headers->count >= MAX_HEADERS)
+            {
+                printf("Warning: Maximum header count reached, ignoring additional headers\n");
+                break;
+            }
         }
 
         header_start = header_end + 2; // Move to the next header
-        if (headers->count >= 20)      // Reallocate memory if the header count exceeds the limit
-        {
-            headers->items = realloc(headers->items, sizeof(request_t) * (headers->count + 20));
-        }
     }
 }
 
 const char *get_req(request_t *request, const char *key)
 {
+    if (!request || !request->items || !key)
+    {
+        return NULL;
+    }
+
     for (int i = 0; i < request->count; i++)
     {
-        if (strcmp(request->items[i].key, key) == 0)
+        if (request->items[i].key && strcmp(request->items[i].key, key) == 0)
         {
             return request->items[i].value;
         }
@@ -165,18 +257,27 @@ const char *get_req(request_t *request, const char *key)
 
 void free_req(request_t *request)
 {
-    if (request && request->items)
+    if (!request || !request->items)
     {
-        for (int i = 0; i < request->count; i++)
-        {
-            if (request->items[i].key)
-                free(request->items[i].key);
-            if (request->items[i].value)
-                free(request->items[i].value);
-        }
-        free(request->items);
-        request->items = NULL;
+        return;
     }
-    if (request)
-        request->count = 0;
+
+    for (int i = 0; i < request->count; i++)
+    {
+        if (request->items[i].key)
+        {
+            free(request->items[i].key);
+            request->items[i].key = NULL;
+        }
+
+        if (request->items[i].value)
+        {
+            free(request->items[i].value);
+            request->items[i].value = NULL;
+        }
+    }
+
+    free(request->items);
+    request->items = NULL;
+    request->count = 0;
 }

@@ -2,9 +2,10 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
+#include "../compat.h"
 
 #include "session.h"
-#include "router.h"
+#include "ecewo.h"
 #include "request.h"
 #include "lib/cjson.h"
 

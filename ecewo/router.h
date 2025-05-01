@@ -1,11 +1,17 @@
 #ifndef ROUTER_H
 #define ROUTER_H
-#include <winsock2.h>
 #include "request.h"
+
+#ifdef _WIN32
+#include <winsock2.h>
+typedef SOCKET socket_t;
+#else
+typedef int socket_t;
+#endif
 
 typedef struct
 {
-    SOCKET client_socket;
+    socket_t client_socket;
     const char *method;
     const char *path;
     char *body;
@@ -16,11 +22,12 @@ typedef struct
 
 typedef struct
 {
-    SOCKET client_socket;
+    socket_t client_socket;
     char *status;
     char *content_type;
     char *body;
     char set_cookie[256];
+    int keep_alive;
 } Res;
 
 typedef void (*RequestHandler)(Req *req, Res *res);
@@ -32,7 +39,9 @@ typedef struct
     RequestHandler handler;
 } Router;
 
-void router(SOCKET client_socket, const char *request);
+// Returns 1 if connection should be closed, 0 if it should stay open
+int router(socket_t client_socket, const char *request);
+
 void reply(Res *res, const char *status, const char *content_type, const char *body);
 void set_cookie(Res *res, const char *name, const char *value, int max_age);
 
