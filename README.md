@@ -73,7 +73,7 @@ Set up a `src` folder:
 ```
 mkdir src
 cd src
-touch main.c handlers.c handlers.h
+touch main.c handlers.c handlers.h CMakeLists.txt
 ```
 
 Or, if you use PowerShell:
@@ -84,6 +84,7 @@ cd src
 ni main.c
 ni handlers.c
 ni handlers.h
+ni CMakeLists.txt
 ```
 
 Write a handler:
@@ -91,7 +92,7 @@ Write a handler:
 ```sh
 // src/handlers.c
 
-#include "ecewo/router.h"
+#include "ecewo.h"
 
 void hello_world(Req *req, Res *res)
 {
@@ -108,7 +109,7 @@ Declare the handler in `handlers.h`:
 #ifndef HANDLERS_H
 #define HANDLERS_H
 
-#include "ecewo/router.h"
+#include "ecewo.h"
 
 void hello_world(Req *req, Res *res);
 
@@ -120,33 +121,32 @@ Set up the enrtry point:
 ```sh
 // src/main.c
 
-#include "ecewo/server.h"
-#include "ecewo/routes.h"
+#include "server.h"
+#include "ecewo.h"
 #include "handlers.h"
 
 int main()
 {
     get("/", hello_world);
-    ecewo(3000);
+    ecewo();
     return 0;
 }
 ```
 
-Update `makefile`:
+Set up the `CMakeLists.txt`:
 
 ```
-SRC = \
-        ecewo/server.c \
-        ecewo/router.c \
-        ecewo/routes.c \
-        ecewo/request.c \
-        ecewo/lib/session.c \
-        ecewo/lib/cjson.c \
-        src/main.c \        # Add entry point
-        src/handlers.c \    # Add handlers
+cmake_minimum_required(VERSION 3.10)
+project(my-project VERSION 0.1.0 LANGUAGES C)
+
+set(APP_SRC
+    ${CMAKE_CURRENT_SOURCE_DIR}/main.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/handlers.c
+    PARENT_SCOPE
+)
 ```
 
-Run `make build` command in your terminal and go to `http://localhost:3000/`.
+In your terminal, run `./build.sh` for Linux/macOS or `./build.bat` for Windows and go to `http://localhost:8080/`.
 
 ### Documentation
 
