@@ -24,7 +24,7 @@ typedef struct
     int count;                    // Number of handlers in the chain
     int current;                  // Current position in the middleware chain
     RequestHandler route_handler; // The final route handler
-} MiddlewareChain;
+} Chain;
 
 // Global middleware array
 extern MiddlewareHandler global_middleware[MAX_GLOBAL_MIDDLEWARE];
@@ -34,7 +34,7 @@ extern int global_middleware_count;
 void use(MiddlewareHandler middleware_handler);
 
 // Function to execute the next middleware or route handler in the chain
-int next(MiddlewareChain *chain, Req *req, Res *res);
+int next(Chain *chain, Req *req, Res *res);
 
 // Special value used to denote end of variadic arguments
 #define MIDDLEWARE_END NULL

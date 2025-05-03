@@ -33,7 +33,7 @@ void use(MiddlewareHandler middleware_handler)
 }
 
 // Helper function for middleware chain execution
-int next(MiddlewareChain *chain, Req *req, Res *res)
+int next(Chain *chain, Req *req, Res *res)
 {
     if (!chain)
     {
@@ -165,7 +165,7 @@ void route_handler_with_middleware(Req *req, Res *res)
     }
 
     // Create middleware chain context
-    MiddlewareChain chain = {
+    Chain chain = {
         .handlers = combined_handlers,
         .count = total_middleware_count,
         .current = 0,
