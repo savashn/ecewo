@@ -167,7 +167,7 @@ Refer to the [docs](https://ecewo.vercel.app) to start building a backend with e
     - 3.2 [Request Params](https://ecewo.vercel.app/docs/handling-requests#request-params)
     - 3.3 [Request Query](https://ecewo.vercel.app/docs/handling-requests#request-query)
     - 3.4 [Request Headers](https://ecewo.vercel.app/docs/handling-requests#request-headers)
-4. [Using cJSON](https://ecewo.vercel.app/docs/using-cjson)
+4. [Using JSON](https://ecewo.vercel.app/docs/using-json)
     - 4.1 [Creating JSON](https://ecewo.vercel.app/docs/using-json#creating-json)
     - 4.2 [Parsing JSON](https://ecewo.vercel.app/docs/using-json#parsing-json)
 5. [Using A Database](https://ecewo.vercel.app/docs/using-a-database)
@@ -184,6 +184,9 @@ Refer to the [docs](https://ecewo.vercel.app) to start building a backend with e
     - 6.3 [Getting Session Data](https://ecewo.vercel.app/docs/authentication#getting-session-data)
     - 6.4 [Protected Routes](https://ecewo.vercel.app/docs/authentication#protected-routes)
     - 6.5 [Notes](https://ecewo.vercel.app/docs/authentication#notes)
+7. [Middleware](https://ecewo.vercel.app/docs/middleware)
+    - 7.1 [Route Middleware](https://ecewo.vercel.app/docs/middleware#route-middleware)
+    - 7.2 [Global Middleware](https://ecewo.vercel.app/docs/middleware#global-middleware)
 
 ### License
 
