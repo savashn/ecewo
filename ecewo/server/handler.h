@@ -1,5 +1,5 @@
-#ifndef ROUTER_H
-#define ROUTER_H
+#ifndef HANDLER_H
+#define HANDLER_H
 #include "request.h"
 
 #ifdef _WIN32
@@ -37,6 +37,7 @@ typedef struct
     const char *method;
     const char *path;
     RequestHandler handler;
+    void *middleware_ctx; // for middleware support
 } Router;
 
 // Returns 1 if connection should be closed, 0 if it should stay open

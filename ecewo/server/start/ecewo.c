@@ -37,7 +37,7 @@ typedef int socket_t;
 #endif
 
 const int BUFFER_SIZE = 4096;
-#define PORT 8080
+// #define PORT 8080
 
 #ifdef _WIN32
 // Helper function to get Windows error message
@@ -137,7 +137,7 @@ void handle_client_connection(socket_t client_socket)
     printf("Connection closed successfully\n");
 }
 
-void ecewo()
+void ecewo(const unsigned short PORT)
 {
     socket_t server_socket;
     struct sockaddr_in server, client;
@@ -196,7 +196,7 @@ void ecewo()
         return;
     }
 
-    printf("ecewo v0.12.0\n");
+    printf("ecewo v0.13.0\n");
     printf("Server is running at: http://localhost:%d\n", PORT);
 
     // Main server loop

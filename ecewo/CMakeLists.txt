@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(ecewo VERSION 0.12.0 LANGUAGES C)
+project(ecewo VERSION 0.13.0 LANGUAGES C)
 
 # Platform definitions
 if(WIN32)
@@ -12,12 +12,13 @@ endif()
 
 # List of source files
 set(SRC_FILES
-    server/start/server.c
-    server/router.c
-    server/methods.c
+    router.c
+    server/handler.c
     server/request.c
-    server/utils/session.c
+    server/start/ecewo.c
     server/lib/cjson.c
+    server/utils/session.c
+    server/utils/middleware.c
 )
 
 # Create library

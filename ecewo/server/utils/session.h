@@ -2,7 +2,7 @@
 #define SESSION_H
 
 #include <time.h>
-#include "ecewo.h"
+#include "router.h"
 
 #define SESSION_ID_LEN 32 // Length of the session ID (32 characters)
 #define MAX_SESSIONS 100  // Maximum number of active sessions

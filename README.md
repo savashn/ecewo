@@ -21,6 +21,95 @@ ecewo is a minimal HTTP framework for C that handles the complexities of C progr
 - A C compiler (GCC, Clang, or MSVC)
 - MINGW64 if you are using Windows
 
+### Quick Start
+
+Clone this repo:
+
+```
+git clone https://github.com/savashn/ecewo.git
+cd ecewo
+```
+
+Set up a `src` folder:
+
+```
+mkdir src
+cd src
+touch main.c handlers.c handlers.h CMakeLists.txt
+```
+
+Or, if you use PowerShell:
+
+```
+mkdir src
+cd src
+ni main.c
+ni handlers.c
+ni handlers.h
+ni CMakeLists.txt
+```
+
+Write a handler:
+
+```sh
+// src/handlers.c
+
+#include "router.h"
+
+void hello_world(Req *req, Res *res)
+{
+    reply(res, "200 OK", "text/plain", "hello world!");
+}
+
+```
+
+Declare the handler in `handlers.h`:
+
+```sh
+// src/handlers.h
+
+#ifndef HANDLERS_H
+#define HANDLERS_H
+
+#include "router.h"
+
+void hello_world(Req *req, Res *res);
+
+#endif
+```
+
+Set up the enrtry point:
+
+```sh
+// src/main.c
+
+#include "server.h"
+#include "router.h"
+#include "handlers.h"
+
+int main()
+{
+    get("/", hello_world);
+    ecewo();
+    return 0;
+}
+```
+
+Set up the `CMakeLists.txt`:
+
+```
+cmake_minimum_required(VERSION 3.10)
+project(my-project VERSION 0.1.0 LANGUAGES C)
+
+set(APP_SRC
+    ${CMAKE_CURRENT_SOURCE_DIR}/main.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/handlers.c
+    PARENT_SCOPE
+)
+```
+
+In your terminal, run `./build.sh` for Linux/macOS or `./build.bat` for Windows and go to `http://localhost:8080/`.
+
 ### Compile
 
 For Linux/macOS:
@@ -58,95 +147,6 @@ cmake ..
 cmake --build . --config Release
 Release\server.exe
 ```
-
-### Quick Start
-
-Clone this repo:
-
-```
-git clone https://github.com/savashn/ecewo.git
-cd ecewo
-```
-
-Set up a `src` folder:
-
-```
-mkdir src
-cd src
-touch main.c handlers.c handlers.h CMakeLists.txt
-```
-
-Or, if you use PowerShell:
-
-```
-mkdir src
-cd src
-ni main.c
-ni handlers.c
-ni handlers.h
-ni CMakeLists.txt
-```
-
-Write a handler:
-
-```sh
-// src/handlers.c
-
-#include "ecewo.h"
-
-void hello_world(Req *req, Res *res)
-{
-    reply(res, "200 OK", "text/plain", "hello world!");
-}
-
-```
-
-Declare the handler in `handlers.h`:
-
-```sh
-// src/handlers.h
-
-#ifndef HANDLERS_H
-#define HANDLERS_H
-
-#include "ecewo.h"
-
-void hello_world(Req *req, Res *res);
-
-#endif
-```
-
-Set up the enrtry point:
-
-```sh
-// src/main.c
-
-#include "server.h"
-#include "ecewo.h"
-#include "handlers.h"
-
-int main()
-{
-    get("/", hello_world);
-    ecewo();
-    return 0;
-}
-```
-
-Set up the `CMakeLists.txt`:
-
-```
-cmake_minimum_required(VERSION 3.10)
-project(my-project VERSION 0.1.0 LANGUAGES C)
-
-set(APP_SRC
-    ${CMAKE_CURRENT_SOURCE_DIR}/main.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/handlers.c
-    PARENT_SCOPE
-)
-```
-
-In your terminal, run `./build.sh` for Linux/macOS or `./build.bat` for Windows and go to `http://localhost:8080/`.
 
 ### Documentation
 

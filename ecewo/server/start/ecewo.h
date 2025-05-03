@@ -1,6 +1,6 @@
 #ifndef SERVER_H
 #define SERVER_H
 
-void ecewo();
+void ecewo(const unsigned short PORT);
 
 #endif

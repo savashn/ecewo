@@ -7,9 +7,14 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 # System modules
 add_subdirectory(ecewo)
 
-# Dev modules
+# Programmer modules
 if(EXISTS "${CMAKE_SOURCE_DIR}/src/CMakeLists.txt")
     add_subdirectory(src)
+endif()
+
+# Dev modules
+if(EXISTS "${CMAKE_SOURCE_DIR}/dev/CMakeLists.txt")
+    add_subdirectory(dev)
 endif()
 
 add_executable(server ${APP_SRC})
@@ -19,7 +24,6 @@ target_link_libraries(server PRIVATE ecewo)
 target_include_directories(server PRIVATE
     ${CMAKE_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/ecewo
-    ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_BINARY_DIR}
 )
 

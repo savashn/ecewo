@@ -1,5 +1,5 @@
 #!/bin/bash
-# ecewo v0.12.0 build script for Unix systems
+# ecewo build script for Unix systems
 
 # For colored output
 GREEN='\033[0;32m'
@@ -7,7 +7,7 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}ecewo v0.12.0 - Build Script${NC}"
+echo -e "${BLUE}ecewo - Build Script${NC}"
 echo -e "${BLUE}2025 © Savas Sahin <savashn>${NC}"
 echo ""
 

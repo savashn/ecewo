@@ -1,11 +1,17 @@
 @echo off
-echo ecewo v0.12.0 - Build Script  
+echo ecewo - Build Script  
 echo 2025 (c) Savas Sahin ^<savashn^>
 echo.
 
-REM Create build directory if it doesn't exist
-if not exist build mkdir build
+REM If the build directory exists, delete it
+if exist build (
+    echo Cleaning build directory...
+    rmdir /s /q build
+)
+
+REM Create build directory
 echo Creating build directory...
+mkdir build
 
 REM Run CMake configuration
 cd build
