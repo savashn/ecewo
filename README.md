@@ -187,6 +187,7 @@ Refer to the [docs](https://ecewo.vercel.app) to start building a backend with e
 7. [Middleware](https://ecewo.vercel.app/docs/middleware)
     - 7.1 [Route Middleware](https://ecewo.vercel.app/docs/middleware#route-middleware)
     - 7.2 [Global Middleware](https://ecewo.vercel.app/docs/middleware#global-middleware)
+8. [Environment Variables](https://ecewo.vercel.app/docs/environment-variables)
 
 ### License
 

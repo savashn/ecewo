@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(ecewo VERSION 0.13.0 LANGUAGES C)
+project(ecewo VERSION 0.14.0 LANGUAGES C)
 
 # Platform definitions
 if(WIN32)
@@ -17,6 +17,7 @@ set(SRC_FILES
     server/request.c
     server/start/ecewo.c
     server/lib/cjson.c
+    server/lib/dotenv.c
     server/utils/session.c
     server/utils/middleware.c
 )
@@ -38,6 +39,7 @@ target_include_directories(ecewo PUBLIC
 
 # Create configuration file
 set(ECEWO_COPYRIGHT "2025 © Savas Sahin <savashn>")
+
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/config/config.h.in"
     "${CMAKE_BINARY_DIR}/ecewo_config.h"
