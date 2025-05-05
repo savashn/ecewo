@@ -11,13 +11,18 @@ echo -e "${BLUE}ecewo - Build Script${NC}"
 echo -e "${BLUE}2025 © Savas Sahin <savashn>${NC}"
 echo ""
 
-# Create or clean the build directory
-if [ ! -d "build" ]; then
-    echo -e "${GREEN}Creating build directory...${NC}"
+# Check if --rebuild parameter is provided
+if [ "$1" == "--rebuild" ]; then
+    echo -e "${YELLOW}Full rebuild requested. Removing build directory...${NC}"
+    rm -rf build
+    echo -e "${GREEN}Creating fresh build directory...${NC}"
     mkdir build
 else
-    echo -e "${YELLOW}Cleaning build directory...${NC}"
-    rm -rf build/*
+    # Create build directory if it doesn't exist
+    if [ ! -d "build" ]; then
+        echo -e "${GREEN}Creating build directory...${NC}"
+        mkdir build
+    fi
 fi
 
 # Configure and build with cmake

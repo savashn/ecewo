@@ -4,11 +4,7 @@
 #include <stdbool.h>
 
 #ifndef ENV
-#define ENV "../../src/.env"
-#endif
-
-#ifndef DEV_ENV
-#define DEV_ENV "../../dev/.env"
+#define ENV "../../.env"
 #endif
 
 #ifdef __cplusplus

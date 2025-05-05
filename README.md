@@ -6,7 +6,8 @@
 
 <br /><br />
 
-ecewo is a minimal HTTP framework for C that handles the complexities of C programming and helps you build your backend with ease.
+ecewo is a modern, lightweight and DX-first web framework for C — built for effortless backend development with the power of C, inspired by the simplicity of Express.js.
+---
 
 ### Table of Contents
 
@@ -78,7 +79,7 @@ void hello_world(Req *req, Res *res);
 #endif
 ```
 
-Set up the enrtry point:
+Set up the entry point:
 
 ```sh
 // src/main.c
@@ -90,7 +91,7 @@ Set up the enrtry point:
 int main()
 {
     get("/", hello_world);
-    ecewo();
+    ecewo(4000);
     return 0;
 }
 ```
@@ -108,7 +109,7 @@ set(APP_SRC
 )
 ```
 
-In your terminal, run `./build.sh` for Linux/macOS or `./build.bat` for Windows and go to `http://localhost:8080/`.
+In your terminal, run `./build.sh` for Linux/macOS or `./build.bat` for Windows and go to `http://localhost:4000/`.
 
 ### Compile
 
@@ -146,6 +147,19 @@ cd build
 cmake ..
 cmake --build . --config Release
 Release\server.exe
+```
+
+To rebuild from scratch:
+```
+// For Linux/macOS:
+
+./build.sh --rebuild
+```
+
+```
+// For Windows:
+
+./build.bat /rebuild
 ```
 
 ### Documentation

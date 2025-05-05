@@ -37,7 +37,6 @@ typedef int socket_t;
 #endif
 
 const int BUFFER_SIZE = 4096;
-// #define PORT 8080
 
 #ifdef _WIN32
 // Helper function to get Windows error message

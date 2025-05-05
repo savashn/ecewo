@@ -1,17 +1,18 @@
 @echo off
-echo ecewo - Build Script  
+echo ecewo - Build Script for Windows
 echo 2025 (c) Savas Sahin ^<savashn^>
 echo.
 
-REM If the build directory exists, delete it
-if exist build (
+REM Check if /rebuild parameter is provided to clean the build directory
+if /i "%1"=="/rebuild" (
     echo Cleaning build directory...
-    rmdir /s /q build
+    if exist build rmdir /s /q build
+    echo Build directory cleaned.
+    echo.
 )
 
-REM Create build directory
-echo Creating build directory...
-mkdir build
+REM Create build directory if it doesn't exist
+if not exist build mkdir build
 
 REM Run CMake configuration
 cd build
