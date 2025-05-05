@@ -6,7 +6,7 @@
 
 <br /><br />
 
-ecewo is a modern, lightweight and DX-first web framework for C — built for effortless backend development with the power of C, inspired by the simplicity of Express.js.
+Built for modern backend development in C — inspired by the simplicity of Express.js.
 ---
 
 ### Table of Contents
