@@ -1,9 +1,7 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 // #include <stdbool.h>
 #include "router.h"
-#include "compat.h"
 #include "uv.h"
 
 #define MAX_DYNAMIC_PARAMS 20

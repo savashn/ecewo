@@ -1,13 +1,9 @@
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <time.h>
 
-#include "compat.h"
 #include "session.h"
-#include "router.h"
 #include "request.h"
-#include "cjson.h"
+#include "jansson.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -89,7 +85,7 @@ void generate_session_id(char *buffer)
 
         // Use memory addresses (stack variable) to add additional entropy
         void *stack_var;
-        seed ^= ((size_t)&stack_var >> 3); // Lower bits may not be highly variable
+        seed ^= ((size_t)&stack_var >> 3);
 
         srand(seed);
         for (size_t i = 0; i < SESSION_ID_LEN; i++)
@@ -98,19 +94,14 @@ void generate_session_id(char *buffer)
         }
     }
 
-    // URL-safe Base64 character set for encoding the session ID
     const char charset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
-    // Map each byte to a character in the charset
     for (size_t i = 0; i < SESSION_ID_LEN; i++)
     {
         buffer[i] = charset[entropy[i] % (sizeof(charset) - 1)];
     }
 
-    // Clear memory of entropy to avoid leaking information about the algorithm
     memset(entropy, 0, SESSION_ID_LEN);
-
-    // Null-terminate the string
     buffer[SESSION_ID_LEN] = '\0';
 }
 
@@ -128,35 +119,32 @@ void cleanup_expired_sessions()
 
 char *create_session()
 {
-    // Clean up the expired sessions
     cleanup_expired_sessions();
 
-    // Look for an empty slot in the sessions array
     for (int i = 0; i < MAX_SESSIONS; i++)
     {
         if (sessions[i].id[0] == '\0')
         {
-            generate_session_id(sessions[i].id);     // Generate a new session ID
-            sessions[i].expires = time(NULL) + 3600; // Set session expiration time (1 hour)
+            generate_session_id(sessions[i].id);
+            sessions[i].expires = time(NULL) + 3600;
 
-            // Create an empty JSON object for session data
-            cJSON *empty = cJSON_CreateObject();
-            char *empty_str = cJSON_PrintUnformatted(empty);
+            // Create empty JSON object using Jansson
+            json_t *empty = json_object();
+            char *empty_str = json_dumps(empty, JSON_COMPACT);
 
-            // Dynamically allocate memory for session data
-            sessions[i].data = malloc(strlen(empty_str) + 1); // Allocate memory for the string
+            sessions[i].data = malloc(strlen(empty_str) + 1);
             if (sessions[i].data)
             {
-                strcpy(sessions[i].data, empty_str); // Copy the empty JSON string to session data
+                strcpy(sessions[i].data, empty_str);
             }
 
-            cJSON_Delete(empty);
             free(empty_str);
+            json_decref(empty);
 
-            return sessions[i].id; // Return the new session ID
+            return sessions[i].id;
         }
     }
-    return NULL; // Return NULL if no empty session slot is found
+    return NULL;
 }
 
 Session *find_session(const char *id)
@@ -171,87 +159,80 @@ Session *find_session(const char *id)
     return NULL;
 }
 
-// Function to set a key-value pair in the session's data (stored as JSON)
 void set_session(Session *sess, const char *key, const char *value)
 {
     if (!sess || !key || !value)
-        return; // Validate inputs
+        return;
 
-    // Parse existing session data as JSON
-    cJSON *json = cJSON_Parse(sess->data);
+    // Parse existing session data
+    json_error_t error;
+    json_t *json = json_loads(sess->data, 0, &error);
     if (!json)
     {
-        json = cJSON_CreateObject(); // Create a new JSON object if parsing fails
+        json = json_object();
     }
 
-    // Add the key-value pair to the JSON object
-    cJSON_AddStringToObject(json, key, value);
+    // Set key-value
+    json_object_set_new(json, key, json_string(value));
 
-    // Convert the JSON object back to a string
-    char *updated = cJSON_PrintUnformatted(json);
-
-    // Free old session data and update with the new string
+    // Serialize back to string
+    char *updated = json_dumps(json, JSON_COMPACT);
     if (updated)
     {
-        free(sess->data);             // Free old session data
-        sess->data = strdup(updated); // Allocate memory and copy the updated string
-        free(updated);                // Free the temporary string
+        free(sess->data);
+        sess->data = strdup(updated);
+        free(updated);
     }
 
-    cJSON_Delete(json); // Free the JSON object
+    json_decref(json);
 }
 
-// Function to free a session and clear its data
 void free_session(Session *sess)
 {
-    memset(sess->id, 0, sizeof(sess->id)); // Clear the session ID
-    sess->expires = 0;                     // Reset the expiration time
+    memset(sess->id, 0, sizeof(sess->id));
+    sess->expires = 0;
     if (sess->data)
     {
-        free(sess->data);  // Free session data
-        sess->data = NULL; // Nullify the data pointer
+        free(sess->data);
+        sess->data = NULL;
     }
 }
 
-// Function to retrieve a cookie's value by name from the request headers
 const char *get_cookie(request_t *headers, const char *name)
 {
     const char *cookie_header = get_req(headers, "Cookie");
     if (!cookie_header)
-        return NULL; // Return NULL if no cookie header is found
+        return NULL;
 
-    static char value[256]; // Buffer to hold the cookie value
-
-    // Example: Cookie: session_id=xyz123; other=abc
+    static char value[256];
     const char *start = strstr(cookie_header, name);
     if (!start)
-        return NULL; // Return NULL if cookie name is not found
+        return NULL;
 
     start += strlen(name);
     if (*start != '=')
-        return NULL; // Return NULL if '=' is not found after the cookie name
+        return NULL;
 
-    start++; // Skip '=' character
+    start++;
     const char *end = strchr(start, ';');
     if (!end)
-        end = start + strlen(start); // If no ';' found, go to the end of the string
+        end = start + strlen(start);
 
     size_t len = end - start;
     if (len >= sizeof(value))
         len = sizeof(value) - 1;
 
-    strncpy(value, start, len); // Copy the cookie value into the buffer
-    value[len] = '\0';          // Null-terminate the string
+    strncpy(value, start, len);
+    value[len] = '\0';
 
-    return value; // Return the cookie value
+    return value;
 }
 
-// Function to get the authenticated session by reading the session ID from cookies
 Session *get_session(request_t *headers)
 {
     const char *sid = get_cookie(headers, "session_id");
     if (!sid)
-        return NULL; // Return NULL if no session ID cookie is found
+        return NULL;
 
-    return find_session(sid); // Look up and return the session if found
+    return find_session(sid);
 }

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(ecewo VERSION 0.15.0 LANGUAGES C)
+project(ecewo VERSION 0.16.0 LANGUAGES C)
 
 # Platform definitions
 if(WIN32)
@@ -28,6 +28,20 @@ if(NOT TARGET uv)
     endif()
 endif()
 
+# jansson path setup
+set(JANSSON_PATH ${CMAKE_SOURCE_DIR}/ecewo/server/lib/jansson)
+set(JANSSON_BUILD_DOCS OFF CACHE BOOL "Disable Jansson documentation" FORCE)
+set(JANSSON_WITHOUT_TESTS ON CACHE BOOL "Disable Jansson tests" FORCE)
+
+if(EXISTS "${JANSSON_PATH}/CMakeLists.txt")
+    add_subdirectory(${JANSSON_PATH} ${CMAKE_BINARY_DIR}/jansson)
+else()
+    find_package(jansson REQUIRED)
+    if(NOT jansson_FOUND)
+        message(FATAL_ERROR "jansson not found. Please install jansson or make sure the path is correct.")
+    endif()
+endif()
+
 # List of source files
 set(SRC_FILES
     router.c
@@ -37,7 +51,6 @@ set(SRC_FILES
     server/utils/session.c
     server/utils/middleware.c
     server/utils/async.c
-    server/lib/cjson.c
     server/lib/dotenv.c
 )
 
@@ -54,6 +67,8 @@ target_include_directories(ecewo PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/server/utils
     ${CMAKE_CURRENT_SOURCE_DIR}/server/lib
     ${LIBUV_PATH}/include  # Add direct include path to libuv headers
+    ${JANSSON_PATH}/src
+    ${CMAKE_BINARY_DIR}/jansson/include # Add for jansson_config.h
     ${CMAKE_BINARY_DIR} # For the generated configuration file
 )
 
@@ -66,7 +81,7 @@ configure_file(
 )
 
 # Link libraries
-target_link_libraries(ecewo uv)  # Link with libuv
+target_link_libraries(ecewo uv jansson)  # Link with libuv and jansson
 
 # Link additional libraries for Windows
 if(WIN32)
@@ -84,5 +99,5 @@ else()
 endif()
 
 # Debug information
-message(STATUS "Configuring ecewo library version ${ecewo_VERSION}")
+message(STATUS "Configuring ecewo version ${ecewo_VERSION}")
 message(STATUS "Target platform: ${CMAKE_SYSTEM_NAME}")

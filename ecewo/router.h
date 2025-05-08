@@ -1,7 +1,7 @@
 #ifndef ROUTER_H
 #define ROUTER_H
 
-// #include <stdio.h>
+#include <stdio.h>
 #include "handler.h"
 #include "middleware.h"
 #include "compat.h"
