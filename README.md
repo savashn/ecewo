@@ -93,7 +93,7 @@ Set up the entry point:
 ```sh
 // src/main.c
 
-#include "server.h"
+#include "ecewo.h"
 #include "router.h"
 #include "handlers.h"
 
@@ -117,8 +117,6 @@ set(APP_SRC
     PARENT_SCOPE
 )
 ```
-
-In your terminal, run `./build.sh` for Linux/macOS or `./build.bat` for Windows and go to `http://localhost:4000/`.
 
 ### Compile
 
