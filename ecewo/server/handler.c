@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
+// #include <stdbool.h>
 #include "router.h"
-#include "request.h"
 #include "compat.h"
+#include "uv.h"
 
 #define MAX_DYNAMIC_PARAMS 20
 #define MAX_PATH_SEGMENTS 30
@@ -76,7 +76,7 @@ bool matcher(const char *path, const char *route_path)
 }
 
 // Check if the request has "Connection: keep-alive" header
-int has_keepalive_header(const request_t *headers)
+static int has_keepalive_header(const request_t *headers)
 {
     for (int i = 0; i < headers->count; i++)
     {
@@ -96,7 +96,7 @@ int has_keepalive_header(const request_t *headers)
 }
 
 // Determine if the connection should be kept alive based on HTTP version and headers
-int should_keep_alive(const char *request, const request_t *headers)
+static int should_keep_alive(const char *request, const request_t *headers)
 {
     // Check HTTP version
     if (strstr(request, "HTTP/1.1"))
@@ -125,7 +125,7 @@ int should_keep_alive(const char *request, const request_t *headers)
     }
 }
 
-int router(socket_t client_socket, const char *request)
+int router(uv_tcp_t *client_socket, const char *request)
 {
     if (!request || !*request)
     {
@@ -142,9 +142,16 @@ int router(socket_t client_socket, const char *request)
     if (sscanf(request, "%15s %511s", method, full_path) != 2)
     {
         printf("Invalid request format\n");
-        // Send 400 Bad Request
-        char *bad_request = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: 11\r\nConnection: close\r\n\r\nBad Request";
-        send(client_socket, bad_request, (int)strlen(bad_request), 0);
+
+        // 400 Bad Request message
+        const char *bad_request = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: 11\r\nConnection: close\r\n\r\nBad Request";
+
+        uv_write_t req; // Write request
+        uv_buf_t buf = uv_buf_init((char *)bad_request, (unsigned int)strlen(bad_request));
+
+        // Send the response asynchronously using uv_write
+        uv_write(&req, (uv_stream_t *)&client_socket, &buf, 1, NULL);
+
         return 1; // Close connection for invalid requests
     }
 
@@ -337,31 +344,139 @@ int router(socket_t client_socket, const char *request)
     return 1;
 }
 
+void write_completion_cb(uv_write_t *req, int status)
+{
+    if (status < 0)
+    {
+        fprintf(stderr, "Write error: %s\n", uv_strerror(status));
+    }
+
+    // Get our write_req_t structure from the uv_write_t pointer
+    write_req_t *write_req = (write_req_t *)req;
+
+    // Free the allocated response buffer
+    free(write_req->data);
+
+    // Free the write request structure itself
+    free(write_req);
+}
+
+// Fix for reply function
 void reply(Res *res, const char *status, const char *content_type, const char *body)
 {
-    char response[8192];
+    // Calculate the total size needed for the response
+    size_t body_len = strlen(body);
+    size_t cookie_len = strlen(res->set_cookie);
+    size_t header_len = 128 + cookie_len;          // Base headers + cookie
+    size_t total_len = header_len + body_len + 64; // Extra padding for safety
+
+    // Allocate memory for the full response
+    char *response = malloc(total_len);
+    if (!response)
+    {
+        fprintf(stderr, "Failed to allocate memory for response\n");
+        return;
+    }
 
     // Determine Connection header value based on keep_alive flag
     const char *connection_value = res->keep_alive ? "keep-alive" : "close";
 
-    snprintf(response, sizeof(response),
-             "HTTP/1.1 %s\r\n"         // Status code and status text
-             "%s"                      // Set-Cookie header, if any (if set_cookie is not empty, it is included)
-             "Content-Type: %s\r\n"    // Content-Type header
-             "Content-Length: %zu\r\n" // Content-Length header (length of the body)
-             "Connection: %s\r\n"      // Connection header, explicitly set based on keep_alive
-             "\r\n"                    // Blank line separating headers and body
-             "%s",                     // The response body
-             status,
-             res->set_cookie[0] ? res->set_cookie : "", // Include the Set-Cookie header if not empty
-             content_type,
-             strlen(body),     // Content-Length is the length of the body
-             connection_value, // "keep-alive" or "close"
-             body);
+    // Format the response
+    int written = snprintf(response, total_len,
+                           "HTTP/1.1 %s\r\n"         // Status code and status text
+                           "%s"                      // Set-Cookie header, if any
+                           "Content-Type: %s\r\n"    // Content-Type header
+                           "Content-Length: %zu\r\n" // Content-Length header
+                           "Connection: %s\r\n"      // Connection header
+                           "\r\n"                    // Blank line separating headers and body
+                           "%s",                     // The response body
+                           status,
+                           res->set_cookie[0] ? res->set_cookie : "", // Include Set-Cookie if not empty
+                           content_type,
+                           body_len,         // Content-Length is the exact length of the body
+                           connection_value, // "keep-alive" or "close"
+                           body);
 
-    send(res->client_socket, response, (int)strlen(response), 0);
+    if (written < 0 || (size_t)written >= total_len)
+    {
+        fprintf(stderr, "Response buffer overflow or formatting error\n");
+        free(response);
+        return;
+    }
 
-    res->set_cookie[0] = '\0'; // Reset the cookie header for the next request
+    // Debug info
+    printf("Sending response: %d bytes, status: %s\n", written, status);
+
+    // Create a write request structure
+    write_req_t *write_req = (write_req_t *)malloc(sizeof(write_req_t));
+    if (!write_req)
+    {
+        fprintf(stderr, "Failed to allocate memory for write request\n");
+        free(response);
+        return;
+    }
+
+    // Store the allocated buffer in the write request so we can free it later
+    write_req->data = response;
+
+    // Set up the buffer for libuv
+    write_req->buf = uv_buf_init(response, written);
+
+    // Important: Point req field to the actual uv_write_t structure
+    uv_write_t *write_handle = &write_req->req;
+
+    // Send the response asynchronously
+    int result = uv_write(write_handle, (uv_stream_t *)res->client_socket, &write_req->buf, 1, write_completion_cb);
+    if (result < 0)
+    {
+        fprintf(stderr, "Write error: %s\n", uv_strerror(result));
+        free(response);
+        free(write_req);
+    }
+
+    // Reset the cookie header for the next request
+    res->set_cookie[0] = '\0';
+}
+
+// Fix for 400 Bad Request handling in router function
+// Replace the relevant section in router() with this code:
+void send_400_response(uv_tcp_t *client_socket)
+{
+    const char *bad_request = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: 11\r\nConnection: close\r\n\r\nBad Request";
+
+    // Create a write request structure
+    write_req_t *write_req = (write_req_t *)malloc(sizeof(write_req_t));
+    if (!write_req)
+    {
+        fprintf(stderr, "Failed to allocate memory for write request\n");
+        return;
+    }
+
+    // Allocate memory for the response and copy the bad request message
+    char *response = malloc(strlen(bad_request) + 1);
+    if (!response)
+    {
+        fprintf(stderr, "Failed to allocate memory for response\n");
+        free(write_req);
+        return;
+    }
+
+    strcpy(response, bad_request);
+
+    // Store the allocated buffer in the write request
+    write_req->data = response;
+
+    // Set up the buffer for libuv
+    write_req->buf = uv_buf_init(response, (unsigned int)strlen(response));
+
+    // Send the response asynchronously
+    int result = uv_write(&write_req->req, (uv_stream_t *)client_socket, &write_req->buf, 1, write_completion_cb);
+    if (result < 0)
+    {
+        fprintf(stderr, "Write error: %s\n", uv_strerror(result));
+        free(response);
+        free(write_req);
+    }
 }
 
 void set_cookie(Res *res, const char *name, const char *value, int max_age)

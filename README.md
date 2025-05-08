@@ -4,17 +4,26 @@
     </a>
 </div>
 
-<br /><br />
+### Built for Modern Web Development in C
 
-Built for modern backend development in C — inspired by the simplicity of Express.js.
----
+A modern and developer-friendly backend framework for C that handles the complexities of C programming and lets you build backends with ease — inspired by the simplicity of Express.js.
 
 ### Table of Contents
 
+- [Out of The Box Features](#out-of-the-box-features)
 - [Requirements](#requirements)
 - [Quick Start](#quick-start)
 - [Documentation](#documentation)
 - [License](#license)
+
+### Out of The Box Features
+
+- Full asynchronous operations support
+- Built-in JSON parsing and generation
+- Session-based authentication mechanism
+- Easy management of environment variables
+- Flexible middleware support (route-specific and global)
+- Express.js-like routing mechanism
 
 ### Requirements
 
@@ -165,43 +174,6 @@ To rebuild from scratch:
 ### Documentation
 
 Refer to the [docs](https://ecewo.vercel.app) to start building a backend with ecewo.
-
-1. [Getting Started](https://ecewo.vercel.app/docs/getting-started)
-    - 1.1 [Requirements](https://ecewo.vercel.app/docs/getting-started#requirements)
-    - 1.2 [Installation](https://ecewo.vercel.app/docs/getting-started#installation)
-    - 1.3 [Start Server](https://ecewo.vercel.app/docs/getting-started#start-server)
-        - 1.4.1 [Write The Entry Point](https://ecewo.vercel.app/docs/getting-started#write-the-entry-point)
-        - 1.4.2 [Build And Run The Server](https://ecewo.vercel.app/docs/getting-started#build-and-run-the-server)
-2. [Route Handling](https://ecewo.vercel.app/docs/route-handling)
-    - 2.1 [Handlers](https://ecewo.vercel.app/docs/route-handling#handlers)
-    - 2.2 [Declaring Routes](https://ecewo.vercel.app/docs/route-handling#declaring-routes)
-    - 2.3 [Notes](https://ecewo.vercel.app/docs/route-handling#notes)
-3. [Handling Requests](https://ecewo.vercel.app/docs/handling-requests)
-    - 3.1 [Request Body](https://ecewo.vercel.app/docs/handling-requests#request-body)
-    - 3.2 [Request Params](https://ecewo.vercel.app/docs/handling-requests#request-params)
-    - 3.3 [Request Query](https://ecewo.vercel.app/docs/handling-requests#request-query)
-    - 3.4 [Request Headers](https://ecewo.vercel.app/docs/handling-requests#request-headers)
-4. [Using JSON](https://ecewo.vercel.app/docs/using-json)
-    - 4.1 [Creating JSON](https://ecewo.vercel.app/docs/using-json#creating-json)
-    - 4.2 [Parsing JSON](https://ecewo.vercel.app/docs/using-json#parsing-json)
-5. [Using A Database](https://ecewo.vercel.app/docs/using-a-database)
-    - 5.1 [Install SQLite](https://ecewo.vercel.app/docs/using-a-database#install-sqlite)
-    - 5.2 [Example Folder Structure](https://ecewo.vercel.app/docs/using-a-database#example-folder-structure)
-    - 5.3 [Change The Makefile](https://ecewo.vercel.app/docs/using-a-database#change-the-makefile)
-    - 5.4 [Connecting To Database](https://ecewo.vercel.app/docs/using-a-database#connecting-to-database)
-    - 5.5 [Example Usage](https://ecewo.vercel.app/docs/using-a-database#example-usage)
-        - 5.5.1 [Inserting Data](https://ecewo.vercel.app/docs/using-a-database#inserting-data)
-        - 5.5.2 [Querying Data](https://ecewo.vercel.app/docs/using-a-database#querying-data)
-6. [Authentication](https://ecewo.vercel.app/docs/authentication)
-    - 6.1 [Login](https://ecewo.vercel.app/docs/authentication#login)
-    - 6.2 [Logout](https://ecewo.vercel.app/docs/authentication#logout)
-    - 6.3 [Getting Session Data](https://ecewo.vercel.app/docs/authentication#getting-session-data)
-    - 6.4 [Protected Routes](https://ecewo.vercel.app/docs/authentication#protected-routes)
-    - 6.5 [Notes](https://ecewo.vercel.app/docs/authentication#notes)
-7. [Middleware](https://ecewo.vercel.app/docs/middleware)
-    - 7.1 [Route Middleware](https://ecewo.vercel.app/docs/middleware#route-middleware)
-    - 7.2 [Global Middleware](https://ecewo.vercel.app/docs/middleware#global-middleware)
-8. [Environment Variables](https://ecewo.vercel.app/docs/environment-variables)
 
 ### License
 

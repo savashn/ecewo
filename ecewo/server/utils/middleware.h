@@ -31,7 +31,7 @@ extern MiddlewareHandler global_middleware[MAX_GLOBAL_MIDDLEWARE];
 extern int global_middleware_count;
 
 // Function to add global middleware
-void use(MiddlewareHandler middleware_handler);
+void hook(MiddlewareHandler middleware_handler);
 
 // Function to execute the next middleware or route handler in the chain
 int next(Chain *chain, Req *req, Res *res);
@@ -48,7 +48,7 @@ void register_route(const char *method, const char *path, MiddlewareArray middle
 void free_mw();
 
 // Middleware array creator macro
-#define MW(...) (MiddlewareArray){(MiddlewareHandler[]){__VA_ARGS__}, sizeof((MiddlewareHandler[]){__VA_ARGS__}) / sizeof(MiddlewareHandler), 1}
+#define use(...) (MiddlewareArray){(MiddlewareHandler[]){__VA_ARGS__}, sizeof((MiddlewareHandler[]){__VA_ARGS__}) / sizeof(MiddlewareHandler), 1}
 
 // Default empty middleware array
 #define NO_MW (MiddlewareArray){NULL, 0, 1}

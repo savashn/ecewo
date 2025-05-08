@@ -14,7 +14,7 @@ MiddlewareHandler global_middleware[MAX_GLOBAL_MIDDLEWARE];
 int global_middleware_count = 0;
 
 // Add middleware to global chain
-void use(MiddlewareHandler middleware_handler)
+void hook(MiddlewareHandler middleware_handler)
 {
     if (!middleware_handler)
     {
@@ -115,7 +115,7 @@ void route_handler_with_middleware(Req *req, Res *res)
     {
         if (routes[i].method && routes[i].path &&
             strcmp(routes[i].method, method) == 0 &&
-            strcmp(routes[i].path, path) == 0)
+            matcher(path, routes[i].path))
         {
             middleware_info = (MiddlewareInfo *)routes[i].middleware_ctx;
             break;
