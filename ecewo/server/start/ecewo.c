@@ -1,15 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <uv.h>
 #include "handler.h"
-
-const int BUFFER_SIZE = 4096;
 
 // Allocation callback for buffer
 void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
 {
-    *buf = uv_buf_init((char *)malloc(suggested_size), suggested_size);
+    (void)handle;
+    *buf = uv_buf_init((char *)malloc(suggested_size), (unsigned int)suggested_size);
 }
 
 // Called after write is completed
@@ -39,7 +37,7 @@ void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf)
     {
         if (nread != UV_EOF)
         {
-            fprintf(stderr, "Read error: %s\n", uv_strerror(nread));
+            fprintf(stderr, "Read error: %s\n", uv_strerror((int)nread));
         }
         uv_close((uv_handle_t *)client, on_client_closed);
         free(buf->base);
@@ -53,12 +51,12 @@ void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf)
     }
 
     // Ensure null termination
-    char *data = malloc(nread + 1);
-    memcpy(data, buf->base, nread);
-    data[nread] = '\0';
+    char *data = malloc((size_t)nread + 1);
+    memcpy(data, buf->base, (size_t)nread);
+    data[(size_t)nread] = '\0';
 
     // Process request and determine if connection should be closed
-    int should_close = router(client, data);
+    int should_close = router((uv_tcp_t *)client, data);
 
     free(data);
     free(buf->base);
@@ -122,7 +120,7 @@ void ecewo(unsigned short PORT)
         return;
     }
 
-    printf("ecewo v0.16.0\n");
+    printf("ecewo v0.17.0\n");
     printf("Server is running at: http://localhost:%d\n", PORT);
 
     // Run the event loop

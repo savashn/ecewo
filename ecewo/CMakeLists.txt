@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(ecewo VERSION 0.16.0 LANGUAGES C)
+project(ecewo VERSION 0.17.0 LANGUAGES C)
 
 # Platform definitions
 if(WIN32)
@@ -10,37 +10,41 @@ elseif(UNIX)
     add_definitions(-DPLATFORM_LINUX)
 endif()
 
-# libuv path setup
-set(LIBUV_PATH ${CMAKE_SOURCE_DIR}/ecewo/server/lib/libuv)
+include(FetchContent)
 
-# Check if libuv is already built
-if(NOT TARGET uv)
-    # If libuv is a git submodule or separate source tree
-    if(EXISTS "${LIBUV_PATH}/CMakeLists.txt")
-        # Include libuv as a subproject
-        add_subdirectory(${LIBUV_PATH} ${CMAKE_BINARY_DIR}/libuv)
-    else()
-        # Try to find installed libuv
-        find_package(libuv REQUIRED)
-        if(NOT libuv_FOUND)
-            message(FATAL_ERROR "libuv not found. Please install libuv or make sure the path is correct.")
-        endif()
-    endif()
-endif()
+# Fetch libuv from the GitHub repository
+FetchContent_Declare(
+  libuv
+  GIT_REPOSITORY https://github.com/libuv/libuv.git
+  GIT_TAG v1.51.0
+)
 
-# jansson path setup
-set(JANSSON_PATH ${CMAKE_SOURCE_DIR}/ecewo/server/lib/jansson)
+# Make libuv available to the project
+FetchContent_MakeAvailable(libuv)
+
+# Fetch jansson from the GitHub repository
+FetchContent_Declare(
+    jansson
+    GIT_REPOSITORY https://github.com/akheron/jansson.git
+    GIT_TAG v2.14.1
+)
+
+FetchContent_MakeAvailable(jansson)
+
+# Fetch llhttp from the GitHub repository
+FetchContent_Declare(
+  llhttp
+  URL "https://github.com/nodejs/llhttp/archive/refs/tags/release/v8.1.0.tar.gz"
+)
+
+# Disable shared library build and enable static library build
+set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
+set(BUILD_STATIC_LIBS ON CACHE INTERNAL "")
 set(JANSSON_BUILD_DOCS OFF CACHE BOOL "Disable Jansson documentation" FORCE)
 set(JANSSON_WITHOUT_TESTS ON CACHE BOOL "Disable Jansson tests" FORCE)
 
-if(EXISTS "${JANSSON_PATH}/CMakeLists.txt")
-    add_subdirectory(${JANSSON_PATH} ${CMAKE_BINARY_DIR}/jansson)
-else()
-    find_package(jansson REQUIRED)
-    if(NOT jansson_FOUND)
-        message(FATAL_ERROR "jansson not found. Please install jansson or make sure the path is correct.")
-    endif()
-endif()
+# Make llhttp available to the project
+FetchContent_MakeAvailable(llhttp)
 
 # List of source files
 set(SRC_FILES
@@ -66,10 +70,12 @@ target_include_directories(ecewo PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/server/start
     ${CMAKE_CURRENT_SOURCE_DIR}/server/utils
     ${CMAKE_CURRENT_SOURCE_DIR}/server/lib
-    ${LIBUV_PATH}/include  # Add direct include path to libuv headers
-    ${JANSSON_PATH}/src
-    ${CMAKE_BINARY_DIR}/jansson/include # Add for jansson_config.h
-    ${CMAKE_BINARY_DIR} # For the generated configuration file
+    ${CMAKE_BINARY_DIR}/libuv/include
+    ${CMAKE_BINARY_DIR}/llhttp/include
+    ${CMAKE_BINARY_DIR}/jansson/include
+    ${CMAKE_BINARY_DIR}/_deps/jansson-src/src
+    ${CMAKE_BINARY_DIR}/_deps/jansson-build/include
+    ${CMAKE_BINARY_DIR}
 )
 
 # Create configuration file
@@ -81,7 +87,7 @@ configure_file(
 )
 
 # Link libraries
-target_link_libraries(ecewo uv jansson)  # Link with libuv and jansson
+target_link_libraries(ecewo uv jansson llhttp_static)
 
 # Link additional libraries for Windows
 if(WIN32)
@@ -95,7 +101,7 @@ if(MSVC)
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 else()
     # Settings for GCC/Clang
-    target_compile_options(ecewo PRIVATE -Wall -Wextra -std=c99)
+    target_compile_options(ecewo PRIVATE -Wall -Wextra -std=gnu11)
 endif()
 
 # Debug information

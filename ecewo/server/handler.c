@@ -324,6 +324,16 @@ int router(uv_tcp_t *client_socket, const char *request)
 
         reply(&res, res.status, res.content_type, "404 Not Found");
 
+        // Free allocated memory
+        if (body)
+        {
+            free(body);
+            body = NULL;
+        }
+
+        free_req(&parsed_query);
+        free_req(&headers);
+
         // Return whether to close the connection
         return res.keep_alive ? 0 : 1;
     }
