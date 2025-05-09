@@ -123,37 +123,14 @@ set(APP_SRC
 For Linux/macOS:
 
 ```
-# 1. Using script:
-
 chmod +x build.sh
 ./build.sh
-```
-
-```
-# 2. Manually:
-
-mkdir -p build && cd build
-cmake ..
-cmake --build .
-./server
 ```
 
 For Windows:
 
 ```
-# 1. Using Script:
-
 ./build.bat
-```
-
-```
-# 2. Manually:
-
-if not exist build mkdir build
-cd build
-cmake ..
-cmake --build . --config Release
-Release\server.exe
 ```
 
 To rebuild from scratch:
@@ -168,6 +145,27 @@ To rebuild from scratch:
 
 ./build.bat /rebuild
 ```
+
+<--- **NOTE** --->
+
+If you have the following issue while compiling:
+```
+CMake Error at build/_deps/jansson-src/CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.5 has been removed from CMake.
+```
+
+Go to `build/_deps/jansson-src/` and modify the `CMakeLists.txt` as follows:
+```
+// Change this:
+cmake_minimum_required (VERSION 3.1)
+project(jansson C)
+
+// To this:
+cmake_minimum_required (VERSION 3.10)
+project(jansson C)
+```
+
+And run the build command again.
 
 ### Documentation
 

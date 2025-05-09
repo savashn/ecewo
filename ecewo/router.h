@@ -2,6 +2,7 @@
 #define ROUTER_H
 
 #include <stdio.h>
+#include <stdarg.h>
 #include "handler.h"
 #include "middleware.h"
 #include "compat.h"
