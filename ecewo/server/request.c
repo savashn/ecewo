@@ -4,27 +4,25 @@
 #include "request.h"
 #include "compat.h"
 
-#define MAX_HEADERS 50
-#define MAX_DYNAMIC_PARAMS 20
-#define MAX_QUERY_PARAMS 20
-
 void parse_query(const char *query_string, request_t *query)
 {
     query->count = 0;
+    query->capacity = INITIAL_CAPACITY;
     query->items = NULL;
 
     if (!query_string || strlen(query_string) == 0)
         return;
 
-    query->items = malloc(sizeof(request_item_t) * MAX_QUERY_PARAMS);
-    if (query->items == NULL)
+    query->items = malloc(sizeof(request_item_t) * query->capacity);
+    if (!query->items)
     {
-        printf("Memory allocation failed for query items\n");
+        perror("malloc");
+        query->capacity = 0;
         return;
     }
 
     // Initialize all items to NULL to prevent double-free issues
-    for (int i = 0; i < MAX_QUERY_PARAMS; i++)
+    for (int i = 0; i < query->capacity; i++)
     {
         query->items[i].key = NULL;
         query->items[i].value = NULL;
@@ -36,7 +34,7 @@ void parse_query(const char *query_string, request_t *query)
 
     char *pair = strtok(buffer, "&");
 
-    while (pair && query->count < MAX_QUERY_PARAMS)
+    while (pair && query->count < query->capacity)
     {
         char *eq = strchr(pair, '=');
         if (eq)
@@ -67,9 +65,18 @@ void parse_params(const char *path, const char *route_path, request_t *params)
 {
     printf("Parsing dynamic params for path: %s, route: %s\n", path, route_path);
     params->count = 0;
+    params->capacity = INITIAL_CAPACITY;
+
+    params->items = malloc(sizeof(request_item_t) * params->capacity);
+    if (!params->items)
+    {
+        perror("malloc");
+        params->capacity = 0;
+        return;
+    }
 
     // Initialize items to ensure we can safely free later
-    for (int i = 0; i < MAX_DYNAMIC_PARAMS; i++)
+    for (int i = 0; i < params->capacity; i++)
     {
         params->items[i].key = NULL;
         params->items[i].value = NULL;
@@ -115,6 +122,24 @@ void parse_params(const char *path, const char *route_path, request_t *params)
     // Parse dynamic parameters (indicated by ":") and store them in the params object
     for (int i = 0; i < min_segments; i++)
     {
+        if (params->count >= params->capacity)
+        {
+            int new_cap = params->capacity * 2;
+            request_item_t *tmp = realloc(params->items, sizeof(*tmp) * new_cap);
+            if (!tmp)
+            {
+                perror("realloc");
+                break;
+            }
+            // Yeni elemanları NULL’la
+            for (int j = params->capacity; j < new_cap; j++)
+            {
+                tmp[j].key = tmp[j].value = NULL;
+            }
+            params->items = tmp;
+            params->capacity = new_cap;
+        }
+
         if (route_segments[i][0] == ':') // Dynamic parameter
         {
             char *param_key = strdup(route_segments[i] + 1); // Remove the ":" from the key
@@ -130,7 +155,7 @@ void parse_params(const char *path, const char *route_path, request_t *params)
                 continue;
             }
 
-            if (params->count < MAX_DYNAMIC_PARAMS)
+            if (params->count < params->capacity)
             {
                 params->items[params->count].key = param_key;
                 params->items[params->count].value = param_value;
@@ -156,85 +181,73 @@ void parse_params(const char *path, const char *route_path, request_t *params)
 void parse_headers(const char *request, request_t *headers)
 {
     headers->count = 0;
-    headers->items = malloc(sizeof(request_item_t) * MAX_HEADERS);
-
+    headers->capacity = INITIAL_CAPACITY;
+    headers->items = malloc(sizeof(request_item_t) * headers->capacity);
     if (!headers->items)
     {
-        printf("Memory allocation failed for header items\n");
+        perror("malloc headers");
+        headers->capacity = 0;
         return;
     }
+    // initialize
+    for (int i = 0; i < headers->capacity; i++)
+        headers->items[i].key = headers->items[i].value = NULL;
 
-    // Initialize all items to NULL to prevent double-free issues
-    for (int i = 0; i < MAX_HEADERS; i++)
-    {
-        headers->items[i].key = NULL;
-        headers->items[i].value = NULL;
-    }
-
-    // Skip the first line (HTTP request line)
+    // find start/end of headers…
     const char *header_start = strstr(request, "\r\n");
     if (!header_start)
-    {
-        printf("Invalid request format, no headers found\n");
         return;
-    }
-
-    header_start += 2; // Skip the first \r\n
-    const char *header_end;
-    const char *colon_pos;
+    header_start += 2;
     const char *headers_end = strstr(header_start, "\r\n\r\n");
-
     if (!headers_end)
-    {
-        printf("Invalid request format, headers end not found\n");
         return;
-    }
 
-    // Iterating through each header line until we reach the end of headers
-    while (header_start < headers_end && (header_end = strstr(header_start, "\r\n")) != NULL)
+    while (header_start < headers_end)
     {
-        colon_pos = strchr(header_start, ':');
-        if (colon_pos && colon_pos < header_end)
+        const char *header_end = strstr(header_start, "\r\n");
+        const char *colon = strchr(header_start, ':');
+        if (!header_end)
+            break;
+
+        if (colon && colon < header_end)
         {
-            // Calculate lengths carefully to avoid buffer overflows
-            size_t key_len = colon_pos - header_start;
-            size_t value_len = header_end - (colon_pos + 2); // Skip ": "
-
-            // Copy the header key and value
-            headers->items[headers->count].key = malloc(key_len + 1);
-            if (!headers->items[headers->count].key)
+            // gerekirse büyüt
+            if (headers->count >= headers->capacity)
             {
-                printf("Memory allocation failed for header key\n");
-                header_start = header_end + 2;
-                continue;
+                int new_cap = headers->capacity * 2;
+                request_item_t *tmp = realloc(headers->items, sizeof(*tmp) * new_cap);
+                if (!tmp)
+                {
+                    perror("realloc headers");
+                    break;
+                }
+                // yeni elemanları NULL’la
+                for (int j = headers->capacity; j < new_cap; j++)
+                    tmp[j].key = tmp[j].value = NULL;
+                headers->items = tmp;
+                headers->capacity = new_cap;
             }
 
-            strncpy(headers->items[headers->count].key, header_start, key_len);
-            headers->items[headers->count].key[key_len] = '\0';
-
-            headers->items[headers->count].value = malloc(value_len + 1);
-            if (!headers->items[headers->count].value)
+            size_t key_len = colon - header_start;
+            size_t value_len = header_end - (colon + 2);
+            char *k = malloc(key_len + 1), *v = malloc(value_len + 1);
+            if (k && v)
             {
-                printf("Memory allocation failed for header value\n");
-                free(headers->items[headers->count].key);
-                headers->items[headers->count].key = NULL;
-                header_start = header_end + 2;
-                continue;
+                strncpy(k, header_start, key_len);
+                k[key_len] = '\0';
+                strncpy(v, colon + 2, value_len);
+                v[value_len] = '\0';
+                headers->items[headers->count].key = k;
+                headers->items[headers->count].value = v;
+                headers->count++;
             }
-
-            strncpy(headers->items[headers->count].value, colon_pos + 2, value_len);
-            headers->items[headers->count].value[value_len] = '\0';
-
-            headers->count++;
-
-            if (headers->count >= MAX_HEADERS)
+            else
             {
-                printf("Warning: Maximum header count reached, ignoring additional headers\n");
-                break;
+                free(k);
+                free(v);
             }
         }
-
-        header_start = header_end + 2; // Move to the next header
+        header_start = header_end + 2;
     }
 }
 

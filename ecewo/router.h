@@ -7,10 +7,12 @@
 #include "middleware.h"
 #include "compat.h"
 
-#define MAX_ROUTES 100
-
-extern Router routes[MAX_ROUTES];
+extern Router *routes;
 extern int route_count;
+extern int routes_capacity;
+
+void init_router(void);
+void cleanup_router(void);
 
 void get(const char *path, ...);
 void post(const char *path, ...);

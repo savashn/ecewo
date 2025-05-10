@@ -1,30 +1,27 @@
 #include <stdlib.h>
 #include <string.h>
-#include <stdarg.h>
 #include "router.h"
 #include "middleware.h"
 
-#ifdef _WIN32
-#define strdup _strdup
-#endif
-
-// Global middleware array
-MiddlewareHandler global_middleware[MAX_GLOBAL_MIDDLEWARE];
+// Global middleware
+MiddlewareHandler *global_middleware = NULL;
 int global_middleware_count = 0;
+int global_middleware_capacity = 0;
 
 // Add middleware to global chain
 void hook(MiddlewareHandler middleware_handler)
 {
-    if (!middleware_handler)
+    if (global_middleware_count >= global_middleware_capacity)
     {
-        printf("Error: NULL middleware handler provided\n");
-        return;
-    }
-
-    if (global_middleware_count >= MAX_GLOBAL_MIDDLEWARE)
-    {
-        printf("Maximum global middleware count reached. Cannot add more middleware.\n");
-        return;
+        int new_cap = global_middleware_capacity ? global_middleware_capacity * 2 : INITIAL_CAPACITY;
+        MiddlewareHandler *tmp = realloc(global_middleware, new_cap * sizeof *tmp);
+        if (!tmp)
+        {
+            perror("realloc");
+            return;
+        }
+        global_middleware = tmp;
+        global_middleware_capacity = new_cap;
     }
 
     global_middleware[global_middleware_count++] = middleware_handler;
@@ -201,12 +198,6 @@ void register_route_with_middleware(const char *method, const char *path,
         return;
     }
 
-    if (route_count >= MAX_ROUTES)
-    {
-        printf("Maximum route count reached. Cannot add more routes.\n");
-        return;
-    }
-
     // Create middleware info
     MiddlewareInfo *middleware_info = malloc(sizeof(MiddlewareInfo));
     if (!middleware_info)
@@ -265,13 +256,6 @@ void register_route(const char *method, const char *path, MiddlewareArray middle
     {
         printf("Error: No handler provided for route: %s %s\n", method, path);
         return;
-    }
-
-    if (middleware.count > MAX_ROUTE_MIDDLEWARE)
-    {
-        printf("Warning: Too many middleware for route %s %s. Using first %d only.\n",
-               method, path, MAX_ROUTE_MIDDLEWARE);
-        middleware.count = MAX_ROUTE_MIDDLEWARE;
     }
 
     printf("Route registered: %s %s (handler: %p, middlewares: %d)\n",

@@ -1,10 +1,8 @@
 #include <stdlib.h>
 #include <string.h>
-// #include <stdbool.h>
 #include "router.h"
 #include "uv.h"
 
-#define MAX_DYNAMIC_PARAMS 20
 #define MAX_PATH_SEGMENTS 30
 #define MAX_SEGMENT_LENGTH 128
 
@@ -241,22 +239,7 @@ int router(uv_tcp_t *client_socket, const char *request)
         route_found = true;
 
         // Set up parameter array for dynamic parameters
-        request_t params = {0};
-        params.items = malloc(sizeof(*params.items) * MAX_DYNAMIC_PARAMS);
-        if (params.items == NULL)
-        {
-            printf("Memory allocation failed for dynamic params\n");
-
-            if (body)
-            {
-                free(body);
-                body = NULL;
-            }
-
-            free_req(&parsed_query);
-            free_req(&headers);
-            return 1; // Close connection on error
-        }
+        request_t params = {.items = NULL, .count = 0, .capacity = 0};
 
         // Process dynamic parameters
         printf("Parsing dynamic params for path: %s, route: %s\n", path, route_path);

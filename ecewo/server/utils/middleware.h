@@ -14,8 +14,8 @@ typedef struct
 } MiddlewareArray;
 
 // Maximum number of middleware functions that can be registered
-#define MAX_GLOBAL_MIDDLEWARE 20
-#define MAX_ROUTE_MIDDLEWARE 10
+// #define MAX_GLOBAL_MIDDLEWARE 20
+// #define MAX_ROUTE_MIDDLEWARE 10
 
 // Structure to store middleware chain context
 typedef struct
@@ -27,7 +27,10 @@ typedef struct
 } Chain;
 
 // Global middleware array
-extern MiddlewareHandler global_middleware[MAX_GLOBAL_MIDDLEWARE];
+// extern MiddlewareHandler global_middleware[MAX_GLOBAL_MIDDLEWARE];
+#define INITIAL_CAPACITY 4
+
+extern MiddlewareHandler *global_middleware;
 extern int global_middleware_count;
 
 // Function to add global middleware

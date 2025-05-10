@@ -1,6 +1,8 @@
 #ifndef REQUEST_H
 #define REQUEST_H
 
+#define INITIAL_CAPACITY 4
+
 typedef struct request_item
 {
     char *key;
@@ -11,6 +13,7 @@ typedef struct request
 {
     request_item_t *items;
     int count;
+    int capacity;
 } request_t;
 
 void parse_query(const char *query_string, request_t *query);
