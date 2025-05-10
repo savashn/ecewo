@@ -8,6 +8,8 @@
 
 A modern and developer-friendly backend framework for C that handles the complexities of C programming and lets you build backends with ease — inspired by the simplicity of Express.js.
 
+It's a **hobby** project I started to improve myself in programming, so it's not production ready yet. However, I'm doing my best.
+
 ### Table of Contents
 
 - [Out of The Box Features](#out-of-the-box-features)
