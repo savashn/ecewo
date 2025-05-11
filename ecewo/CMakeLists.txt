@@ -49,13 +49,13 @@ FetchContent_MakeAvailable(llhttp)
 # List of source files
 set(SRC_FILES
     ecewo.c
-    server/router.c
-    server/request.c
-    server/start/server.c
-    server/utils/session.c
-    server/utils/middleware.c
-    server/utils/async.c
-    server/lib/dotenv.c
+    server/server.c
+    lib/router.c
+    lib/request.c
+    lib/external/dotenv.c
+    utils/async.c
+    utils/middleware.c
+    utils/session.c
 )
 
 # Create library
@@ -66,10 +66,10 @@ target_include_directories(ecewo PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/config
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/external
     ${CMAKE_CURRENT_SOURCE_DIR}/server
-    ${CMAKE_CURRENT_SOURCE_DIR}/server/start
-    ${CMAKE_CURRENT_SOURCE_DIR}/server/utils
-    ${CMAKE_CURRENT_SOURCE_DIR}/server/lib
+    ${CMAKE_CURRENT_SOURCE_DIR}/utils
     ${CMAKE_BINARY_DIR}/libuv/include
     ${CMAKE_BINARY_DIR}/llhttp/include
     ${CMAKE_BINARY_DIR}/jansson/include

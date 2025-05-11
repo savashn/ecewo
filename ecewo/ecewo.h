@@ -11,9 +11,6 @@ extern Router *routes;
 extern int route_count;
 extern int routes_capacity;
 
-// void init_router(void);
-// void free_router(void);
-
 void expand_routes(void);
 
 void get(const char *path, ...);

@@ -61,21 +61,7 @@ ni handlers.h
 ni CMakeLists.txt
 ```
 
-Write a handler:
-
-```sh
-// src/handlers.c
-
-#include "ecewo.h"
-
-void hello_world(Req *req, Res *res)
-{
-    reply(res, "200 OK", "text/plain", "hello world!");
-}
-
-```
-
-Declare the handler in `handlers.h`:
+Declare a handler in `handlers.h`:
 
 ```sh
 // src/handlers.h
@@ -90,13 +76,26 @@ void hello_world(Req *req, Res *res);
 #endif
 ```
 
+Write the handler:
+
+```sh
+// src/handlers.c
+
+#include "handlers.h"
+
+void hello_world(Req *req, Res *res)
+{
+    reply(res, "200 OK", "text/plain", "hello world!");
+}
+
+```
+
 Set up the entry point:
 
 ```sh
 // src/main.c
 
 #include "server.h"
-#include "ecewo.h"
 #include "handlers.h"
 
 int main()
