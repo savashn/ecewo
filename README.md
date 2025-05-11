@@ -8,7 +8,7 @@
 
 A modern and developer-friendly backend framework for C that handles the complexities of C programming and lets you build backends with ease — inspired by the simplicity of Express.js.
 
-It's a **hobby** project I started to improve myself in programming, so it's not production ready yet. However, I'm doing my best.
+It's a **hobby project** I started to improve my programming skills. See [FAQ](https://ecewo.vercel.app/docs/faq).
 
 ### Table of Contents
 
@@ -66,7 +66,7 @@ Write a handler:
 ```sh
 // src/handlers.c
 
-#include "router.h"
+#include "ecewo.h"
 
 void hello_world(Req *req, Res *res)
 {
@@ -83,7 +83,7 @@ Declare the handler in `handlers.h`:
 #ifndef HANDLERS_H
 #define HANDLERS_H
 
-#include "router.h"
+#include "ecewo.h"
 
 void hello_world(Req *req, Res *res);
 
@@ -95,14 +95,16 @@ Set up the entry point:
 ```sh
 // src/main.c
 
+#include "server.h"
 #include "ecewo.h"
-#include "router.h"
 #include "handlers.h"
 
 int main()
 {
+    init_router();
     get("/", hello_world);
     ecewo(4000);
+    free_router();
     return 0;
 }
 ```

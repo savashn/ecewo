@@ -2,7 +2,263 @@
 #include <stdlib.h>
 #include <string.h>
 #include "request.h"
-#include "compat.h"
+
+// llhttp callback for URL
+static int on_url_cb(llhttp_t *parser, const char *at, size_t length)
+{
+    http_context_t *context = (http_context_t *)parser->data;
+
+    // Ensure we don't overflow the buffer
+    size_t copy_len = length;
+    if (copy_len >= sizeof(context->url))
+        copy_len = sizeof(context->url) - 1;
+
+    // Copy URL to context
+    memcpy(context->url, at, copy_len);
+    context->url[copy_len] = '\0';
+
+    return 0;
+}
+
+// llhttp callback for headers field
+static int on_header_field_cb(llhttp_t *parser, const char *at, size_t length)
+{
+    http_context_t *context = (http_context_t *)parser->data;
+
+    // Ensure we don't overflow the buffer
+    size_t copy_len = length;
+    if (copy_len >= sizeof(context->current_header_field))
+        copy_len = sizeof(context->current_header_field) - 1;
+
+    // Copy header field to context
+    memcpy(context->current_header_field, at, copy_len);
+    context->current_header_field[copy_len] = '\0';
+    context->header_field_len = copy_len;
+
+    return 0;
+}
+
+// llhttp callback for headers value
+static int on_header_value_cb(llhttp_t *parser, const char *at, size_t length)
+{
+    http_context_t *context = (http_context_t *)parser->data;
+
+    // Check if we've reached capacity
+    if (context->headers.count >= context->headers.capacity)
+    {
+        int new_cap = context->headers.capacity * 2;
+        request_item_t *tmp = realloc(context->headers.items, sizeof(*tmp) * new_cap);
+        if (!tmp)
+        {
+            perror("realloc headers");
+            return 1; // Error
+        }
+
+        // Initialize new elements to NULL
+        for (int j = context->headers.capacity; j < new_cap; j++)
+        {
+            tmp[j].key = tmp[j].value = NULL;
+        }
+
+        context->headers.items = tmp;
+        context->headers.capacity = new_cap;
+    }
+
+    // Copy header field and value
+    context->headers.items[context->headers.count].key = strdup(context->current_header_field);
+
+    char *value = malloc(length + 1);
+    if (!value)
+    {
+        perror("malloc header value");
+        free(context->headers.items[context->headers.count].key);
+        return 1; // Error
+    }
+
+    memcpy(value, at, length);
+    value[length] = '\0';
+
+    context->headers.items[context->headers.count].value = value;
+    context->headers.count++;
+
+    // Special handling for Connection header for keep-alive detection
+    if (strcasecmp(context->current_header_field, "Connection") == 0)
+    {
+        if (length == 10 && strncasecmp(at, "keep-alive", 10) == 0)
+        {
+            context->keep_alive = 1;
+        }
+        else if (length == 5 && strncasecmp(at, "close", 5) == 0)
+        {
+            context->keep_alive = 0;
+        }
+    }
+
+    return 0;
+}
+
+// llhttp callback for method
+static int on_method_cb(llhttp_t *parser, const char *at, size_t length)
+{
+    http_context_t *context = (http_context_t *)parser->data;
+
+    // Ensure we don't overflow the buffer
+    size_t copy_len = length;
+    if (copy_len >= sizeof(context->method))
+        copy_len = sizeof(context->method) - 1;
+
+    // Copy method to context
+    memcpy(context->method, at, copy_len);
+    context->method[copy_len] = '\0';
+
+    return 0;
+}
+
+// llhttp callback for body
+static int on_body_cb(llhttp_t *parser, const char *at, size_t length)
+{
+    http_context_t *context = (http_context_t *)parser->data;
+
+    // Ensure we have enough capacity
+    if (context->body_length + length > context->body_capacity)
+    {
+        size_t new_capacity = context->body_capacity * 2;
+        if (new_capacity < context->body_length + length)
+            new_capacity = context->body_length + length + 1024; // Ensure enough space
+
+        char *new_body = realloc(context->body, new_capacity);
+        if (!new_body)
+        {
+            perror("realloc body");
+            return 1; // Error
+        }
+
+        context->body = new_body;
+        context->body_capacity = new_capacity;
+    }
+
+    // Copy body data
+    memcpy(context->body + context->body_length, at, length);
+    context->body_length += length;
+    context->body[context->body_length] = '\0'; // Null-terminate
+
+    return 0;
+}
+
+// Callback for HTTP version detection
+static int on_version_cb(llhttp_t *parser)
+{
+    http_context_t *context = (http_context_t *)parser->data;
+
+    context->http_major = parser->http_major;
+    context->http_minor = parser->http_minor;
+
+    // Set default keep-alive based on HTTP version
+    if (parser->http_major == 1 && parser->http_minor == 1)
+    {
+        // HTTP/1.1 default is keep-alive
+        context->keep_alive = 1;
+    }
+    else
+    {
+        // HTTP/1.0 default is close
+        context->keep_alive = 0;
+    }
+
+    return 0;
+}
+
+// Function to initialize HTTP context
+void http_context_init(http_context_t *context)
+{
+    // Initialize llhttp parser
+    llhttp_settings_init(&context->settings);
+    llhttp_init(&context->parser, HTTP_REQUEST, &context->settings);
+
+    // Set up callbacks
+    context->settings.on_url = on_url_cb;
+    context->settings.on_header_field = on_header_field_cb;
+    context->settings.on_header_value = on_header_value_cb;
+    context->settings.on_method = on_method_cb;
+    context->settings.on_body = on_body_cb;
+    context->settings.on_headers_complete = on_version_cb;
+
+    // Set parser data to point to our context
+    context->parser.data = context;
+
+    // Initialize other fields
+    context->url[0] = '\0';
+    context->method[0] = '\0';
+    context->current_header_field[0] = '\0';
+    context->header_field_len = 0;
+
+    // Initialize body
+    context->body = malloc(1024); // Start with 1KB capacity
+    if (context->body)
+    {
+        context->body[0] = '\0';
+        context->body_length = 0;
+        context->body_capacity = 1024;
+    }
+    else
+    {
+        perror("malloc body");
+        context->body_capacity = 0;
+    }
+
+    // Initialize request structures
+    context->headers.count = 0;
+    context->headers.capacity = INITIAL_CAPACITY;
+    context->headers.items = malloc(sizeof(request_item_t) * context->headers.capacity);
+    if (context->headers.items)
+    {
+        for (int i = 0; i < context->headers.capacity; i++)
+        {
+            context->headers.items[i].key = NULL;
+            context->headers.items[i].value = NULL;
+        }
+    }
+    else
+    {
+        perror("malloc headers");
+        context->headers.capacity = 0;
+    }
+
+    context->query_params.count = 0;
+    context->query_params.capacity = 0;
+    context->query_params.items = NULL;
+
+    context->url_params.count = 0;
+    context->url_params.capacity = 0;
+    context->url_params.items = NULL;
+
+    // Set default keep-alive to 0 (will be updated during parsing)
+    context->keep_alive = 0;
+
+    // Set default HTTP version
+    context->http_major = 1;
+    context->http_minor = 0;
+}
+
+// Function to clean up HTTP context
+void http_context_free(http_context_t *context)
+{
+    // Free body
+    if (context->body)
+    {
+        free(context->body);
+        context->body = NULL;
+    }
+
+    // Free headers
+    free_req(&context->headers);
+
+    // Free query parameters if they were parsed
+    free_req(&context->query_params);
+
+    // Free URL parameters if they were parsed
+    free_req(&context->url_params);
+}
 
 void parse_query(const char *query_string, request_t *query)
 {
@@ -131,7 +387,7 @@ void parse_params(const char *path, const char *route_path, request_t *params)
                 perror("realloc");
                 break;
             }
-            // Yeni elemanları NULL’la
+            // Initialize new elements to NULL
             for (int j = params->capacity; j < new_cap; j++)
             {
                 tmp[j].key = tmp[j].value = NULL;
@@ -175,79 +431,6 @@ void parse_params(const char *path, const char *route_path, request_t *params)
             printf("Warning: Static segment mismatch at position %d: '%s' vs '%s'\n",
                    i, route_segments[i], path_segments[i]);
         }
-    }
-}
-
-void parse_headers(const char *request, request_t *headers)
-{
-    headers->count = 0;
-    headers->capacity = INITIAL_CAPACITY;
-    headers->items = malloc(sizeof(request_item_t) * headers->capacity);
-    if (!headers->items)
-    {
-        perror("malloc headers");
-        headers->capacity = 0;
-        return;
-    }
-    // initialize
-    for (int i = 0; i < headers->capacity; i++)
-        headers->items[i].key = headers->items[i].value = NULL;
-
-    // find start/end of headers…
-    const char *header_start = strstr(request, "\r\n");
-    if (!header_start)
-        return;
-    header_start += 2;
-    const char *headers_end = strstr(header_start, "\r\n\r\n");
-    if (!headers_end)
-        return;
-
-    while (header_start < headers_end)
-    {
-        const char *header_end = strstr(header_start, "\r\n");
-        const char *colon = strchr(header_start, ':');
-        if (!header_end)
-            break;
-
-        if (colon && colon < header_end)
-        {
-            // gerekirse büyüt
-            if (headers->count >= headers->capacity)
-            {
-                int new_cap = headers->capacity * 2;
-                request_item_t *tmp = realloc(headers->items, sizeof(*tmp) * new_cap);
-                if (!tmp)
-                {
-                    perror("realloc headers");
-                    break;
-                }
-                // yeni elemanları NULL’la
-                for (int j = headers->capacity; j < new_cap; j++)
-                    tmp[j].key = tmp[j].value = NULL;
-                headers->items = tmp;
-                headers->capacity = new_cap;
-            }
-
-            size_t key_len = colon - header_start;
-            size_t value_len = header_end - (colon + 2);
-            char *k = malloc(key_len + 1), *v = malloc(value_len + 1);
-            if (k && v)
-            {
-                strncpy(k, header_start, key_len);
-                k[key_len] = '\0';
-                strncpy(v, colon + 2, value_len);
-                v[value_len] = '\0';
-                headers->items[headers->count].key = k;
-                headers->items[headers->count].value = v;
-                headers->count++;
-            }
-            else
-            {
-                free(k);
-                free(v);
-            }
-        }
-        header_start = header_end + 2;
     }
 }
 

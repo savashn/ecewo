@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(ecewo VERSION 0.17.0 LANGUAGES C)
+project(ecewo VERSION 0.18.0 LANGUAGES C)
 
 # Platform definitions
 if(WIN32)
@@ -48,10 +48,10 @@ FetchContent_MakeAvailable(llhttp)
 
 # List of source files
 set(SRC_FILES
-    router.c
-    server/handler.c
+    ecewo.c
+    server/router.c
     server/request.c
-    server/start/ecewo.c
+    server/start/server.c
     server/utils/session.c
     server/utils/middleware.c
     server/utils/async.c
@@ -75,6 +75,8 @@ target_include_directories(ecewo PUBLIC
     ${CMAKE_BINARY_DIR}/jansson/include
     ${CMAKE_BINARY_DIR}/_deps/jansson-src/src
     ${CMAKE_BINARY_DIR}/_deps/jansson-build/include
+    ${CMAKE_BINARY_DIR}/_deps/llhttp-src/src
+    ${CMAKE_BINARY_DIR}/_deps/llhttp-src/include
     ${CMAKE_BINARY_DIR}
 )
 

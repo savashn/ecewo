@@ -1,10 +1,67 @@
 #include <stdlib.h>
 #include <string.h>
-#include "router.h"
+#include "ecewo.h"
 #include "uv.h"
+#include "llhttp.h"
 
 #define MAX_PATH_SEGMENTS 30
 #define MAX_SEGMENT_LENGTH 128
+
+void write_completion_cb(uv_write_t *req, int status)
+{
+    if (status < 0)
+    {
+        fprintf(stderr, "Write error: %s\n", uv_strerror(status));
+    }
+
+    // Get our write_req_t structure from the uv_write_t pointer
+    write_req_t *write_req = (write_req_t *)req;
+
+    // Free the allocated response buffer
+    free(write_req->data);
+
+    // Free the write request structure itself
+    free(write_req);
+}
+
+void send_400_response(uv_tcp_t *client_socket)
+{
+    const char *bad_request = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: 11\r\nConnection: close\r\n\r\nBad Request";
+
+    // Create a write request structure
+    write_req_t *write_req = (write_req_t *)malloc(sizeof(write_req_t));
+    if (!write_req)
+    {
+        fprintf(stderr, "Failed to allocate memory for write request\n");
+        return;
+    }
+
+    // Allocate memory for the response and copy the bad request message
+    char *response = malloc(strlen(bad_request) + 1);
+    if (!response)
+    {
+        fprintf(stderr, "Failed to allocate memory for response\n");
+        free(write_req);
+        return;
+    }
+
+    strcpy(response, bad_request);
+
+    // Store the allocated buffer in the write request
+    write_req->data = response;
+
+    // Set up the buffer for libuv
+    write_req->buf = uv_buf_init(response, (unsigned int)strlen(response));
+
+    // Send the response asynchronously
+    int result = uv_write(&write_req->req, (uv_stream_t *)client_socket, &write_req->buf, 1, write_completion_cb);
+    if (result < 0)
+    {
+        fprintf(stderr, "Write error: %s\n", uv_strerror(result));
+        free(response);
+        free(write_req);
+    }
+}
 
 bool matcher(const char *path, const char *route_path)
 {
@@ -71,149 +128,106 @@ bool matcher(const char *path, const char *route_path)
     return true;
 }
 
-// Check if the request has "Connection: keep-alive" header
-static int has_keepalive_header(const request_t *headers)
+// Extract URL path and query parts from the URL
+static void extract_path_and_query(const char *url, char *path, size_t path_size, char *query, size_t query_size)
 {
-    for (int i = 0; i < headers->count; i++)
-    {
-        if (strcasecmp(headers->items[i].key, "Connection") == 0)
-        {
-            if (strcasecmp(headers->items[i].value, "keep-alive") == 0)
-            {
-                return 1;
-            }
-            else if (strcasecmp(headers->items[i].value, "close") == 0)
-            {
-                return 0;
-            }
-        }
-    }
-    return -1; // No Connection header found
-}
+    path[0] = '\0';
+    query[0] = '\0';
 
-// Determine if the connection should be kept alive based on HTTP version and headers
-static int should_keep_alive(const char *request, const request_t *headers)
-{
-    // Check HTTP version
-    if (strstr(request, "HTTP/1.1"))
+    // Skip any "http://" or "https://" prefix
+    const char *url_path = url;
+    if (strncmp(url, "http://", 7) == 0)
     {
-        // HTTP/1.1 default is keep-alive
-        int header_value = has_keepalive_header(headers);
-        if (header_value == 0)
-        {
-            // Connection: close was specified
-            return 0;
-        }
-        // Either Connection: keep-alive or no Connection header (default to keep-alive for HTTP/1.1)
-        return 1;
+        url_path = strchr(url + 7, '/');
+        if (!url_path)
+            url_path = url + strlen(url);
     }
-    else
+    else if (strncmp(url, "https://", 8) == 0)
     {
-        // HTTP/1.0 or other (default to close)
-        int header_value = has_keepalive_header(headers);
-        if (header_value == 1)
-        {
-            // Connection: keep-alive was specified
-            return 1;
-        }
-        // Either Connection: close or no Connection header (default to close for HTTP/1.0)
-        return 0;
-    }
-}
-
-int router(uv_tcp_t *client_socket, const char *request)
-{
-    if (!request || !*request)
-    {
-        printf("Invalid empty request\n");
-        return 1; // Close connection for invalid requests
+        url_path = strchr(url + 8, '/');
+        if (!url_path)
+            url_path = url + strlen(url);
     }
 
-    char method[16] = {0};
-    char full_path[512] = {0};
-    char path[512] = {0};
-    char query[512] = {0};
-
-    // Parse the request line
-    if (sscanf(request, "%15s %511s", method, full_path) != 2)
+    // If URL doesn't start with '/', it might contain hostname
+    if (url_path[0] != '/' && url_path == url)
     {
-        printf("Invalid request format\n");
-
-        // 400 Bad Request message
-        const char *bad_request = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: 11\r\nConnection: close\r\n\r\nBad Request";
-
-        uv_write_t req; // Write request
-        uv_buf_t buf = uv_buf_init((char *)bad_request, (unsigned int)strlen(bad_request));
-
-        // Send the response asynchronously using uv_write
-        uv_write(&req, (uv_stream_t *)&client_socket, &buf, 1, NULL);
-
-        return 1; // Close connection for invalid requests
-    }
-
-    // Find body - it starts after \r\n\r\n
-    const char *body_start = strstr(request, "\r\n\r\n");
-    size_t body_length = 0;
-    char *body = NULL;
-
-    if (body_start)
-    {
-        body_start += 4; // Skip the "\r\n\r\n"
-        body_length = strlen(body_start);
-
-        // Allocate memory for body and copy data
-        body = malloc(body_length + 1);
-        if (body)
+        // Look for first '/' after hostname
+        url_path = strchr(url, '/');
+        if (!url_path)
         {
-            memcpy(body, body_start, body_length);
-            body[body_length] = '\0'; // null-terminate
-        }
-        else
-        {
-            printf("Failed to allocate memory for request body\n");
+            // No path specified, use root
+            strncpy(path, "/", path_size);
+            return;
         }
     }
 
-    // Parse path and query
-    char *qmark = strchr(full_path, '?');
-    if (qmark)
-    {
-        size_t path_len = qmark - full_path;
-        if (path_len >= sizeof(path))
-        {
-            path_len = sizeof(path) - 1;
-        }
+    // Find the query part starting with '?'
+    const char *query_start = strchr(url_path, '?');
 
-        strncpy(path, full_path, path_len);
+    if (query_start)
+    {
+        // Copy path part (without query)
+        size_t path_len = query_start - url_path;
+        if (path_len >= path_size)
+            path_len = path_size - 1;
+        strncpy(path, url_path, path_len);
         path[path_len] = '\0';
 
-        strncpy(query, qmark + 1, sizeof(query) - 1);
-        query[sizeof(query) - 1] = '\0';
+        // Copy query part (without the '?')
+        strncpy(query, query_start + 1, query_size - 1);
+        query[query_size - 1] = '\0';
     }
     else
     {
-        strncpy(path, full_path, sizeof(path) - 1);
-        path[sizeof(path) - 1] = '\0';
-        query[0] = '\0';
+        // No query part, just copy the path
+        strncpy(path, url_path, path_size - 1);
+        path[path_size - 1] = '\0';
     }
 
+    // Default to "/" if path is empty
+    if (path[0] == '\0')
+    {
+        strncpy(path, "/", path_size);
+    }
+}
+
+int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len)
+{
+    if (!request_data || request_len == 0)
+    {
+        printf("Invalid empty request\n");
+        send_400_response(client_socket);
+        return 1; // Close connection for invalid requests
+    }
+
+    // Create and initialize HTTP context
+    http_context_t context;
+    http_context_init(&context);
+
+    // Parse the HTTP request
+    enum llhttp_errno err = llhttp_execute(&context.parser, request_data, request_len);
+
+    if (err != HPE_OK)
+    {
+        fprintf(stderr, "HTTP parsing error: %s\n", llhttp_errno_name(err));
+        send_400_response(client_socket);
+        http_context_free(&context);
+        return 1; // Close connection for parsing errors
+    }
+
+    // Parse the URL to extract path and query
+    char path[512] = {0};
+    char query[512] = {0};
+    extract_path_and_query(context.url, path, sizeof(path), query, sizeof(query));
+
     // Debug info
-    printf("Request Method: %s\n", method);
+    printf("Request Method: %s\n", context.method);
     printf("Request Path: %s\n", path);
     printf("Request Query: %s\n", query);
 
-    // Initialize query and headers to prevent issues with freeing uninitialized memory
-    request_t parsed_query = {0};
-    request_t headers = {0};
-
     // Parse query parameters
-    parse_query(query, &parsed_query);
-
-    // Parse headers
-    parse_headers(request, &headers);
-
-    // Determine if the connection should be kept alive
-    int keep_alive = should_keep_alive(request, &headers);
+    parse_query(query, &context.query_params);
 
     // Route matching
     bool route_found = false;
@@ -225,7 +239,7 @@ int router(uv_tcp_t *client_socket, const char *request)
         const char *route_path = routes[i].path;
 
         // Compare request method with route method
-        if (strcasecmp(method, route_method) != 0)
+        if (strcasecmp(context.method, route_method) != 0)
         {
             continue;
         }
@@ -238,29 +252,26 @@ int router(uv_tcp_t *client_socket, const char *request)
 
         route_found = true;
 
-        // Set up parameter array for dynamic parameters
-        request_t params = {.items = NULL, .count = 0, .capacity = 0};
-
         // Process dynamic parameters
         printf("Parsing dynamic params for path: %s, route: %s\n", path, route_path);
-        parse_params(path, route_path, &params);
+        parse_params(path, route_path, &context.url_params);
 
         // Debug info for params
-        printf("Dynamic Params Found: %d\n", params.count);
-        for (int j = 0; j < params.count; j++)
+        printf("Dynamic Params Found: %d\n", context.url_params.count);
+        for (int j = 0; j < context.url_params.count; j++)
         {
-            printf("  Key: %s, Value: %s\n", params.items[j].key, params.items[j].value);
+            printf("  Key: %s, Value: %s\n", context.url_params.items[j].key, context.url_params.items[j].value);
         }
 
         // Prepare request object
         Req req = {
             .client_socket = client_socket,
-            .method = method,
+            .method = context.method,
             .path = path,
-            .body = body,
-            .params = params,
-            .query = parsed_query,
-            .headers = headers,
+            .body = context.body,
+            .params = context.url_params,
+            .query = context.query_params,
+            .headers = context.headers,
         };
 
         // Prepare response object with defaults
@@ -270,22 +281,14 @@ int router(uv_tcp_t *client_socket, const char *request)
             .content_type = "application/json",
             .body = NULL,
             .set_cookie = {0},
-            .keep_alive = keep_alive // Set the keep-alive status
+            .keep_alive = context.keep_alive // Set the keep-alive status
         };
 
         // Call the handler for this route
         routes[i].handler(&req, &res);
 
-        // Free allocated memory
-        if (body)
-        {
-            free(body);
-            body = NULL;
-        }
-
-        free_req(&parsed_query);
-        free_req(&headers);
-        free_req(&params);
+        // Clean up HTTP context
+        http_context_free(&context);
 
         // Return whether to close the connection
         return res.keep_alive ? 0 : 1;
@@ -294,7 +297,7 @@ int router(uv_tcp_t *client_socket, const char *request)
     // If no route matches, return 404
     if (!route_found)
     {
-        printf("No matching route found for: %s %s\n", method, path);
+        printf("No matching route found for: %s %s\n", context.method, path);
 
         Res res = {
             .client_socket = client_socket,
@@ -302,57 +305,25 @@ int router(uv_tcp_t *client_socket, const char *request)
             .content_type = "text/plain",
             .body = NULL,
             .set_cookie = {0},
-            .keep_alive = keep_alive // Set the keep-alive status
+            .keep_alive = context.keep_alive // Set the keep-alive status
         };
 
         reply(&res, res.status, res.content_type, "404 Not Found");
 
-        // Free allocated memory
-        if (body)
-        {
-            free(body);
-            body = NULL;
-        }
-
-        free_req(&parsed_query);
-        free_req(&headers);
+        // Clean up HTTP context
+        http_context_free(&context);
 
         // Return whether to close the connection
         return res.keep_alive ? 0 : 1;
     }
 
-    // Free allocated resources
-    free_req(&parsed_query);
-    free_req(&headers);
-
-    if (body)
-    {
-        free(body);
-        body = NULL;
-    }
+    // Clean up HTTP context
+    http_context_free(&context);
 
     // Default to closing the connection
     return 1;
 }
 
-void write_completion_cb(uv_write_t *req, int status)
-{
-    if (status < 0)
-    {
-        fprintf(stderr, "Write error: %s\n", uv_strerror(status));
-    }
-
-    // Get our write_req_t structure from the uv_write_t pointer
-    write_req_t *write_req = (write_req_t *)req;
-
-    // Free the allocated response buffer
-    free(write_req->data);
-
-    // Free the write request structure itself
-    free(write_req);
-}
-
-// Fix for reply function
 void reply(Res *res, const char *status, const char *content_type, const char *body)
 {
     // Calculate the total size needed for the response
@@ -427,47 +398,6 @@ void reply(Res *res, const char *status, const char *content_type, const char *b
 
     // Reset the cookie header for the next request
     res->set_cookie[0] = '\0';
-}
-
-// Fix for 400 Bad Request handling in router function
-// Replace the relevant section in router() with this code:
-void send_400_response(uv_tcp_t *client_socket)
-{
-    const char *bad_request = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: 11\r\nConnection: close\r\n\r\nBad Request";
-
-    // Create a write request structure
-    write_req_t *write_req = (write_req_t *)malloc(sizeof(write_req_t));
-    if (!write_req)
-    {
-        fprintf(stderr, "Failed to allocate memory for write request\n");
-        return;
-    }
-
-    // Allocate memory for the response and copy the bad request message
-    char *response = malloc(strlen(bad_request) + 1);
-    if (!response)
-    {
-        fprintf(stderr, "Failed to allocate memory for response\n");
-        free(write_req);
-        return;
-    }
-
-    strcpy(response, bad_request);
-
-    // Store the allocated buffer in the write request
-    write_req->data = response;
-
-    // Set up the buffer for libuv
-    write_req->buf = uv_buf_init(response, (unsigned int)strlen(response));
-
-    // Send the response asynchronously
-    int result = uv_write(&write_req->req, (uv_stream_t *)client_socket, &write_req->buf, 1, write_completion_cb);
-    if (result < 0)
-    {
-        fprintf(stderr, "Write error: %s\n", uv_strerror(result));
-        free(response);
-        free(write_req);
-    }
 }
 
 void set_cookie(Res *res, const char *name, const char *value, int max_age)

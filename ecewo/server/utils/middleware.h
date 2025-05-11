@@ -1,7 +1,7 @@
 #ifndef MIDDLEWARE_H
 #define MIDDLEWARE_H
 
-#include "handler.h"
+#include "router.h"
 
 // Function pointer type for middleware
 typedef int (*MiddlewareHandler)(Req *req, Res *res, void *next_ctx);
@@ -28,7 +28,7 @@ typedef struct
 
 // Global middleware array
 // extern MiddlewareHandler global_middleware[MAX_GLOBAL_MIDDLEWARE];
-#define INITIAL_CAPACITY 4
+#define INITIAL_MW_CAPACITY 4
 
 extern MiddlewareHandler *global_middleware;
 extern int global_middleware_count;

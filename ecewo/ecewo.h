@@ -1,9 +1,9 @@
-#ifndef ROUTER_H
-#define ROUTER_H
+#ifndef ECEWO_H
+#define ECEWO_H
 
 #include <stdio.h>
 #include <stdarg.h>
-#include "handler.h"
+#include "router.h"
 #include "middleware.h"
 #include "compat.h"
 
@@ -11,8 +11,10 @@ extern Router *routes;
 extern int route_count;
 extern int routes_capacity;
 
-void init_router(void);
-void cleanup_router(void);
+// void init_router(void);
+// void free_router(void);
+
+void expand_routes(void);
 
 void get(const char *path, ...);
 void post(const char *path, ...);

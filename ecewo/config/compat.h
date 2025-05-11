@@ -9,6 +9,7 @@
 #include <string.h>
 #define strcasecmp _stricmp
 #define strdup _strdup
+#define strncasecmp _strnicmp
 #endif
 
 #endif

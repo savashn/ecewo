@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
-#include "router.h"
+#include "ecewo.h"
 #include "middleware.h"
 
 // Global middleware
@@ -13,7 +13,7 @@ void hook(MiddlewareHandler middleware_handler)
 {
     if (global_middleware_count >= global_middleware_capacity)
     {
-        int new_cap = global_middleware_capacity ? global_middleware_capacity * 2 : INITIAL_CAPACITY;
+        int new_cap = global_middleware_capacity ? global_middleware_capacity * 2 : INITIAL_MW_CAPACITY;
         MiddlewareHandler *tmp = realloc(global_middleware, new_cap * sizeof *tmp);
         if (!tmp)
         {
@@ -186,6 +186,8 @@ void register_route_with_middleware(const char *method, const char *path,
                                     MiddlewareHandler *middleware, int middleware_count,
                                     RequestHandler handler)
 {
+    expand_routes();
+
     if (!method || !path)
     {
         printf("Error: NULL method or path provided\n");

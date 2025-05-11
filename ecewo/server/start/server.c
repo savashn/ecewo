@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "handler.h"
+#include "router.h"
 
 // Allocation callback for buffer
 void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
@@ -56,7 +56,8 @@ void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf)
     data[(size_t)nread] = '\0';
 
     // Process request and determine if connection should be closed
-    int should_close = router((uv_tcp_t *)client, data);
+    // int should_close = router((uv_tcp_t *)client, data);
+    int should_close = router((uv_tcp_t *)client, data, (size_t)nread);
 
     free(data);
     free(buf->base);
@@ -120,7 +121,7 @@ void ecewo(unsigned short PORT)
         return;
     }
 
-    printf("ecewo v0.17.0\n");
+    printf("ecewo v0.18.0\n");
     printf("Server is running at: http://localhost:%d\n", PORT);
 
     // Run the event loop

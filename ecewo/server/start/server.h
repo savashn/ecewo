@@ -3,4 +3,7 @@
 
 void ecewo(unsigned short PORT);
 
+void init_router(void);
+void free_router(void);
+
 #endif

@@ -1,4 +1,4 @@
-#include "router.h"
+#include "ecewo.h"
 
 Router *routes = NULL;
 int route_count = 0;
@@ -18,7 +18,7 @@ void init_router(void)
 }
 
 // Cleanup function to free memory
-void cleanup_router(void)
+void free_router(void)
 {
     if (routes != NULL)
     {
@@ -30,7 +30,7 @@ void cleanup_router(void)
 }
 
 // Helper function to expand the routes array when needed
-static void expand_routes_if_needed(void)
+void expand_routes(void)
 {
     if (route_count >= routes_capacity)
     {
