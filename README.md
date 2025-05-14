@@ -8,13 +8,14 @@
 
 A modern and developer-friendly backend framework for C that handles the complexities of C programming and lets you build backends with ease — inspired by the simplicity of Express.js.
 
-It's a **hobby project** I started to improve my programming skills. See [FAQ](https://ecewo.vercel.app/docs/faq).
+It's not production-ready yet and it doesn't need to be, because it's a **hobby project** I started to improve my programming skills. See [FAQ](https://ecewo.vercel.app/docs/faq).
 
 ### Table of Contents
 
 - [Out of The Box Features](#out-of-the-box-features)
 - [Requirements](#requirements)
 - [Quick Start](#quick-start)
+- [Example Hello World](#example-hello-world)
 - [Documentation](#documentation)
 - [License](#license)
 
@@ -42,26 +43,24 @@ git clone https://github.com/savashn/ecewo.git
 cd ecewo
 ```
 
-Set up a `src` folder:
+And then run the following commands to create an example starter:
 
+For Linux/macOS:
 ```
-mkdir src
-cd src
-touch main.c handlers.c handlers.h CMakeLists.txt
-```
-
-Or, if you use PowerShell:
-
-```
-mkdir src
-cd src
-ni main.c
-ni handlers.c
-ni handlers.h
-ni CMakeLists.txt
+chmod +x build.sh
+./build.sh --create
+./build.sh --run
 ```
 
-Declare a handler in `handlers.h`:
+For Windows PowerShell:
+```
+./build.bat /create
+./build.bat /run
+```
+
+These commands will automatically create the following `hello world` example and run the server at `http://localhost:4000`.
+
+### Example Hello World
 
 ```sh
 // src/handlers.h
@@ -76,8 +75,6 @@ void hello_world(Req *req, Res *res);
 #endif
 ```
 
-Write the handler:
-
 ```sh
 // src/handlers.c
 
@@ -89,8 +86,6 @@ void hello_world(Req *req, Res *res)
 }
 
 ```
-
-Set up the entry point:
 
 ```sh
 // src/main.c
@@ -106,47 +101,6 @@ int main()
     free_router();
     return 0;
 }
-```
-
-Set up the `CMakeLists.txt`:
-
-```
-cmake_minimum_required(VERSION 3.10)
-project(my-project VERSION 0.1.0 LANGUAGES C)
-
-set(APP_SRC
-    ${CMAKE_CURRENT_SOURCE_DIR}/main.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/handlers.c
-    PARENT_SCOPE
-)
-```
-
-### Compile
-
-For Linux/macOS:
-
-```
-chmod +x build.sh
-./build.sh
-```
-
-For Windows:
-
-```
-./build.bat
-```
-
-To rebuild from scratch:
-```
-// For Linux/macOS:
-
-./build.sh --rebuild
-```
-
-```
-// For Windows:
-
-./build.bat /rebuild
 ```
 
 <--- **NOTE** --->
@@ -168,7 +122,7 @@ cmake_minimum_required (VERSION 3.10)
 project(jansson C)
 ```
 
-And run the build command again.
+And run `./build.sh --run` or `./build.bat /run` again.
 
 ### Documentation
 

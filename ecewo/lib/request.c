@@ -319,7 +319,6 @@ void parse_query(const char *query_string, request_t *query)
 
 void parse_params(const char *path, const char *route_path, request_t *params)
 {
-    printf("Parsing dynamic params for path: %s, route: %s\n", path, route_path);
     params->count = 0;
     params->capacity = INITIAL_CAPACITY;
 
@@ -416,7 +415,6 @@ void parse_params(const char *path, const char *route_path, request_t *params)
                 params->items[params->count].key = param_key;
                 params->items[params->count].value = param_value;
                 params->count++;
-                printf("Parsed parameter: %s = %s\n", param_key, param_value);
             }
             else
             {

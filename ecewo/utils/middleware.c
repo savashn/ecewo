@@ -260,9 +260,6 @@ void register_route(const char *method, const char *path, MiddlewareArray middle
         return;
     }
 
-    printf("Route registered: %s %s (handler: %p, middlewares: %d)\n",
-           method, path, (void *)handler, middleware.count);
-
     register_route_with_middleware(method, path, middleware.handlers, middleware.count, handler);
 }
 

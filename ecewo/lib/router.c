@@ -4,9 +4,6 @@
 #include "uv.h"
 #include "llhttp.h"
 
-#define MAX_PATH_SEGMENTS 30
-#define MAX_SEGMENT_LENGTH 128
-
 void write_completion_cb(uv_write_t *req, int status)
 {
     if (status < 0)
@@ -24,9 +21,14 @@ void write_completion_cb(uv_write_t *req, int status)
     free(write_req);
 }
 
-void send_400_response(uv_tcp_t *client_socket)
+static void send_error(uv_tcp_t *client_socket, int error_code)
 {
-    const char *bad_request = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: 11\r\nConnection: close\r\n\r\nBad Request";
+    const char *err = NULL;
+
+    if (error_code == 500)
+        err = "HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: 21\r\nConnection: close\r\n\r\nInternal Server Error";
+    if (error_code == 400)
+        err = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: 11\r\nConnection: close\r\n\r\nBad Request";
 
     // Create a write request structure
     write_req_t *write_req = (write_req_t *)malloc(sizeof(write_req_t));
@@ -37,7 +39,7 @@ void send_400_response(uv_tcp_t *client_socket)
     }
 
     // Allocate memory for the response and copy the bad request message
-    char *response = malloc(strlen(bad_request) + 1);
+    char *response = malloc(strlen(err) + 1);
     if (!response)
     {
         fprintf(stderr, "Failed to allocate memory for response\n");
@@ -45,7 +47,7 @@ void send_400_response(uv_tcp_t *client_socket)
         return;
     }
 
-    strcpy(response, bad_request);
+    strcpy(response, err);
 
     // Store the allocated buffer in the write request
     write_req->data = response;
@@ -65,74 +67,112 @@ void send_400_response(uv_tcp_t *client_socket)
 
 bool matcher(const char *path, const char *route_path)
 {
-    // Create temporary copies to split paths by '/' character
-    char path_copy[512];
-    char route_copy[512];
+    if (!path || !route_path)
+        return false;
 
-    // Safety check for path lengths
-    if (strlen(path) >= sizeof(path_copy) || strlen(route_path) >= sizeof(route_copy))
+    // Make mutable copies
+    char *path_copy = strdup(path);
+    char *route_copy = strdup(route_path);
+    if (!path_copy || !route_copy)
     {
-        printf("Path too long: %s or %s\n", path, route_path);
+        free(path_copy);
+        free(route_copy);
         return false;
     }
 
-    strncpy(path_copy, path, sizeof(path_copy) - 1);
-    path_copy[sizeof(path_copy) - 1] = '\0';
-    strncpy(route_copy, route_path, sizeof(route_copy) - 1);
-    route_copy[sizeof(route_copy) - 1] = '\0';
-
-    // Arrays to hold path segments
-    char *path_segments[MAX_PATH_SEGMENTS];
-    char *route_segments[MAX_PATH_SEGMENTS];
-    int path_segment_count = 0;
-    int route_segment_count = 0;
+    // Dynamic arrays for segments
+    size_t path_cap = 8, route_cap = 8;
+    size_t path_segment_count = 0, route_segment_count = 0;
+    char **path_segments = malloc(path_cap * sizeof *path_segments);
+    char **route_segments = malloc(route_cap * sizeof *route_segments);
+    if (!path_segments || !route_segments)
+    {
+        free(path_copy);
+        free(route_copy);
+        free(path_segments);
+        free(route_segments);
+        return false;
+    }
 
     // Split path segments
     char *token = strtok(path_copy, "/");
-    while (token != NULL && path_segment_count < MAX_PATH_SEGMENTS)
+    while (token)
     {
+        if (path_segment_count == path_cap)
+        {
+            path_cap *= 2;
+            char **tmp = realloc(path_segments, path_cap * sizeof *tmp);
+            if (!tmp)
+                break;
+            path_segments = tmp;
+        }
         path_segments[path_segment_count++] = token;
         token = strtok(NULL, "/");
     }
 
     // Split route segments
     token = strtok(route_copy, "/");
-    while (token != NULL && route_segment_count < MAX_PATH_SEGMENTS)
+    while (token)
     {
+        if (route_segment_count == route_cap)
+        {
+            route_cap *= 2;
+            char **tmp = realloc(route_segments, route_cap * sizeof *tmp);
+            if (!tmp)
+                break;
+            route_segments = tmp;
+        }
         route_segments[route_segment_count++] = token;
         token = strtok(NULL, "/");
     }
 
-    // If segment counts differ, route doesn't match
+    bool match = true;
+
+    // Compare counts
     if (path_segment_count != route_segment_count)
     {
-        return false;
+        match = false;
+    }
+    else
+    {
+        // Compare each segment
+        for (size_t i = 0; i < path_segment_count; i++)
+        {
+            const char *rseg = route_segments[i];
+            const char *pseg = path_segments[i];
+
+            // If route segment starts with ':', it's a parameter and always matches
+            if (rseg[0] == ':')
+            {
+                continue; // Parameter always matches, move to next segment
+            }
+            // Static segment check
+            if (strcmp(rseg, pseg) != 0)
+            {
+                match = false; // If static segment doesn't match, route doesn't match
+                break;
+            }
+        }
     }
 
-    // Compare segments
-    for (int i = 0; i < path_segment_count; i++)
-    {
-        // If route segment starts with ':', it's a parameter and always matches
-        if (route_segments[i][0] == ':')
-        {
-            continue; // Parameter always matches, move to next segment
-        }
-        // Static segment check
-        else if (strcmp(route_segments[i], path_segments[i]) != 0)
-        {
-            return false; // If static segment doesn't match, route doesn't match
-        }
-    }
+    free(path_copy);
+    free(route_copy);
+    free(path_segments);
+    free(route_segments);
 
     // If all segments match, route matches
-    return true;
+    return match;
 }
 
 // Extract URL path and query parts from the URL
-static void extract_path_and_query(const char *url, char *path, size_t path_size, char *query, size_t query_size)
+static int extract_path_and_query(const char *url, char **path, char **query)
 {
-    path[0] = '\0';
-    query[0] = '\0';
+    if (!url || !path || !query)
+        return -1;
+
+    // Initialize output pointers to NULL
+    *path = NULL;
+    *query = NULL;
 
     // Skip any "http://" or "https://" prefix
     const char *url_path = url;
@@ -157,8 +197,18 @@ static void extract_path_and_query(const char *url, char *path, size_t path_size
         if (!url_path)
         {
             // No path specified, use root
-            strncpy(path, "/", path_size);
-            return;
+            *path = strdup("/");
+            if (!*path)
+                return -1; // Memory allocation failed
+
+            *query = strdup("");
+            if (!*query)
+            {
+                free(*path);
+                *path = NULL;
+                return -1; // Memory allocation failed
+            }
+            return 0;
         }
     }
 
@@ -167,29 +217,56 @@ static void extract_path_and_query(const char *url, char *path, size_t path_size
 
     if (query_start)
     {
-        // Copy path part (without query)
+        // Allocate and copy path part (without query)
         size_t path_len = query_start - url_path;
-        if (path_len >= path_size)
-            path_len = path_size - 1;
-        strncpy(path, url_path, path_len);
-        path[path_len] = '\0';
+        *path = (char *)malloc(path_len + 1);
+        if (!*path)
+            return -1; // Memory allocation failed
 
-        // Copy query part (without the '?')
-        strncpy(query, query_start + 1, query_size - 1);
-        query[query_size - 1] = '\0';
+        strncpy(*path, url_path, path_len);
+        (*path)[path_len] = '\0';
+
+        // Allocate and copy query part (without the '?')
+        size_t query_len = strlen(query_start + 1);
+        *query = (char *)malloc(query_len + 1);
+        if (!*query)
+        {
+            free(*path);
+            *path = NULL;
+            return -1; // Memory allocation failed
+        }
+        strcpy(*query, query_start + 1);
     }
     else
     {
         // No query part, just copy the path
-        strncpy(path, url_path, path_size - 1);
-        path[path_size - 1] = '\0';
+        *path = strdup(url_path);
+        if (!*path)
+            return -1; // Memory allocation failed
+
+        *query = strdup("");
+        if (!*query)
+        {
+            free(*path);
+            *path = NULL;
+            return -1; // Memory allocation failed
+        }
     }
 
     // Default to "/" if path is empty
-    if (path[0] == '\0')
+    if ((*path)[0] == '\0')
     {
-        strncpy(path, "/", path_size);
+        free(*path);
+        *path = strdup("/");
+        if (!*path)
+        {
+            free(*query);
+            *query = NULL;
+            return -1; // Memory allocation failed
+        }
     }
+
+    return 0; // Success
 }
 
 int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len)
@@ -197,7 +274,7 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     if (!request_data || request_len == 0)
     {
         printf("Invalid empty request\n");
-        send_400_response(client_socket);
+        send_error(client_socket, 400);
         return 1; // Close connection for invalid requests
     }
 
@@ -211,20 +288,27 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     if (err != HPE_OK)
     {
         fprintf(stderr, "HTTP parsing error: %s\n", llhttp_errno_name(err));
-        send_400_response(client_socket);
+        send_error(client_socket, 400);
         http_context_free(&context);
         return 1; // Close connection for parsing errors
     }
 
     // Parse the URL to extract path and query
-    char path[512] = {0};
-    char query[512] = {0};
-    extract_path_and_query(context.url, path, sizeof(path), query, sizeof(query));
+    char *path = NULL;
+    char *query = NULL;
+
+    if (extract_path_and_query(context.url, &path, &query) != 0)
+    {
+        fprintf(stderr, "Memory allocation error during URL parsing\n");
+        send_error(client_socket, 500);
+        http_context_free(&context);
+        return 1; // Close connection for memory errors
+    }
 
     // Debug info
     printf("Request Method: %s\n", context.method);
     printf("Request Path: %s\n", path);
-    printf("Request Query: %s\n", query);
+    // printf("Request Query: %s\n", query);
 
     // Parse query parameters
     parse_query(query, &context.query_params);
@@ -253,15 +337,7 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
         route_found = true;
 
         // Process dynamic parameters
-        printf("Parsing dynamic params for path: %s, route: %s\n", path, route_path);
         parse_params(path, route_path, &context.url_params);
-
-        // Debug info for params
-        printf("Dynamic Params Found: %d\n", context.url_params.count);
-        for (int j = 0; j < context.url_params.count; j++)
-        {
-            printf("  Key: %s, Value: %s\n", context.url_params.items[j].key, context.url_params.items[j].value);
-        }
 
         // Prepare request object
         Req req = {
@@ -277,7 +353,7 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
         // Prepare response object with defaults
         Res res = {
             .client_socket = client_socket,
-            .status = "200 OK",
+            .status = 200,
             .content_type = "application/json",
             .body = NULL,
             .set_cookie = {0},
@@ -301,7 +377,7 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
 
         Res res = {
             .client_socket = client_socket,
-            .status = "404 Not Found",
+            .status = 404,
             .content_type = "text/plain",
             .body = NULL,
             .set_cookie = {0},
@@ -324,7 +400,7 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     return 1;
 }
 
-void reply(Res *res, const char *status, const char *content_type, const char *body)
+void reply(Res *res, int status, const char *content_type, const char *body)
 {
     // Calculate the total size needed for the response
     size_t body_len = strlen(body);
@@ -345,7 +421,7 @@ void reply(Res *res, const char *status, const char *content_type, const char *b
 
     // Format the response
     int written = snprintf(response, total_len,
-                           "HTTP/1.1 %s\r\n"         // Status code and status text
+                           "HTTP/1.1 %d\r\n"         // Status code
                            "%s"                      // Set-Cookie header, if any
                            "Content-Type: %s\r\n"    // Content-Type header
                            "Content-Length: %zu\r\n" // Content-Length header
@@ -367,7 +443,7 @@ void reply(Res *res, const char *status, const char *content_type, const char *b
     }
 
     // Debug info
-    printf("Sending response: %d bytes, status: %s\n", written, status);
+    printf("Sending response: %d bytes, status: %d\n", written, status);
 
     // Create a write request structure
     write_req_t *write_req = (write_req_t *)malloc(sizeof(write_req_t));
