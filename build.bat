@@ -103,11 +103,33 @@ if "%UPDATE%"=="1" (
 :do_rebuild
 REM Handle rebuild flag
 if "%REBUILD%"=="1" (
-  echo Cleaning build directory...
-  if exist build rmdir /s /q build
-  echo Cleaned.
-  echo.
-  exit /b 0
+    echo Cleaning build directory...
+    if exist build rmdir /s /q build
+    echo Cleaned.
+    echo.
+    mkdir build
+
+    cd build
+    echo Configuring with CMake...  
+    cmake -G "Visual Studio 17 2022" -A x64 ..
+
+    REM Build the project
+    echo Building...
+    cmake --build . --config Release
+
+    echo Build completed!
+    echo.
+    echo Running ecewo server...
+    cd Release
+    if exist server.exe (
+        server.exe
+    ) else (
+        echo Server executable not found. Check for build errors.
+    )
+
+    REM Return to original directory
+    cd ..\..
+    exit /b 0
 )
 
 :do_create

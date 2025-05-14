@@ -181,6 +181,30 @@ if [[ $REBUILD -eq 1 ]]; then
   rm -rf build
   echo "Cleaned."
   echo ""
+  # Create build directory if it doesn't exist
+  mkdir -p build
+  
+  cd build
+  echo "Configuring with CMake..."
+  cmake -G "Unix Makefiles" ..
+  
+  # Build the project
+  echo "Building..."
+  cmake --build . --config Release
+  
+  echo "Build completed!"
+  echo ""
+  echo "Running ecewo server..."
+  
+  # Check if server binary exists
+  if [ -f ./server ]; then
+    ./server
+  else
+    echo "Server executable not found. Check for build errors."
+  fi
+  
+  # Return to original directory
+  cd ..
   exit 0
 fi
 
