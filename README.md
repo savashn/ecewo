@@ -8,7 +8,7 @@
 
 A modern and developer-friendly backend framework for C that handles the complexities of C programming and lets you build backends with ease — inspired by the simplicity of Express.js.
 
-It's not production-ready yet and it doesn't need to be, because it's a **hobby project** I started to improve my programming skills. See [FAQ](https://ecewo.vercel.app/docs/faq).
+Ecewo is a **hobby project** I started to improve my programming skills and it is still work in progress. See [FAQ](https://ecewo.vercel.app/docs/faq).
 
 ### Table of Contents
 
