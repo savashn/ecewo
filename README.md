@@ -82,7 +82,7 @@ void hello_world(Req *req, Res *res);
 
 void hello_world(Req *req, Res *res)
 {
-    reply(res, "200 OK", "text/plain", "hello world!");
+    reply(res, 200, "text/plain", "hello world!");
 }
 
 ```
