@@ -356,7 +356,7 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
             .status = 200,
             .content_type = "application/json",
             .body = NULL,
-            .set_cookie = {0},
+            .set_cookie = NULL,
             .keep_alive = context.keep_alive // Set the keep-alive status
         };
 
@@ -380,7 +380,7 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
             .status = 404,
             .content_type = "text/plain",
             .body = NULL,
-            .set_cookie = {0},
+            .set_cookie = NULL,
             .keep_alive = context.keep_alive // Set the keep-alive status
         };
 
@@ -402,38 +402,74 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
 
 void reply(Res *res, int status, const char *content_type, const char *body)
 {
-    // Calculate the total size needed for the response
+    // Body length
     size_t body_len = strlen(body);
-    size_t cookie_len = strlen(res->set_cookie);
-    size_t header_len = 128 + cookie_len;          // Base headers + cookie
-    size_t total_len = header_len + body_len + 64; // Extra padding for safety
 
-    // Allocate memory for the full response
-    char *response = malloc(total_len);
-    if (!response)
+    // Cookie header string or empty
+    const char *cookie_hdr = res->set_cookie ? res->set_cookie : "";
+
+    // Determine header length (without body)
+    int header_len = snprintf(
+        NULL, 0,
+        "HTTP/1.1 %d\r\n"
+        "%s"
+        "Content-Type: %s\r\n"
+        "Content-Length: %zu\r\n"
+        "Connection: %s\r\n"
+        "\r\n",
+        status,
+        cookie_hdr,
+        content_type,
+        body_len,
+        res->keep_alive ? "keep-alive" : "close");
+
+    if (header_len < 0)
     {
-        fprintf(stderr, "Failed to allocate memory for response\n");
+        fprintf(stderr, "Failed to compute header length\n");
         return;
     }
 
-    // Determine Connection header value based on keep_alive flag
-    const char *connection_value = res->keep_alive ? "keep-alive" : "close";
+    // Allocate header buffer
+    char *header_buf = malloc((size_t)header_len + 1);
+    if (!header_buf)
+    {
+        perror("malloc for header_buf");
+        return;
+    }
 
-    // Format the response
-    int written = snprintf(response, total_len,
-                           "HTTP/1.1 %d\r\n"         // Status code
-                           "%s"                      // Set-Cookie header, if any
-                           "Content-Type: %s\r\n"    // Content-Type header
-                           "Content-Length: %zu\r\n" // Content-Length header
-                           "Connection: %s\r\n"      // Connection header
-                           "\r\n"                    // Blank line separating headers and body
-                           "%s",                     // The response body
-                           status,
-                           res->set_cookie[0] ? res->set_cookie : "", // Include Set-Cookie if not empty
-                           content_type,
-                           body_len,         // Content-Length is the exact length of the body
-                           connection_value, // "keep-alive" or "close"
-                           body);
+    // Write header into buffer
+    int written = snprintf(
+        header_buf,
+        (size_t)header_len + 1,
+        "HTTP/1.1 %d\r\n"
+        "%s"
+        "Content-Type: %s\r\n"
+        "Content-Length: %zu\r\n"
+        "Connection: %s\r\n"
+        "\r\n",
+        status,
+        cookie_hdr,
+        content_type,
+        body_len,
+        res->keep_alive ? "keep-alive" : "close");
+
+    // Total response length (headers + body)
+    size_t total_len = (size_t)header_len + body_len;
+    char *response = malloc(total_len + 1);
+    if (!response)
+    {
+        perror("malloc for response");
+        free(header_buf);
+        return;
+    }
+
+    // Copy header and body
+    memcpy(response, header_buf, (size_t)header_len);
+    memcpy(response + header_len, body, body_len);
+    response[total_len] = '\0'; // Null-terminate
+
+    // Clean up header buffer
+    free(header_buf);
 
     if (written < 0 || (size_t)written >= total_len)
     {
@@ -458,7 +494,7 @@ void reply(Res *res, int status, const char *content_type, const char *body)
     write_req->data = response;
 
     // Set up the buffer for libuv
-    write_req->buf = uv_buf_init(response, written);
+    write_req->buf = uv_buf_init(response, total_len);
 
     // Important: Point req field to the actual uv_write_t structure
     uv_write_t *write_handle = &write_req->req;
@@ -472,26 +508,9 @@ void reply(Res *res, int status, const char *content_type, const char *body)
         free(write_req);
     }
 
-    // Reset the cookie header for the next request
-    res->set_cookie[0] = '\0';
-}
-
-void set_cookie(Res *res, const char *name, const char *value, int max_age)
-{
-    if (!name || !value)
+    if (res->set_cookie)
     {
-        printf("Error: NULL cookie name or value\n");
-        return;
+        free(res->set_cookie);
+        res->set_cookie = NULL;
     }
-
-    // Safety checks for name and value
-    if (strlen(name) > 64 || strlen(value) > 128)
-    {
-        printf("Error: Cookie name or value too long\n");
-        return;
-    }
-
-    snprintf(res->set_cookie, sizeof(res->set_cookie),
-             "Set-Cookie: %s=%s; Max-Age=%d; HttpOnly\r\n", // Set-Cookie header format
-             name, value, max_age);                         // Set the cookie's name, value, and max age
 }

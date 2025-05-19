@@ -21,7 +21,7 @@ typedef struct
     int status;
     char *content_type;
     char *body;
-    char set_cookie[256];
+    char *set_cookie;
     int keep_alive;
 } Res;
 
@@ -49,6 +49,5 @@ bool matcher(const char *path, const char *route_path);
 int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len);
 
 void reply(Res *res, int status, const char *content_type, const char *body);
-void set_cookie(Res *res, const char *name, const char *value, int max_age);
 
 #endif

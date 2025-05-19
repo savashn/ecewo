@@ -15,6 +15,7 @@ REBUILD=0
 UPDATE=0
 CREATE=0
 MIGRATE=0
+INSTALL=0
 
 # Parse command line arguments
 for arg in "$@"; do
@@ -34,6 +35,9 @@ for arg in "$@"; do
     --migrate)
       MIGRATE=1
       ;;
+    --install)
+      INSTALL=1
+      ;;
     *)
       echo "Unknown argument: $arg"
       ;;
@@ -41,7 +45,7 @@ for arg in "$@"; do
 done
 
 # Check if no parameters were provided
-if [[ $RUN -eq 0 && $REBUILD -eq 0 && $UPDATE -eq 0 && $CREATE -eq 0 && $MIGRATE -eq 0 ]]; then
+if [[ $RUN -eq 0 && $REBUILD -eq 0 && $UPDATE -eq 0 && $CREATE -eq 0 && $MIGRATE -eq 0 && $INSTALL -eq 0 ]]; then
   echo "No parameters specified. Please use one of the following:"
   echo ==========================================================
   echo "  --run       # Build and run the project"
@@ -49,14 +53,21 @@ if [[ $RUN -eq 0 && $REBUILD -eq 0 && $UPDATE -eq 0 && $CREATE -eq 0 && $MIGRATE
   echo "  --update    # Update Ecewo"
   echo "  --create    # Create a starter project"
   echo "  --migrate   # Migrate the "CMakeLists.txt" file"
+  echo "  --install   # Install packages"
   echo ==========================================================
   exit 0
 fi
 
 if [[ $CREATE -eq 1 ]]; then
+  if [ "$1" = "--dev" ]; then
+    BASE_DIR="dev"
+  else
+    BASE_DIR="src"
+  fi
+
   echo "Create a project:"
   read -p "Enter project name >>> " PROJECT_NAME
-  mkdir -p src
+  mkdir -p "$BASE_DIR"
 
   cat <<EOF > src/handlers.h
 #ifndef HANDLERS_H
@@ -74,7 +85,7 @@ EOF
 
 void hello_world(Req *req, Res *res)
 {
-    reply(res, "200 OK", "text/plain", "hello world!");
+    reply(res, 200, "text/plain", "hello world!");
 }
 EOF
 
@@ -87,7 +98,7 @@ int main()
     init_router();
     get("/", hello_world);
     ecewo(4000);
-    free_router();
+    final_router();
     return 0;
 }
 EOF
@@ -153,25 +164,19 @@ if [[ $UPDATE -eq 1 ]]; then
   fi
   
   echo "Copying files..."
-  # Use rsync to copy files with exclusions
-#   rsync -av --exclude=build --exclude=temp_repo --exclude=*.sh --exclude=LICENSE --exclude=README.md temp_repo/ ./
-  
-#   rm -rf temp_repo
-#   echo "Update complete."
+  echo "Packing updated files..."
+  tar --exclude=build \
+    --exclude=temp_repo \
+    --exclude='*.sh' \
+    --exclude=LICENSE \
+    --exclude=README.md \
+    -cf temp_repo.tar -C temp_repo .
 
-    echo "Packing updated files..."
-    tar --exclude=build \
-        --exclude=temp_repo \
-        --exclude='*.sh' \
-        --exclude=LICENSE \
-        --exclude=README.md \
-        -cf temp_repo.tar -C temp_repo .
+  echo "Unpacking into project directory..."
+  tar -xf temp_repo.tar -C .
 
-    echo "Unpacking into project directory..."
-    tar -xf temp_repo.tar -C .
-
-    rm -rf temp_repo temp_repo.tar
-    echo "Update complete."
+  rm -rf temp_repo temp_repo.tar
+  echo "Update complete."
   exit 0
 fi
 
@@ -208,10 +213,17 @@ if [[ $REBUILD -eq 1 ]]; then
   exit 0
 fi
 
-if [ "$MIGRATE" = "1" ]; then
-  echo "Migrating all .c files in src/ and its subdirectories to src/CMakeLists.txt"
-  SRC_DIR="${BASE_DIR}src"
+if [ "$MIGRATE" -eq 1 ]; then
+  if [ "$1" = "--dev" ]; then
+    BASE_SUBDIR="dev"
+  else
+    BASE_SUBDIR="src"
+  fi
+
+  SRC_DIR="${BASE_DIR}${BASE_SUBDIR}"
   CMAKE_FILE="$SRC_DIR/CMakeLists.txt"
+
+  echo "Migrating all .c files in $BASE_SUBDIR/ and its subdirectories to $BASE_SUBDIR/CMakeLists.txt"
 
   if [ ! -d "$SRC_DIR" ]; then
     echo "ERROR: Source directory '$SRC_DIR' not found!"
@@ -244,6 +256,83 @@ if [ "$MIGRATE" = "1" ]; then
   rm "$TMP_FILE"
 
   echo "Migration complete."
+  exit 0
+fi
+
+if [ "$INSTALL" -eq 1 ]; then
+
+  TARGET_DIR="src/vendors"
+  HAS_PACKAGE_ARG=0
+  HAS_DEV=0
+
+  for arg in "$@"; do
+    if [ "$arg" = "--dev" ]; then
+      TARGET_DIR="dev/vendors"
+      HAS_DEV=1
+    fi
+
+    case "$arg" in
+      --cjson|--dotenv|--sqlite|--session)
+        HAS_PACKAGE_ARG=1
+        ;;
+    esac
+  done
+
+  if [ "$HAS_PACKAGE_ARG" -eq 0 ]; then
+    echo "ecewo - Build Script for Linux and macOS"
+    echo "2025 (c) Savas Sahin <savashn>"
+    echo
+    echo "Packages list:"
+    echo "============================================="
+    echo "  cJSON     ./build.sh --install --cjson"
+    echo "  .env      ./build.sh --install --dotenv"
+    echo "  SQLite3   ./build.sh --install --sqlite"
+    echo "  Session   ./build.sh --install --session"
+    echo "============================================="
+    echo
+    exit 0
+  fi
+
+  if [ ! -d "$TARGET_DIR" ]; then
+    mkdir -p "$TARGET_DIR"
+  fi
+
+  for arg in "$@"; do
+    case "$arg" in
+      --cjson)
+        echo "Installing cJSON"
+        mkdir -p "$TARGET_DIR"
+        curl -O https://raw.githubusercontent.com/DaveGamble/cJSON/master/cJSON.c
+        curl -O https://raw.githubusercontent.com/DaveGamble/cJSON/master/cJSON.h
+        mv cJSON.c cJSON.h "$TARGET_DIR"
+        ;;
+      --dotenv)
+        echo "Installing .env"
+        mkdir -p "$TARGET_DIR"
+        curl -O https://raw.githubusercontent.com/savashn/ecewo-plugins/main/dotenv.c
+        curl -O https://raw.githubusercontent.com/savashn/ecewo-plugins/main/dotenv.h
+        mv dotenv.c dotenv.h "$TARGET_DIR"
+        echo "Installation is completed to $TARGET_DIR"
+        ;;
+      --sqlite)
+        echo "Installing SQLite 3"
+        mkdir -p "$TARGET_DIR"
+        curl -O https://raw.githubusercontent.com/savashn/ecewo-plugins/main/sqlite3.c
+        curl -O https://raw.githubusercontent.com/savashn/ecewo-plugins/main/sqlite3.h
+        mv sqlite3.c sqlite3.h "$TARGET_DIR"
+        echo "Installation is completed to $TARGET_DIR"
+        ;;
+      --session)
+        echo "Installing Session"
+        mkdir -p "$TARGET_DIR"
+        curl -O https://raw.githubusercontent.com/savashn/ecewo-plugins/main/session.c
+        curl -O https://raw.githubusercontent.com/savashn/ecewo-plugins/main/session.h
+        mv session.c session.h "$TARGET_DIR"
+        echo "Installation is completed to $TARGET_DIR"
+        ;;
+    esac
+  done
+
   exit 0
 fi
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(ecewo VERSION 0.19.0 LANGUAGES C)
+project(ecewo VERSION 0.20.0 LANGUAGES C)
 
 # Platform definitions
 if(WIN32)
@@ -22,15 +22,6 @@ FetchContent_Declare(
 # Make libuv available to the project
 FetchContent_MakeAvailable(libuv)
 
-# Fetch jansson from the GitHub repository
-FetchContent_Declare(
-    jansson
-    GIT_REPOSITORY https://github.com/akheron/jansson.git
-    GIT_TAG v2.14.1
-)
-
-FetchContent_MakeAvailable(jansson)
-
 # Fetch llhttp from the GitHub repository
 FetchContent_Declare(
   llhttp
@@ -40,8 +31,6 @@ FetchContent_Declare(
 # Disable shared library build and enable static library build
 set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
 set(BUILD_STATIC_LIBS ON CACHE INTERNAL "")
-set(JANSSON_BUILD_DOCS OFF CACHE BOOL "Disable Jansson documentation" FORCE)
-set(JANSSON_WITHOUT_TESTS ON CACHE BOOL "Disable Jansson tests" FORCE)
 
 # Make llhttp available to the project
 FetchContent_MakeAvailable(llhttp)
@@ -52,10 +41,8 @@ set(SRC_FILES
     server/server.c
     lib/router.c
     lib/request.c
-    lib/external/dotenv.c
     utils/async.c
     utils/middleware.c
-    utils/session.c
 )
 
 # Create library
@@ -67,14 +54,10 @@ target_include_directories(ecewo PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/config
     ${CMAKE_CURRENT_SOURCE_DIR}/lib
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/external
     ${CMAKE_CURRENT_SOURCE_DIR}/server
     ${CMAKE_CURRENT_SOURCE_DIR}/utils
     ${CMAKE_BINARY_DIR}/libuv/include
     ${CMAKE_BINARY_DIR}/llhttp/include
-    ${CMAKE_BINARY_DIR}/jansson/include
-    ${CMAKE_BINARY_DIR}/_deps/jansson-src/src
-    ${CMAKE_BINARY_DIR}/_deps/jansson-build/include
     ${CMAKE_BINARY_DIR}/_deps/llhttp-src/src
     ${CMAKE_BINARY_DIR}/_deps/llhttp-src/include
     ${CMAKE_BINARY_DIR}
@@ -89,7 +72,7 @@ configure_file(
 )
 
 # Link libraries
-target_link_libraries(ecewo uv jansson llhttp_static)
+target_link_libraries(ecewo uv llhttp_static)
 
 # Link additional libraries for Windows
 if(WIN32)

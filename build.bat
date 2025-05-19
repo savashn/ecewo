@@ -16,6 +16,7 @@ set "REBUILD=0"
 set "UPDATE=0"
 set "CREATE=0"
 set "MIGRATE=0"
+set "INSTALL=0"
 
 REM Parse command line arguments
 :parse_args
@@ -25,29 +26,32 @@ if /i "%~1"=="/rebuild" set "REBUILD=1"
 if /i "%~1"=="/update" set "UPDATE=1"
 if /i "%~1"=="/create" set "CREATE=1"
 if /i "%~1"=="/migrate" set "MIGRATE=1"
+if /i "%~1"=="/install" set "INSTALL=1"
 shift
 goto parse_args
 :after_parse
 
 REM Check if no parameters were provided
-if "%RUN%%REBUILD%%UPDATE%%CREATE%%MIGRATE%"=="00000" (
+if "%RUN%%REBUILD%%UPDATE%%CREATE%%MIGRATE%%INSTALL%"=="000000" (
     echo No parameters specified. Please use one of the following:
-    echo ==========================================================
+    echo ==============================================================================
     echo   /run         # Build and run the project
     echo   /rebuild     # Build from scratch
     echo   /update      # Update Ecewo
     echo   /create      # Create a starter project
     echo   /migrate     # Migrate the "CMakeLists.txt" file
-    echo ==========================================================
+    echo   /install     # Install packages
+    echo ==============================================================================
     exit /b 0
 )
 
-REM --- Priority: create -> run -> update -> rebuild -> migrate
+REM --- Priority: create -> run -> update -> rebuild -> migrate -> install
 if "%CREATE%"=="1" goto do_create
 if "%RUN%"=="1"   goto do_run
 if "%UPDATE%"=="1"  goto do_update
 if "%REBUILD%"=="1" goto do_rebuild
 if "%MIGRATE%"=="1" goto do_migrate
+if "%INSTALL%"=="1" goto do_install
 
 goto end
 
@@ -139,7 +143,16 @@ if "%CREATE%"=="1" (
     echo Create a project:
     set /p PROJECT_NAME=Enter project name ^>^>^> 
 
-    if not exist src mkdir src
+    for %%A in (%*) do (
+        if "%%~A"=="--dev" (
+            if not exist dev mkdir dev
+        )
+        else (
+            if not exist src mkdir src
+        )
+    )
+
+    @REM if not exist src mkdir src
 
     > src\handlers.h (
         echo #ifndef HANDLERS_H
@@ -157,7 +170,7 @@ if "%CREATE%"=="1" (
         echo.
         echo void hello_world^(Req *req, Res *res^)
         echo {
-        echo     reply^(res, "200 OK", "text/plain", "hello world!"^);
+        echo     reply^(res, 200, "text/plain", "hello world!"^);
         echo }
     )
 
@@ -170,7 +183,7 @@ if "%CREATE%"=="1" (
         echo     init_router^(^);
         echo     get^("/", hello_world^);
         echo     ecewo^(4000^);
-        echo     free_router^(^);
+        echo     final_router^(^);
         echo     return 0;
         echo }
     )
@@ -199,10 +212,16 @@ if "%MIGRATE%"=="1" (
     echo Migrating all .c files in src\ and its subdirectories to src\CMakeLists.txt
 
     set "SRC_DIR=!BASE_DIR!src"
-    set "CMAKE_FILE=!SRC_DIR!\CMakeLists.txt"
+    set "PROD=true"
 
-    echo "BASE_DIR = !BASE_DIR!"
-    echo "SRC DIR  = !SRC_DIR!"
+    for %%A in (%*) do (
+        if "%%~A"=="--dev" (
+            set "SRC_DIR=!BASE_DIR!dev"
+            set "PROD=false"
+        )
+    )
+
+    set "CMAKE_FILE=!SRC_DIR!\CMakeLists.txt"
 
     if not exist "!SRC_DIR!" (
         echo ERROR: Source directory "!SRC_DIR!" not found!
@@ -218,7 +237,11 @@ if "%MIGRATE%"=="1" (
 
     for /R %%F in (*.c) do (
         set "full=%%~fF"
-        set "rel=!full:%BASE_DIR%src\=!"
+        if "!PROD!"=="true" (
+            set "rel=!full:%BASE_DIR%src\=!"
+        ) else (
+            set "rel=!full:%BASE_DIR%dev\=!"
+        )
         set "rel=!rel:\=/!"
         >> "!TMP_FILE!" echo     ${CMAKE_CURRENT_SOURCE_DIR}/!rel!
     )
@@ -255,6 +278,75 @@ if "%MIGRATE%"=="1" (
     del "!OUTPUT_FILE!" 2>nul
 
     echo Migration complete.
+    endlocal
+    exit /b 0
+)
+
+:do_install
+REM Installation
+if "%INSTALL%"=="1" (
+    setlocal EnableDelayedExpansion
+
+    set "TARGET_DIR=%BASE_DIR%src\vendors"
+    set "HAS_PACKAGE_ARG=0"
+
+    for %%A in (%*) do (
+        if "%%~A"=="--dev" (
+            set "TARGET_DIR=%BASE_DIR%dev\vendors"
+        )
+    )
+
+    for %%A in (%*) do (
+        if "%%~A"=="--cjson" set HAS_PACKAGE_ARG=1
+        if "%%~A"=="--dotenv" set HAS_PACKAGE_ARG=1
+        if "%%~A"=="--sqlite" set HAS_PACKAGE_ARG=1
+        if "%%~A"=="--session" set HAS_PACKAGE_ARG=1
+    )
+
+    if "!HAS_PACKAGE_ARG!"=="0" (
+        echo ecewo - Build Script for Windows
+        echo 2025 ^(c^) Savas Sahin ^<savashn^>
+        echo.
+        echo Available packages:
+        echo ===============================================
+        echo    cJSON:      build.bat /install --cjson
+        echo    .env:       build.bat /install --dotenv
+        echo    SQLite3:    build.bat /install --sqlite
+        echo    Session:    build.bat /install --session
+        echo ===============================================
+        endlocal
+        exit /b 0
+    )
+
+    if not exist "!TARGET_DIR!\" (
+        mkdir "!TARGET_DIR!"
+    )
+
+    for %%A in (%*) do (
+        if "%%~A"=="--cjson" (
+            echo Installing cJSON...
+            curl -s -o "!TARGET_DIR!\cJSON.c" https://raw.githubusercontent.com/DaveGamble/cJSON/master/cJSON.c
+            curl -s -o "!TARGET_DIR!\cJSON.h" https://raw.githubusercontent.com/DaveGamble/cJSON/master/cJSON.h
+        )
+        if "%%~A"=="--dotenv" (
+            echo Installing dotenv...
+            curl -s -o "!TARGET_DIR!\dotenv.c" https://raw.githubusercontent.com/savashn/ecewo-plugins/main/dotenv.c
+            curl -s -o "!TARGET_DIR!\dotenv.h" https://raw.githubusercontent.com/savashn/ecewo-plugins/main/dotenv.h
+        )
+        if "%%~A"=="--sqlite" (
+            echo Installing SQLite3...
+            curl -s -o "!TARGET_DIR!\sqlite3.c" https://raw.githubusercontent.com/savashn/ecewo-plugins/main/sqlite3.c
+            curl -s -o "!TARGET_DIR!\sqlite3.h" https://raw.githubusercontent.com/savashn/ecewo-plugins/main/sqlite3.h
+        )
+        if "%%~A"=="--session" (
+            echo Installing Session...
+            curl -s -o "!TARGET_DIR!\session.c" https://raw.githubusercontent.com/savashn/ecewo-plugins/main/session.c
+            curl -s -o "!TARGET_DIR!\session.h" https://raw.githubusercontent.com/savashn/ecewo-plugins/main/session.h
+        )
+    )
+
+    echo.
+    echo Installation completed to "!TARGET_DIR!"
     endlocal
     exit /b 0
 )
