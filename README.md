@@ -60,7 +60,7 @@ For Windows PowerShell:
 
 These commands will automatically create the following `hello world` example and run the server at `http://localhost:4000`.
 
-### Example Hello World
+### Example 'Hello World'
 
 ```sh
 // src/handlers.h
@@ -98,31 +98,10 @@ int main()
     init_router();
     get("/", hello_world);
     ecewo(4000);
-    free_router();
+    final_router();
     return 0;
 }
 ```
-
-<--- **NOTE** --->
-
-If you have the following issue while compiling:
-```
-CMake Error at build/_deps/jansson-src/CMakeLists.txt:1 (cmake_minimum_required):
-  Compatibility with CMake < 3.5 has been removed from CMake.
-```
-
-Go to `build/_deps/jansson-src/` and modify the `CMakeLists.txt` as follows:
-```
-// Change this:
-cmake_minimum_required (VERSION 3.1)
-project(jansson C)
-
-// To this:
-cmake_minimum_required (VERSION 3.10)
-project(jansson C)
-```
-
-And run `./build.sh --run` or `./build.bat /run` again.
 
 ### Documentation
 
