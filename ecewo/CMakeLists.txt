@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(ecewo VERSION 0.20.0 LANGUAGES C)
+project(ecewo VERSION 0.20.1 LANGUAGES C)
 
 # Platform definitions
 if(WIN32)
@@ -37,12 +37,12 @@ FetchContent_MakeAvailable(llhttp)
 
 # List of source files
 set(SRC_FILES
-    ecewo.c
-    server/server.c
-    lib/router.c
-    lib/request.c
-    utils/async.c
-    utils/middleware.c
+   ecewo.c
+   lib/request.c
+   lib/router.c
+   server/server.c
+   utils/async.c
+   utils/middleware.c
 )
 
 # Create library
@@ -56,6 +56,7 @@ target_include_directories(ecewo PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/lib
     ${CMAKE_CURRENT_SOURCE_DIR}/server
     ${CMAKE_CURRENT_SOURCE_DIR}/utils
+    ${CMAKE_CURRENT_SOURCE_DIR}/vendors
     ${CMAKE_BINARY_DIR}/libuv/include
     ${CMAKE_BINARY_DIR}/llhttp/include
     ${CMAKE_BINARY_DIR}/_deps/llhttp-src/src

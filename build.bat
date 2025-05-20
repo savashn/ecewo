@@ -285,16 +285,11 @@ if "%MIGRATE%"=="1" (
 :do_install
 REM Installation
 if "%INSTALL%"=="1" (
+    @echo Off
     setlocal EnableDelayedExpansion
 
-    set "TARGET_DIR=%BASE_DIR%src\vendors"
+    set "TARGET_DIR=%BASE_DIR%ecewo\vendors"
     set "HAS_PACKAGE_ARG=0"
-
-    for %%A in (%*) do (
-        if "%%~A"=="--dev" (
-            set "TARGET_DIR=%BASE_DIR%dev\vendors"
-        )
-    )
 
     for %%A in (%*) do (
         if "%%~A"=="--cjson" set HAS_PACKAGE_ARG=1
@@ -347,6 +342,75 @@ if "%INSTALL%"=="1" (
 
     echo.
     echo Installation completed to "!TARGET_DIR!"
+
+    rem Kaynak ve CMake dosyası
+    @REM set "BASE_DIR=%~dp0"
+    set "SRC_DIR=ecewo"
+    set "CMAKE_FILE=!BASE_DIR!!SRC_DIR!\CMakeLists.txt"
+
+    if not exist "!CMAKE_FILE!" (
+        echo ERROR: CMakeLists.txt bulunamadi: "!CMAKE_FILE!"
+        endlocal & exit /b 1
+    )
+
+    rem --- TMP_FILE oluşturma (aynı sizinki) ---
+    set "TMP_FILE=%TEMP%\src_files_temp.txt"
+    >"!TMP_FILE!" echo set(SRC_FILES
+    pushd "!SRC_DIR!" >nul
+    for /R %%F in (*.c) do (
+        set "full=%%~fF"
+        set "rel=!full:%BASE_DIR%ecewo\=!"
+        set "rel=!rel:\=/!"
+        >>"!TMP_FILE!" echo    !rel!
+    )
+    popd >nul
+    >>"!TMP_FILE!" echo ^)
+
+    rem --- CMakeLists.txt İşleme ---
+    set "OUTPUT_FILE=%TEMP%\cmake_temp.txt"
+
+     > "!OUTPUT_FILE!" (
+        for /F "usebackq delims=" %%L in (`
+            findstr /R /N "^^" "!CMAKE_FILE!"
+        `) do (
+            rem %%L: "NN:actual line"
+            set "NUM_LINE=%%L"
+            rem LINE değişkenine satır numarası sonrasını al
+            set "LINE=!NUM_LINE:*:=!"
+
+            rem 1) Yorum marker’ı mı?
+            echo(!LINE! | findstr /C:"# List of source files" >nul
+            if !errorlevel! equ 0 (
+                echo(!LINE!
+                type "!TMP_FILE!"
+                set "COMMENT_FOUND=1"
+            ) else (
+                rem 2) Mevcut SRC_FILES bloğuna giriş mi?
+                echo(!LINE! | findstr /C:"set(SRC_FILES" >nul
+                if !errorlevel! equ 0 (
+                    set "IN_SRC_FILES=1"
+                ) else if defined IN_SRC_FILES (
+                    echo(!LINE! | findstr /C:")" >nul
+                    if !errorlevel! equ 0 (
+                        set "IN_SRC_FILES="
+                    )
+                ) else (
+                    rem Normal satırı, numarasız bas
+                    echo(!LINE!
+                )
+            )
+        )
+    )
+
+    rem --- Aslını üzerine yaz ---
+    copy /Y "!OUTPUT_FILE!" "!CMAKE_FILE!" >nul
+
+    rem Temizlik
+    del "!TMP_FILE!" 2>nul
+    del "!OUTPUT_FILE!" 2>nul
+
+    echo Migration complete.
+
     endlocal
     exit /b 0
 )

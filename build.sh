@@ -70,48 +70,48 @@ if [[ $CREATE -eq 1 ]]; then
   mkdir -p "$BASE_DIR"
 
   cat <<EOF > src/handlers.h
-#ifndef HANDLERS_H
-#define HANDLERS_H
+  #ifndef HANDLERS_H
+  #define HANDLERS_H
 
-#include "ecewo.h"
+  #include "ecewo.h"
 
-void hello_world(Req *req, Res *res);
+  void hello_world(Req *req, Res *res);
 
-#endif
+  #endif
 EOF
 
   cat <<EOF > src/handlers.c
-#include "handlers.h"
+  #include "handlers.h"
 
-void hello_world(Req *req, Res *res)
-{
+  void hello_world(Req *req, Res *res)
+  {
     reply(res, 200, "text/plain", "hello world!");
-}
+  }
 EOF
 
   cat <<EOF > src/main.c
-#include "server.h"
-#include "handlers.h"
+  #include "server.h"
+  #include "handlers.h"
 
-int main()
-{
+  int main()
+  {
     init_router();
     get("/", hello_world);
     ecewo(4000);
     final_router();
     return 0;
-}
+  }
 EOF
 
   cat <<EOF > src/CMakeLists.txt
-cmake_minimum_required(VERSION 3.10)
-project(${PROJECT_NAME} VERSION 0.1.0 LANGUAGES C)
+  cmake_minimum_required(VERSION 3.10)
+  project(${PROJECT_NAME} VERSION 0.1.0 LANGUAGES C)
 
-set(APP_SRC
+  set(APP_SRC
     \${CMAKE_CURRENT_SOURCE_DIR}/main.c
     \${CMAKE_CURRENT_SOURCE_DIR}/handlers.c
     PARENT_SCOPE
-)
+  )
 EOF
 
   echo "Starter project created successfully."
@@ -261,16 +261,10 @@ fi
 
 if [ "$INSTALL" -eq 1 ]; then
 
-  TARGET_DIR="src/vendors"
+  TARGET_DIR="ecewo/vendors"
   HAS_PACKAGE_ARG=0
-  HAS_DEV=0
 
   for arg in "$@"; do
-    if [ "$arg" = "--dev" ]; then
-      TARGET_DIR="dev/vendors"
-      HAS_DEV=1
-    fi
-
     case "$arg" in
       --cjson|--dotenv|--sqlite|--session)
         HAS_PACKAGE_ARG=1
@@ -333,6 +327,41 @@ if [ "$INSTALL" -eq 1 ]; then
     esac
   done
 
+  BASE_DIR="ecewo"
+  CMAKE_FILE="$BASE_DIR/CMakeLists.txt"
+
+  # Keep the SRC_FILES in a temporary file
+  TMP_FILE=$(mktemp)
+  {
+    echo "set(SRC_FILES"
+    find "$BASE_DIR" -type f -name "*.c" | while read -r file; do
+      REL_PATH="${file#$BASE_DIR/}"
+      echo "    ${REL_PATH}"
+    done
+    echo ")"
+  } > "$TMP_FILE"
+
+  # Find the position of "# List of source files" comment and insert the SRC_FILES there
+  awk '
+    /# List of source files/ {
+      print
+      system("cat '"$TMP_FILE"'")
+      next
+    }
+    /^set\(SRC_FILES/ { 
+      # Skip existing SRC_FILES section if it exists
+      while (getline > 0) {
+        if ($0 ~ /\)/) break
+      }
+      next
+    }
+    { print }
+  ' "$CMAKE_FILE" > "${CMAKE_FILE}.tmp"
+
+  mv "${CMAKE_FILE}.tmp" "$CMAKE_FILE"
+  rm "$TMP_FILE"
+
+  echo "Migration complete."
   exit 0
 fi
 
