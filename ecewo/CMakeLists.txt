@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(ecewo VERSION 0.20.1 LANGUAGES C)
+project(ecewo VERSION 0.20.2 LANGUAGES C)
 
 # Platform definitions
 if(WIN32)
@@ -41,7 +41,6 @@ set(SRC_FILES
    lib/request.c
    lib/router.c
    server/server.c
-   utils/async.c
    utils/middleware.c
 )
 

@@ -266,7 +266,7 @@ if [ "$INSTALL" -eq 1 ]; then
 
   for arg in "$@"; do
     case "$arg" in
-      --cjson|--dotenv|--sqlite|--session)
+      --cjson|--dotenv|--sqlite|--session|--async)
         HAS_PACKAGE_ARG=1
         ;;
     esac
@@ -282,6 +282,7 @@ if [ "$INSTALL" -eq 1 ]; then
     echo "  .env      ./build.sh --install --dotenv"
     echo "  SQLite3   ./build.sh --install --sqlite"
     echo "  Session   ./build.sh --install --session"
+    echo "  Async     ./build.sh --install --async"
     echo "============================================="
     echo
     exit 0
@@ -324,6 +325,13 @@ if [ "$INSTALL" -eq 1 ]; then
         mv session.c session.h "$TARGET_DIR"
         echo "Installation is completed to $TARGET_DIR"
         ;;
+      --async)
+        echo "Installing Asynchronous Support"
+        mkdir -p "$TARGET_DIR"
+        curl -O https://raw.githubusercontent.com/savashn/ecewo-plugins/main/async.c
+        curl -O https://raw.githubusercontent.com/savashn/ecewo-plugins/main/async.h
+        mv async.c async.h "$TARGET_DIR"
+        echo "Installation is completed to $TARGET_DIR"
     esac
   done
 

@@ -105,7 +105,7 @@ int main()
 
 ### Documentation
 
-Refer to the [docs](https://ecewo.vercel.app) to start building a backend with ecewo.
+Refer to the [docs](https://ecewo.vercel.app) for usage.
 
 ### License
 

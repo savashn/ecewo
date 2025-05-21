@@ -296,6 +296,7 @@ if "%INSTALL%"=="1" (
         if "%%~A"=="--dotenv" set HAS_PACKAGE_ARG=1
         if "%%~A"=="--sqlite" set HAS_PACKAGE_ARG=1
         if "%%~A"=="--session" set HAS_PACKAGE_ARG=1
+        if "%%~A"=="--async" set HAS_PACKAGE_ARG=1
     )
 
     if "!HAS_PACKAGE_ARG!"=="0" (
@@ -308,6 +309,7 @@ if "%INSTALL%"=="1" (
         echo    .env:       build.bat /install --dotenv
         echo    SQLite3:    build.bat /install --sqlite
         echo    Session:    build.bat /install --session
+        echo    Async:      build.bat /install --async
         echo ===============================================
         endlocal
         exit /b 0
@@ -338,22 +340,24 @@ if "%INSTALL%"=="1" (
             curl -s -o "!TARGET_DIR!\session.c" https://raw.githubusercontent.com/savashn/ecewo-plugins/main/session.c
             curl -s -o "!TARGET_DIR!\session.h" https://raw.githubusercontent.com/savashn/ecewo-plugins/main/session.h
         )
+        if "%%~A"=="--async" (
+            echo Installing Asynchronous Support...
+            curl -s -o "!TARGET_DIR!\async.c" https://raw.githubusercontent.com/savashn/ecewo-plugins/main/async.c
+            curl -s -o "!TARGET_DIR!\async.h" https://raw.githubusercontent.com/savashn/ecewo-plugins/main/async.h
+        )
     )
 
     echo.
     echo Installation completed to "!TARGET_DIR!"
 
-    rem Kaynak ve CMake dosyası
-    @REM set "BASE_DIR=%~dp0"
     set "SRC_DIR=ecewo"
     set "CMAKE_FILE=!BASE_DIR!!SRC_DIR!\CMakeLists.txt"
 
     if not exist "!CMAKE_FILE!" (
-        echo ERROR: CMakeLists.txt bulunamadi: "!CMAKE_FILE!"
+        echo ERROR: CMakeLists.txt not found: "!CMAKE_FILE!"
         endlocal & exit /b 1
     )
 
-    rem --- TMP_FILE oluşturma (aynı sizinki) ---
     set "TMP_FILE=%TEMP%\src_files_temp.txt"
     >"!TMP_FILE!" echo set(SRC_FILES
     pushd "!SRC_DIR!" >nul
@@ -366,7 +370,6 @@ if "%INSTALL%"=="1" (
     popd >nul
     >>"!TMP_FILE!" echo ^)
 
-    rem --- CMakeLists.txt İşleme ---
     set "OUTPUT_FILE=%TEMP%\cmake_temp.txt"
 
      > "!OUTPUT_FILE!" (
@@ -375,17 +378,14 @@ if "%INSTALL%"=="1" (
         `) do (
             rem %%L: "NN:actual line"
             set "NUM_LINE=%%L"
-            rem LINE değişkenine satır numarası sonrasını al
             set "LINE=!NUM_LINE:*:=!"
 
-            rem 1) Yorum marker’ı mı?
             echo(!LINE! | findstr /C:"# List of source files" >nul
             if !errorlevel! equ 0 (
                 echo(!LINE!
                 type "!TMP_FILE!"
                 set "COMMENT_FOUND=1"
             ) else (
-                rem 2) Mevcut SRC_FILES bloğuna giriş mi?
                 echo(!LINE! | findstr /C:"set(SRC_FILES" >nul
                 if !errorlevel! equ 0 (
                     set "IN_SRC_FILES=1"
@@ -395,17 +395,14 @@ if "%INSTALL%"=="1" (
                         set "IN_SRC_FILES="
                     )
                 ) else (
-                    rem Normal satırı, numarasız bas
                     echo(!LINE!
                 )
             )
         )
     )
 
-    rem --- Aslını üzerine yaz ---
     copy /Y "!OUTPUT_FILE!" "!CMAKE_FILE!" >nul
 
-    rem Temizlik
     del "!TMP_FILE!" 2>nul
     del "!OUTPUT_FILE!" 2>nul
 

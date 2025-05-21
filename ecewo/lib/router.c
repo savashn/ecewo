@@ -302,6 +302,8 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
         fprintf(stderr, "Memory allocation error during URL parsing\n");
         send_error(client_socket, 500);
         http_context_free(&context);
+        free(path);
+        free(query);
         return 1; // Close connection for memory errors
     }
 
@@ -339,6 +341,9 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
         // Process dynamic parameters
         parse_params(path, route_path, &context.url_params);
 
+        // Detect async vs sync by handler signature: decide by returning value or flag
+        // Here assume handlers that call async_execute manage their own free
+
         // Prepare request object
         Req req = {
             .client_socket = client_socket,
@@ -366,6 +371,9 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
         // Clean up HTTP context
         http_context_free(&context);
 
+        free(path);
+        free(query);
+
         // Return whether to close the connection
         return res.keep_alive ? 0 : 1;
     }
@@ -389,12 +397,18 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
         // Clean up HTTP context
         http_context_free(&context);
 
+        free(path);
+        free(query);
+
         // Return whether to close the connection
         return res.keep_alive ? 0 : 1;
     }
 
     // Clean up HTTP context
     http_context_free(&context);
+
+    free(path);
+    free(query);
 
     // Default to closing the connection
     return 1;
