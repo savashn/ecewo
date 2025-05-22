@@ -43,22 +43,31 @@ git clone https://github.com/savashn/ecewo.git
 cd ecewo
 ```
 
-And then run the following commands to create an example starter:
+And then run the following commands to start:
 
 For Linux/macOS:
 ```
-chmod +x build.sh
-./build.sh --create
-./build.sh --run
+chmod +x create.sh
+./create.sh
 ```
 
-For Windows PowerShell:
+For Windows:
 ```
-./build.bat /create
-./build.bat /run
+./create.bat
 ```
 
-These commands will automatically create the following `hello world` example and run the server at `http://localhost:4000`.
+These commands will automatically create a `hello world` example and generate a new script file. Run the following commands to build and start the server at `http://localhost:4000`:
+
+For Linux/MacOS:
+```
+chmod +x ecewo.sh
+./ecewo.sh --run
+```
+
+For Windows:
+```
+./ecewo.bat /run
+```
 
 ### Example 'Hello World'
 
