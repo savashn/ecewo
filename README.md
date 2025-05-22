@@ -45,7 +45,7 @@ cd ecewo
 
 And then run the following commands to start:
 
-For Linux/macOS:
+For Linux/MacOS:
 ```
 chmod +x create.sh
 ./create.sh
