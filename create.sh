@@ -5,12 +5,7 @@ echo "2025 (c) Savas Sahin <savashn>"
 echo ""
 
 FILE_URL="https://raw.githubusercontent.com/savashn/ecewo-plugins/main/ecewo.sh"
-
-if [ "$1" = "--dev" ]; then
-    BASE_DIR="dev"
-else
-    BASE_DIR="src"
-fi
+BASE_DIR="src"
 
 curl -O "$FILE_URL"
 

@@ -23,6 +23,7 @@ A modern and developer-friendly backend framework for C that handles the complex
 
 - Full asynchronous operations support
 - Built-in JSON parsing and generation
+- Built-in CBOR support
 - Session-based authentication mechanism
 - Easy management of environment variables
 - Flexible middleware support (route-specific and global)

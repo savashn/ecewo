@@ -7,14 +7,7 @@ set /p PROJECT_NAME=Enter project name ^>^>^>
 set FILE_URL=https://raw.githubusercontent.com/savashn/ecewo-plugins/main/ecewo.bat
 curl -O %FILE_URL%
 
-for %%A in (%*) do (
-    if "%%~A"=="--dev" (
-        if not exist dev mkdir dev
-    )
-    else (
-        if not exist src mkdir src
-    )
-)
+if not exist src mkdir src
 
 > src\handlers.h (
     echo #ifndef HANDLERS_H
