@@ -8,7 +8,7 @@
 
 A modern and developer-friendly backend framework for C that handles the complexities of C programming and lets you build backends with ease — inspired by the simplicity of Express.js.
 
-Ecewo is a **hobby project** I started to improve my programming skills and it is still work in progress. See [FAQ](https://ecewo.vercel.app/docs/faq).
+**Ecewo is a hobby project I started to improve my programming skills and it is still work in progress. So, it’s not stable or production-ready yet. See [FAQ](https://ecewo.vercel.app/docs/faq).**
 
 ### Table of Contents
 
@@ -56,7 +56,7 @@ For Windows:
 ./create.bat
 ```
 
-These commands will automatically create a `hello world` example and generate a new script file. Run the following commands to build and start the server at `http://localhost:4000`:
+These commands will automatically create a `hello world` example and generate a new script file. Run the following commands to build and start the server at `http://localhost:4000`.
 
 For Linux/MacOS:
 ```
