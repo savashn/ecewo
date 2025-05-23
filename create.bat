@@ -32,7 +32,7 @@ for %%A in (%*) do (
     echo.
     echo void hello_world^(Req *req, Res *res^)
     echo {
-    echo     reply^(res, 200, "text/plain", "hello world!"^);
+    echo     text^(200, "hello world!"^);
     echo }
 )
 

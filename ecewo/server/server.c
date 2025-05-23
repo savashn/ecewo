@@ -121,7 +121,7 @@ void ecewo(unsigned short PORT)
         return;
     }
 
-    printf("ecewo v0.20.3\n");
+    printf("ecewo v0.21.0\n");
     printf("Server is running at: http://localhost:%d\n", PORT);
 
     // Run the event loop

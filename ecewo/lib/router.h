@@ -10,6 +10,7 @@ typedef struct
     const char *method;
     const char *path;
     char *body;
+    size_t body_len;
     request_t headers;
     request_t query;
     request_t params;
@@ -48,6 +49,31 @@ bool matcher(const char *path, const char *route_path);
 // Returns 1 if connection should be closed, 0 if it should stay open
 int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len);
 
-void reply(Res *res, int status, const char *content_type, const char *body);
+void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len);
+
+static inline void _text(Res *res, int status, const char *body)
+{
+    reply(res, status, "text/plain", body, strlen(body));
+}
+
+static inline void _html(Res *res, int status, const char *body)
+{
+    reply(res, status, "text/html", body, strlen(body));
+}
+
+static inline void _json(Res *res, int status, const char *body)
+{
+    reply(res, status, "application/json", body, strlen(body));
+}
+
+static inline void _cbor(Res *res, int status, const char *body, size_t body_len)
+{
+    reply(res, status, "application/cbor", body, body_len);
+}
+
+#define text(status, body) _text(res, status, body)
+#define html(status, body) _html(res, status, body)
+#define json(status, body) _json(res, status, body)
+#define cbor(status, body, body_len) _cbor(res, status, body, body_len)
 
 #endif

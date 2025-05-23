@@ -3,13 +3,14 @@
 
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include "router.h"
 #include "middleware.h"
 #include "compat.h"
 
 extern Router *routes;
-extern int route_count;
-extern int routes_capacity;
+extern size_t route_count;
+extern size_t routes_capacity;
 
 void expand_routes(void);
 

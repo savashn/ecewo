@@ -1,8 +1,8 @@
 #include "ecewo.h"
 
 Router *routes = NULL;
-int route_count = 0;
-int routes_capacity = 0;
+size_t route_count = 0;
+size_t routes_capacity = 0;
 
 // Initialize router with default capacity
 void init_router(void)

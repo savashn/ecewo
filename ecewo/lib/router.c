@@ -350,6 +350,7 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
             .method = context.method,
             .path = path,
             .body = context.body,
+            .body_len = context.body_length,
             .params = context.url_params,
             .query = context.query_params,
             .headers = context.headers,
@@ -359,7 +360,7 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
         Res res = {
             .client_socket = client_socket,
             .status = 200,
-            .content_type = "application/json",
+            .content_type = NULL,
             .body = NULL,
             .set_cookie = NULL,
             .keep_alive = context.keep_alive // Set the keep-alive status
@@ -392,7 +393,7 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
             .keep_alive = context.keep_alive // Set the keep-alive status
         };
 
-        reply(&res, res.status, res.content_type, "404 Not Found");
+        reply(&res, res.status, res.content_type, "404 Not Found", SIZE_MAX);
 
         // Clean up HTTP context
         http_context_free(&context);
@@ -414,10 +415,12 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     return 1;
 }
 
-void reply(Res *res, int status, const char *content_type, const char *body)
+void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len)
 {
-    // Body length
-    size_t body_len = strlen(body);
+    // Determine payload length
+    size_t payload_len = (body_len == SIZE_MAX && body)
+                             ? strlen((const char *)body)
+                             : body_len;
 
     // Cookie header string or empty
     const char *cookie_hdr = res->set_cookie ? res->set_cookie : "";
@@ -434,7 +437,7 @@ void reply(Res *res, int status, const char *content_type, const char *body)
         status,
         cookie_hdr,
         content_type,
-        body_len,
+        payload_len,
         res->keep_alive ? "keep-alive" : "close");
 
     if (header_len < 0)
@@ -464,11 +467,11 @@ void reply(Res *res, int status, const char *content_type, const char *body)
         status,
         cookie_hdr,
         content_type,
-        body_len,
+        payload_len,
         res->keep_alive ? "keep-alive" : "close");
 
     // Total response length (headers + body)
-    size_t total_len = (size_t)header_len + body_len;
+    size_t total_len = (size_t)header_len + payload_len;
     char *response = malloc(total_len + 1);
     if (!response)
     {
@@ -479,8 +482,8 @@ void reply(Res *res, int status, const char *content_type, const char *body)
 
     // Copy header and body
     memcpy(response, header_buf, (size_t)header_len);
-    memcpy(response + header_len, body, body_len);
-    response[total_len] = '\0'; // Null-terminate
+    if (payload_len > 0)
+        memcpy(response + header_len, body, payload_len);
 
     // Clean up header buffer
     free(header_buf);
@@ -508,7 +511,7 @@ void reply(Res *res, int status, const char *content_type, const char *body)
     write_req->data = response;
 
     // Set up the buffer for libuv
-    write_req->buf = uv_buf_init(response, total_len);
+    write_req->buf = uv_buf_init(response, (unsigned int)total_len);
 
     // Important: Point req field to the actual uv_write_t structure
     uv_write_t *write_handle = &write_req->req;

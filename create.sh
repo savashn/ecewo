@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "ecewo - Build Script for Linux and macOS"
+echo "ecewo - Build Script for Linux and MacOS"
 echo "2025 (c) Savas Sahin <savashn>"
 echo ""
 
@@ -34,7 +34,7 @@ EOF
 
   void hello_world(Req *req, Res *res)
   {
-    reply(res, 200, "text/plain", "hello world!");
+    text(200, "hello world!);
   }
 EOF
 
