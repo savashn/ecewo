@@ -8,14 +8,28 @@ static int on_url_cb(llhttp_t *parser, const char *at, size_t length)
 {
     http_context_t *context = (http_context_t *)parser->data;
 
-    // Ensure we don't overflow the buffer
-    size_t copy_len = length;
-    if (copy_len >= sizeof(context->url))
-        copy_len = sizeof(context->url) - 1;
+    // Ensure we have enough capacity
+    if (context->url_length + length >= context->url_capacity)
+    {
+        size_t new_capacity = context->url_capacity * 2;
+        if (new_capacity < context->url_length + length + 1)
+            new_capacity = context->url_length + length + 256;
 
-    // Copy URL to context
-    memcpy(context->url, at, copy_len);
-    context->url[copy_len] = '\0';
+        char *new_url = realloc(context->url, new_capacity);
+        if (!new_url)
+        {
+            perror("realloc url");
+            return 1; // Error
+        }
+
+        context->url = new_url;
+        context->url_capacity = new_capacity;
+    }
+
+    // Append URL data
+    memcpy(context->url + context->url_length, at, length);
+    context->url_length += length;
+    context->url[context->url_length] = '\0';
 
     return 0;
 }
@@ -25,15 +39,31 @@ static int on_header_field_cb(llhttp_t *parser, const char *at, size_t length)
 {
     http_context_t *context = (http_context_t *)parser->data;
 
-    // Ensure we don't overflow the buffer
-    size_t copy_len = length;
-    if (copy_len >= sizeof(context->current_header_field))
-        copy_len = sizeof(context->current_header_field) - 1;
+    // Reset header field for new field (llhttp might call this multiple times for same field)
+    context->header_field_length = 0;
 
-    // Copy header field to context
-    memcpy(context->current_header_field, at, copy_len);
-    context->current_header_field[copy_len] = '\0';
-    context->header_field_len = copy_len;
+    // Ensure we have enough capacity
+    if (length >= context->header_field_capacity)
+    {
+        size_t new_capacity = context->header_field_capacity * 2;
+        if (new_capacity < length + 1)
+            new_capacity = length + 128;
+
+        char *new_field = realloc(context->current_header_field, new_capacity);
+        if (!new_field)
+        {
+            perror("realloc header field");
+            return 1; // Error
+        }
+
+        context->current_header_field = new_field;
+        context->header_field_capacity = new_capacity;
+    }
+
+    // Copy header field data
+    memcpy(context->current_header_field, at, length);
+    context->header_field_length = length;
+    context->current_header_field[length] = '\0';
 
     return 0;
 }
@@ -102,14 +132,28 @@ static int on_method_cb(llhttp_t *parser, const char *at, size_t length)
 {
     http_context_t *context = (http_context_t *)parser->data;
 
-    // Ensure we don't overflow the buffer
-    size_t copy_len = length;
-    if (copy_len >= sizeof(context->method))
-        copy_len = sizeof(context->method) - 1;
+    // Ensure we have enough capacity
+    if (context->method_length + length >= context->method_capacity)
+    {
+        size_t new_capacity = context->method_capacity * 2;
+        if (new_capacity < context->method_length + length + 1)
+            new_capacity = context->method_length + length + 64;
 
-    // Copy method to context
-    memcpy(context->method, at, copy_len);
-    context->method[copy_len] = '\0';
+        char *new_method = realloc(context->method, new_capacity);
+        if (!new_method)
+        {
+            perror("realloc method");
+            return 1; // Error
+        }
+
+        context->method = new_method;
+        context->method_capacity = new_capacity;
+    }
+
+    // Append method data
+    memcpy(context->method + context->method_length, at, length);
+    context->method_length += length;
+    context->method[context->method_length] = '\0';
 
     return 0;
 }
@@ -168,6 +212,33 @@ static int on_version_cb(llhttp_t *parser)
     return 0;
 }
 
+static void free_req(request_t *request)
+{
+    if (!request || !request->items)
+    {
+        return;
+    }
+
+    for (int i = 0; i < request->count; i++)
+    {
+        if (request->items[i].key)
+        {
+            free(request->items[i].key);
+            request->items[i].key = NULL;
+        }
+
+        if (request->items[i].value)
+        {
+            free(request->items[i].value);
+            request->items[i].value = NULL;
+        }
+    }
+
+    free(request->items);
+    request->items = NULL;
+    request->count = 0;
+}
+
 // Function to initialize HTTP context
 void http_context_init(http_context_t *context)
 {
@@ -186,24 +257,64 @@ void http_context_init(http_context_t *context)
     // Set parser data to point to our context
     context->parser.data = context;
 
-    // Initialize other fields
-    context->url[0] = '\0';
-    context->method[0] = '\0';
-    context->current_header_field[0] = '\0';
-    context->header_field_len = 0;
+    // Initialize URL buffer
+    context->url_capacity = 512;
+    context->url = malloc(context->url_capacity);
+    if (context->url)
+    {
+        context->url[0] = '\0';
+        context->url_length = 0;
+    }
+    else
+    {
+        perror("malloc url");
+        context->url_capacity = 0;
+        context->url_length = 0;
+    }
 
-    // Initialize body
-    context->body = malloc(1024); // Start with 1KB capacity
+    // Initialize method buffer
+    context->method_capacity = 16;
+    context->method = malloc(context->method_capacity);
+    if (context->method)
+    {
+        context->method[0] = '\0';
+        context->method_length = 0;
+    }
+    else
+    {
+        perror("malloc method");
+        context->method_capacity = 0;
+        context->method_length = 0;
+    }
+
+    // Initialize header field buffer
+    context->header_field_capacity = 128;
+    context->current_header_field = malloc(context->header_field_capacity);
+    if (context->current_header_field)
+    {
+        context->current_header_field[0] = '\0';
+        context->header_field_length = 0;
+    }
+    else
+    {
+        perror("malloc header field");
+        context->header_field_capacity = 0;
+        context->header_field_length = 0;
+    }
+
+    // Initialize body buffer
+    context->body_capacity = 1024;
+    context->body = malloc(context->body_capacity);
     if (context->body)
     {
         context->body[0] = '\0';
         context->body_length = 0;
-        context->body_capacity = 1024;
     }
     else
     {
         perror("malloc body");
         context->body_capacity = 0;
+        context->body_length = 0;
     }
 
     // Initialize request structures
@@ -232,10 +343,8 @@ void http_context_init(http_context_t *context)
     context->url_params.capacity = 0;
     context->url_params.items = NULL;
 
-    // Set default keep-alive to 0 (will be updated during parsing)
+    // Set default values
     context->keep_alive = 0;
-
-    // Set default HTTP version
     context->http_major = 1;
     context->http_minor = 0;
 }
@@ -243,20 +352,37 @@ void http_context_init(http_context_t *context)
 // Function to clean up HTTP context
 void http_context_free(http_context_t *context)
 {
-    // Free body
+    // Free URL buffer
+    if (context->url)
+    {
+        free(context->url);
+        context->url = NULL;
+    }
+
+    // Free method buffer
+    if (context->method)
+    {
+        free(context->method);
+        context->method = NULL;
+    }
+
+    // Free header field buffer
+    if (context->current_header_field)
+    {
+        free(context->current_header_field);
+        context->current_header_field = NULL;
+    }
+
+    // Free body buffer
     if (context->body)
     {
         free(context->body);
         context->body = NULL;
     }
 
-    // Free headers
+    // Free request structures
     free_req(&context->headers);
-
-    // Free query parameters if they were parsed
     free_req(&context->query_params);
-
-    // Free URL parameters if they were parsed
     free_req(&context->url_params);
 }
 
@@ -447,31 +573,4 @@ const char *get_req(request_t *request, const char *key)
         }
     }
     return NULL;
-}
-
-void free_req(request_t *request)
-{
-    if (!request || !request->items)
-    {
-        return;
-    }
-
-    for (int i = 0; i < request->count; i++)
-    {
-        if (request->items[i].key)
-        {
-            free(request->items[i].key);
-            request->items[i].key = NULL;
-        }
-
-        if (request->items[i].value)
-        {
-            free(request->items[i].value);
-            request->items[i].value = NULL;
-        }
-    }
-
-    free(request->items);
-    request->items = NULL;
-    request->count = 0;
 }

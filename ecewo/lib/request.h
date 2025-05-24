@@ -26,9 +26,14 @@ typedef struct
     llhttp_t parser;            // llhttp parser instance
     llhttp_settings_t settings; // llhttp parser settings
 
-    // Current URL parsing state
-    char url[512];   // URL buffer
-    char method[16]; // Method buffer
+    // Dynamic URL parsing state
+    char *url;           // Dynamic URL buffer
+    size_t url_length;   // Current URL length
+    size_t url_capacity; // URL buffer capacity
+
+    char *method;           // Dynamic method buffer
+    size_t method_length;   // Current method length
+    size_t method_capacity; // Method buffer capacity
 
     // Request data containers
     request_t headers;      // Headers container
@@ -47,9 +52,10 @@ typedef struct
     int http_major; // Major HTTP version
     int http_minor; // Minor HTTP version
 
-    // Temporary header parsing
-    char current_header_field[128]; // Current header field being parsed
-    int header_field_len;           // Length of current header field
+    // Temporary header parsing - also dynamic
+    char *current_header_field;   // Dynamic current header field buffer
+    size_t header_field_length;   // Current header field length
+    size_t header_field_capacity; // Header field buffer capacity
 } http_context_t;
 
 // Function to initialize the http context
@@ -66,8 +72,5 @@ void parse_params(const char *path, const char *route_path, request_t *params);
 
 // Get value by key from request_t structure
 const char *get_req(request_t *request, const char *key);
-
-// Free memory used by request_t structure
-void free_req(request_t *request);
 
 #endif // REQUEST_H
