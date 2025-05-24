@@ -29,7 +29,7 @@ EOF
 
   void hello_world(Req *req, Res *res)
   {
-    text(200, "hello world!);
+    text(200, "hello world!");
   }
 EOF
 
