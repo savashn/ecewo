@@ -59,4 +59,5 @@ EOF
 EOF
   echo "Starter project created successfully."
 
-rm -f create.sh create.bat
+rm -rf assets/
+rm -f LICENSE README.md create.bat create.sh

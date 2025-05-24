@@ -1,7 +1,4 @@
 .vscode
 build
-dev
 .env
 */.env
-dev.bat
-dev.sh

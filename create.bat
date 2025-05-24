@@ -58,5 +58,8 @@ echo Starter project "!PROJECT_NAME!" created successfully.
 
 endlocal
 
+del /f /q LICENSE 2>nul
+del /f /q README.md 2>nul
+rmdir /s /q assets
 del /f /q create.sh 2>nul
 del /f /q create.bat 2>nul
