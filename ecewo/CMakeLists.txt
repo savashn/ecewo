@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(ecewo VERSION 0.21.3 LANGUAGES C)
+project(ecewo VERSION 0.22.0 LANGUAGES C)
 
 # Platform definitions
 if(WIN32)
@@ -44,6 +44,7 @@ set(SRC_FILES
     lib/router.c
     server/server.c
     utils/middleware.c
+    utils/cors.c
 )
 
 # Create library

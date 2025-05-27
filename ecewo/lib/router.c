@@ -3,6 +3,7 @@
 #include "ecewo.h"
 #include "uv.h"
 #include "llhttp.h"
+#include "cors.h"
 
 void write_completion_cb(uv_write_t *req, int status)
 {
@@ -269,6 +270,45 @@ static int extract_path_and_query(const char *url, char **path, char **query)
     return 0; // Success
 }
 
+// Initialize response structure
+static void res_init(Res *res, uv_tcp_t *client_socket)
+{
+    res->client_socket = client_socket;
+    res->status = 200;
+    res->content_type = "text/plain";
+    res->body = NULL;
+    res->body_len = 0;
+    res->set_cookie = NULL;
+    res->keep_alive = 1;
+    res->headers = NULL;
+    res->header_count = 0;
+    res->header_capacity = 0;
+}
+
+// Free response structure
+static void res_free(Res *res)
+{
+    if (res->set_cookie)
+    {
+        free(res->set_cookie);
+        res->set_cookie = NULL;
+    }
+
+    if (res->headers)
+    {
+        for (int i = 0; i < res->header_count; i++)
+        {
+            free(res->headers[i].name);
+            free(res->headers[i].value);
+        }
+        free(res->headers);
+        res->headers = NULL;
+    }
+
+    res->header_count = 0;
+    res->header_capacity = 0;
+}
+
 int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len)
 {
     if (!request_data || request_len == 0)
@@ -315,6 +355,25 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     // Parse query parameters
     parse_query(query, &context.query_params);
 
+    // Initialize response
+    Res res;
+    res_init(&res, client_socket);
+    res.keep_alive = context.keep_alive;
+
+    // Handle CORS preflight
+    if (cors_handle_preflight(&context, &res))
+    {
+        reply(&res, res.status, res.content_type, res.body, res.body_len);
+
+        // Cleanup
+        res_free(&res);
+        http_context_free(&context);
+        free(path);
+        free(query);
+
+        return res.keep_alive ? 0 : 1;
+    }
+
     // Route matching
     bool route_found = false;
 
@@ -356,26 +415,31 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
             .headers = context.headers,
         };
 
-        // Prepare response object with defaults
-        Res res = {
-            .client_socket = client_socket,
-            .status = 200,
-            .content_type = NULL,
-            .body = NULL,
-            .set_cookie = NULL,
-            .keep_alive = context.keep_alive // Set the keep-alive status
-        };
+        // // Prepare response object with defaults
+        // Res res = {
+        //     .client_socket = client_socket,
+        //     .status = 200,
+        //     .content_type = "text/plain",
+        //     .body = NULL,
+        //     .set_cookie = NULL,
+        //     .keep_alive = context.keep_alive // Set the keep-alive status
+        // };
+
+        // Add CORS headers if enabled
+        cors_add_headers(&context, &res);
 
         // Call the handler for this route
         routes[i].handler(&req, &res);
 
-        // Clean up HTTP context
-        http_context_free(&context);
+        // Send response
+        // reply(&res, res.status, res.content_type, res.body, res.body_len);
 
+        // Cleanup
+        res_free(&res);
+        http_context_free(&context);
         free(path);
         free(query);
 
-        // Return whether to close the connection
         return res.keep_alive ? 0 : 1;
     }
 
@@ -384,49 +448,101 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     {
         printf("No matching route found for: %s %s\n", context.method, path);
 
-        Res res = {
-            .client_socket = client_socket,
-            .status = 404,
-            .content_type = "text/plain",
-            .body = NULL,
-            .set_cookie = NULL,
-            .keep_alive = context.keep_alive // Set the keep-alive status
-        };
+        res.status = 404;
+        res.content_type = "text/plain";
 
-        reply(&res, res.status, res.content_type, "404 Not Found", SIZE_MAX);
+        // Add CORS headers for 404 responses too
+        cors_add_headers(&context, &res);
 
-        // Clean up HTTP context
+        reply(&res, 404, "text/plain", "404 Not Found", SIZE_MAX);
+
+        // Cleanup
+        res_free(&res);
         http_context_free(&context);
-
         free(path);
         free(query);
 
-        // Return whether to close the connection
         return res.keep_alive ? 0 : 1;
     }
 
-    // Clean up HTTP context
+    // Fallback cleanup
+    res_free(&res);
     http_context_free(&context);
-
     free(path);
     free(query);
 
-    // Default to closing the connection
     return 1;
 }
 
 void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len)
 {
     // Determine payload length
-    size_t payload_len = (body_len == SIZE_MAX && body)
-                             ? strlen((const char *)body)
-                             : body_len;
+    size_t payload_len;
+    if (body_len == SIZE_MAX)
+    {
+        // If SIZE_MAX, treat as string and calculate length
+        payload_len = body ? strlen((const char *)body) : 0;
+    }
+    else
+    {
+        // Use provided length (for binary data)
+        payload_len = body_len;
+    }
 
-    // Cookie header string or empty
-    const char *cookie_hdr = res->set_cookie ? res->set_cookie : "";
+    // Build headers string
+    size_t header_buffer_size = 1024; // Initial size
+    char *all_headers = malloc(header_buffer_size);
+    if (!all_headers)
+    {
+        perror("malloc for headers");
+        return;
+    }
 
-    // Determine header length (without body)
-    int header_len = snprintf(
+    int header_pos = 0;
+
+    // Add custom headers
+    for (int i = 0; i < res->header_count; i++)
+    {
+        int needed = snprintf(NULL, 0, "%s: %s\r\n", res->headers[i].name, res->headers[i].value);
+        if (header_pos + needed >= header_buffer_size)
+        {
+            header_buffer_size = (header_pos + needed + 1) * 2;
+            char *new_buffer = realloc(all_headers, header_buffer_size);
+            if (!new_buffer)
+            {
+                perror("realloc for headers");
+                free(all_headers);
+                return;
+            }
+            all_headers = new_buffer;
+        }
+        header_pos += sprintf(all_headers + header_pos, "%s: %s\r\n",
+                              res->headers[i].name, res->headers[i].value);
+    }
+
+    // Add cookie header if present
+    if (res->set_cookie)
+    {
+        int needed = snprintf(NULL, 0, "Set-Cookie: %s\r\n", res->set_cookie);
+        if (header_pos + needed >= header_buffer_size)
+        {
+            header_buffer_size = (header_pos + needed + 1) * 2;
+            char *new_buffer = realloc(all_headers, header_buffer_size);
+            if (!new_buffer)
+            {
+                perror("realloc for headers");
+                free(all_headers);
+                return;
+            }
+            all_headers = new_buffer;
+        }
+        header_pos += sprintf(all_headers + header_pos, "Set-Cookie: %s\r\n", res->set_cookie);
+    }
+
+    all_headers[header_pos] = '\0';
+
+    // Calculate total header length
+    int base_header_len = snprintf(
         NULL, 0,
         "HTTP/1.1 %d\r\n"
         "%s"
@@ -435,29 +551,32 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         "Connection: %s\r\n"
         "\r\n",
         status,
-        cookie_hdr,
+        all_headers,
         content_type,
         payload_len,
         res->keep_alive ? "keep-alive" : "close");
 
-    if (header_len < 0)
+    if (base_header_len < 0)
     {
         fprintf(stderr, "Failed to compute header length\n");
+        free(all_headers);
         return;
     }
 
-    // Allocate header buffer
-    char *header_buf = malloc((size_t)header_len + 1);
-    if (!header_buf)
+    // Allocate response buffer
+    size_t total_len = (size_t)base_header_len + payload_len;
+    char *response = malloc(total_len);
+    if (!response)
     {
-        perror("malloc for header_buf");
+        perror("malloc for response");
+        free(all_headers);
         return;
     }
 
-    // Write header into buffer
+    // Write headers
     int written = snprintf(
-        header_buf,
-        (size_t)header_len + 1,
+        response,
+        (size_t)base_header_len + 1,
         "HTTP/1.1 %d\r\n"
         "%s"
         "Content-Type: %s\r\n"
@@ -465,41 +584,31 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         "Connection: %s\r\n"
         "\r\n",
         status,
-        cookie_hdr,
+        all_headers,
         content_type,
         payload_len,
         res->keep_alive ? "keep-alive" : "close");
 
-    // Total response length (headers + body)
-    size_t total_len = (size_t)header_len + payload_len;
-    char *response = malloc(total_len + 1);
-    if (!response)
+    free(all_headers);
+
+    if (written < 0)
     {
-        perror("malloc for response");
-        free(header_buf);
-        return;
-    }
-
-    // Copy header and body
-    memcpy(response, header_buf, (size_t)header_len);
-    if (payload_len > 0)
-        memcpy(response + header_len, body, payload_len);
-
-    // Clean up header buffer
-    free(header_buf);
-
-    if (written < 0 || (size_t)written >= total_len)
-    {
-        fprintf(stderr, "Response buffer overflow or formatting error\n");
+        fprintf(stderr, "Response formatting error\n");
         free(response);
         return;
     }
 
-    // Debug info
-    printf("Sending response: %d bytes, status: %d\n", written, status);
+    // Copy body (binary safe)
+    if (payload_len > 0 && body)
+    {
+        memcpy(response + written, body, payload_len);
+    }
 
-    // Create a write request structure
-    write_req_t *write_req = (write_req_t *)malloc(sizeof(write_req_t));
+    // Debug info
+    printf("Sending response: %zu bytes, status: %d\n", total_len, status);
+
+    // Create write request
+    write_req_t *write_req = malloc(sizeof(write_req_t));
     if (!write_req)
     {
         fprintf(stderr, "Failed to allocate memory for write request\n");
@@ -513,21 +622,50 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     // Set up the buffer for libuv
     write_req->buf = uv_buf_init(response, (unsigned int)total_len);
 
-    // Important: Point req field to the actual uv_write_t structure
-    uv_write_t *write_handle = &write_req->req;
-
-    // Send the response asynchronously
-    int result = uv_write(write_handle, (uv_stream_t *)res->client_socket, &write_req->buf, 1, write_completion_cb);
+    // Send response
+    int result = uv_write(&write_req->req, (uv_stream_t *)res->client_socket,
+                          &write_req->buf, 1, write_completion_cb);
     if (result < 0)
     {
         fprintf(stderr, "Write error: %s\n", uv_strerror(result));
         free(response);
         free(write_req);
     }
+}
 
-    if (res->set_cookie)
+// Add response header
+void set_header(Res *res, const char *name, const char *value)
+{
+    if (!name || !value)
+        return;
+
+    // Check if we need to expand the headers array
+    if (res->header_count >= res->header_capacity)
     {
-        free(res->set_cookie);
-        res->set_cookie = NULL;
+        int new_capacity = res->header_capacity == 0 ? 8 : res->header_capacity * 2;
+        http_header_t *new_headers = realloc(res->headers, new_capacity * sizeof(http_header_t));
+        if (!new_headers)
+        {
+            fprintf(stderr, "Failed to allocate memory for headers\n");
+            return;
+        }
+        res->headers = new_headers;
+        res->header_capacity = new_capacity;
     }
+
+    // Add the header
+    res->headers[res->header_count].name = strdup(name);
+    res->headers[res->header_count].value = strdup(value);
+
+    if (!res->headers[res->header_count].name || !res->headers[res->header_count].value)
+    {
+        fprintf(stderr, "Failed to allocate memory for header strings\n");
+        if (res->headers[res->header_count].name)
+            free(res->headers[res->header_count].name);
+        if (res->headers[res->header_count].value)
+            free(res->headers[res->header_count].value);
+        return;
+    }
+
+    res->header_count++;
 }

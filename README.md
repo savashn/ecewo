@@ -6,9 +6,9 @@
 
 ### Built for Modern Web Development in C
 
-A modern and developer-friendly backend framework for C that handles the complexities of C programming and lets you build backends with ease — inspired by the simplicity of Express.js.
+Ecewo is a modern C microframework that simplifies the complexities of C programming — inspired by the simplicity of Express.js and the plugin system of Fastify.
 
-**Ecewo is a hobby project I started to improve my programming skills and it is still work in progress. So, it’s not stable or production-ready yet. See [FAQ](https://ecewo.vercel.app/docs/faq).**
+**This is a hobby project I started to improve my programming skills and it is still work in progress. So, it’s not stable or production-ready yet. See [FAQ](https://ecewo.vercel.app/docs/faq).**
 
 ### Table of Contents
 
@@ -17,14 +17,14 @@ A modern and developer-friendly backend framework for C that handles the complex
 - [Quick Start](#quick-start)
 - [Example Hello World](#example-hello-world)
 - [Documentation](#documentation)
+- [Plugins](#plugins)
 - [License](#license)
 
 ### Out of The Box Features
 
 - Full asynchronous operations support
-- Built-in JSON parsing and generation
-- Built-in CBOR support
-- Session-based authentication mechanism
+- Built-in JSON and CBOR support
+- Cookie management and session-based authentication mechanism
 - Easy management of environment variables
 - Flexible middleware support (route-specific and global)
 - Express.js-like routing mechanism
@@ -72,7 +72,7 @@ For Windows:
 
 ### Example 'Hello World'
 
-```sh
+```c
 // src/handlers.h
 
 #ifndef HANDLERS_H
@@ -85,7 +85,7 @@ void hello_world(Req *req, Res *res);
 #endif
 ```
 
-```sh
+```c
 // src/handlers.c
 
 #include "handlers.h"
@@ -97,7 +97,7 @@ void hello_world(Req *req, Res *res)
 
 ```
 
-```sh
+```c
 // src/main.c
 
 #include "server.h"
@@ -116,6 +116,20 @@ int main()
 ### Documentation
 
 Refer to the [docs](https://ecewo.vercel.app) for usage.
+
+### Plugins
+
+In Ecewo, almost everything is a [plugin](https://github.com/savashn/ecewo-plugins). You can install them using Shell/PowerShell scripts in your project. Here is a list of them:
+
+- `cjson` for [JSON parsing and generation](https://ecewo.vercel.app/docs/using-json)
+- `cbor` for [handling CBOR binaries](https://ecewo.vercel.app/docs/using-cbor)
+- `async` for processing [async functions](https://ecewo.vercel.app/docs/async-operations)
+- `dotenv` for easy [.env configuration](https://ecewo.vercel.app/docs/environment-variables)
+- `sqlite` for [using SQLite database](https://ecewo.vercel.app/docs/using-a-database)
+- `cookie` for [cookie management](https://ecewo.vercel.app/docs/auth#cookies)
+- `session` for authentication with [sessions](https://ecewo.vercel.app/docs/auth#sessions)
+
+Run `./ecewo.sh --install` or `./ecewo.bat /install` for more information about plugins.
 
 ### License
 

@@ -558,7 +558,7 @@ void parse_params(const char *path, const char *route_path, request_t *params)
     }
 }
 
-const char *get_req(request_t *request, const char *key)
+const char *get_req(const request_t *request, const char *key)
 {
     if (!request || !request->items || !key)
     {
