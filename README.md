@@ -15,7 +15,7 @@ Ecewo is a modern C microframework that simplifies the complexities of C program
 - [Out of The Box Features](#out-of-the-box-features)
 - [Requirements](#requirements)
 - [Quick Start](#quick-start)
-- [Example Hello World](#example-hello-world)
+- [Example "Hello World"](#example-hello-world)
 - [Documentation](#documentation)
 - [Plugins](#plugins)
 - [License](#license)
@@ -33,44 +33,37 @@ Ecewo is a modern C microframework that simplifies the complexities of C program
 
 - CMake version 3.10 or higher
 - A C compiler (GCC, Clang, or MSVC)
-- MINGW64 if you are using Windows
+- MSYS2 and Git Bash if you are using Windows
 
 ### Quick Start
 
-Clone this repo:
+Install Ecewo CLI:
 
+```bash
+curl -o installer.sh "https://raw.githubusercontent.com/savashn/ecewo/main/installer.sh" && chmod +x installer.sh && ./installer.sh
 ```
-git clone https://github.com/savashn/ecewo.git
-cd ecewo
+
+This command installs the Ecewo CLI to your user path. To install it to the system path for all users, run the following command with administrator privileges:
+
+```bash
+curl -o installer.sh "https://raw.githubusercontent.com/savashn/ecewo/main/installer.sh" && chmod +x installer.sh && ./installer.sh --admin
 ```
 
 And then run the following commands to start:
 
-For Linux/MacOS:
 ```
-chmod +x create.sh
-./create.sh
+ecewo create
 ```
 
-For Windows:
+This command will automatically create a `hello world` example and generate a new script file. Run the following command to build and start the server at `http://localhost:4000`.
+
 ```
-./create.bat
+ecewo run
 ```
 
-These commands will automatically create a `hello world` example and generate a new script file. Run the following commands to build and start the server at `http://localhost:4000`.
+Run `ecewo` in the terminal to see all the CLI commands.
 
-For Linux/MacOS:
-```
-chmod +x ecewo.sh
-./ecewo.sh --run
-```
-
-For Windows:
-```
-./ecewo.bat /run
-```
-
-### Example 'Hello World'
+### Example "Hello World"
 
 ```c
 // src/handlers.h
@@ -119,7 +112,7 @@ Refer to the [docs](https://ecewo.vercel.app) for usage.
 
 ### Plugins
 
-In Ecewo, almost everything is a [plugin](https://github.com/savashn/ecewo-plugins). You can install them using Shell/PowerShell scripts in your project. Here is a list of them:
+In Ecewo, almost everything is a **plugin**. You can install them using Ecewo CLI. Here is a list of them:
 
 - `cjson` for [JSON parsing and generation](https://ecewo.vercel.app/docs/using-json)
 - `cbor` for [handling CBOR binaries](https://ecewo.vercel.app/docs/using-cbor)
@@ -128,8 +121,6 @@ In Ecewo, almost everything is a [plugin](https://github.com/savashn/ecewo-plugi
 - `sqlite` for [using SQLite database](https://ecewo.vercel.app/docs/using-a-database)
 - `cookie` for [cookie management](https://ecewo.vercel.app/docs/auth#cookies)
 - `session` for authentication with [sessions](https://ecewo.vercel.app/docs/auth#sessions)
-
-Run `./ecewo.sh --install` or `./ecewo.bat /install` for more information about plugins.
 
 ### License
 
