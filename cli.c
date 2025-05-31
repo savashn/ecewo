@@ -1500,7 +1500,7 @@ int main(int argc, char *argv[])
     {
         printf("Cleaning build directory...\n");
         remove_directory("build");
-        printf("Cleaned.\n\n");
+        printf("Rebuilding...\n\n");
         return build_and_run();
     }
 

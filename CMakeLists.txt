@@ -10,7 +10,7 @@ add_subdirectory(core)
 # Programmer modules
 if(EXISTS "${CMAKE_SOURCE_DIR}/src/CMakeLists.txt")
     add_subdirectory(src)
-    add_compile_definitions(ENV="${CMAKE_SOURCE_DIR}/src/.env")
+    add_compile_definitions(ENV="${CMAKE_SOURCE_DIR}/.env")
 endif()
 
 add_executable(server ${APP_SRC})
