@@ -9,8 +9,8 @@ for arg in "$@"; do
   esac
 done
 
-FILE_URL="https://raw.githubusercontent.com/savashn/ecewo/main/cli/cli.c"
-MAKEFILE_URL="https://raw.githubusercontent.com/savashn/ecewo/main/cli/makefile"
+FILE_URL="https://raw.githubusercontent.com/savashn/ecewo/main/cli.c"
+MAKEFILE_URL="https://raw.githubusercontent.com/savashn/ecewo/main/makefile"
 
 FILE_NAME="$(basename "$FILE_URL")"    # cli.c
 MAKE_NAME="makefile"
