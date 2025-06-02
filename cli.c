@@ -1018,12 +1018,9 @@ void handle_cbor()
     printf("TinyCBOR added successfully\n");
 }
 
-void handle_jwt()
+void handle_jwt_cmake()
 {
     const char *cmake_file = "core/CMakeLists.txt";
-
-    printf("Checking l8w8jwt integration...\n");
-
     char *content = read_file(cmake_file);
     if (!content)
     {
@@ -1031,34 +1028,6 @@ void handle_jwt()
         return;
     }
 
-    if (contains_string(content, "add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/vendors/l8w8jwt)"))
-    {
-        printf("l8w8jwt is already added\n");
-        free(content);
-        return;
-    }
-
-    printf("Adding l8w8jwt...\n");
-
-    // Install l8w8jwt as github submodule
-    int ret;
-
-    // Add it as github submodule
-    ret = system("git submodule add https://github.com/GlitchedPolygons/l8w8jwt.git core/vendors/l8w8jwt");
-    if (ret != 0)
-    {
-        fprintf(stderr, "Error: 'git submodule add' failed: %d\n", ret);
-        return;
-    }
-
-    ret = system("git submodule update --init --recursive");
-    if (ret != 0)
-    {
-        fprintf(stderr, "Error: 'git submodule update --init --recursive' failed: %d\n", ret);
-        return;
-    }
-
-    // Add to CMake
     const char *l8w8jwt_block =
         "patch_cmake_minimum_required(\n"
         "  \"${CMAKE_CURRENT_SOURCE_DIR}/vendors/l8w8jwt/lib/mbedtls/CMakeLists.txt\"\n"
@@ -1126,8 +1095,53 @@ void handle_jwt()
 
     free(content);
     free(new_content);
+}
 
-    printf("l8w8jwt added successfully\n");
+void handle_jwt()
+{
+    const char *cmake_file = "core/CMakeLists.txt";
+
+    printf("Checking l8w8jwt integration...\n");
+
+    char *content = read_file(cmake_file);
+    if (!content)
+    {
+        printf("Error: Cannot read CMakeLists.txt\n");
+        return;
+    }
+
+    if (contains_string(content, "add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/vendors/l8w8jwt)"))
+    {
+        printf("l8w8jwt is already added\n");
+        free(content);
+        return;
+    }
+
+    printf("Adding l8w8jwt...\n");
+
+    // Install l8w8jwt as github submodule
+    int ret;
+
+    // Add it as github submodule
+    ret = system("git submodule add https://github.com/GlitchedPolygons/l8w8jwt.git core/vendors/l8w8jwt");
+    if (ret != 0)
+    {
+        fprintf(stderr, "Error: 'git submodule add' failed: %d\n", ret);
+        free(content);
+        return;
+    }
+
+    ret = system("git submodule update --init --recursive");
+    if (ret != 0)
+    {
+        fprintf(stderr, "Error: 'git submodule update --init --recursive' failed: %d\n", ret);
+        free(content);
+        return;
+    }
+
+    // Add to CMake
+    free(content);
+    handle_jwt_cmake();
 }
 
 // Install plugin function
@@ -1337,15 +1351,7 @@ int create_project()
 
     printf("Project '%s' created successfully!\n", project_name);
     printf("To build and run your project:\n");
-#ifdef _WIN32
-    printf("  ecewo --run\n");
-    printf("  or\n");
-    printf("  ./ecewo.exe --run\n");
-#else
-    printf("  ecewo --run\n");
-    printf("  or\n");
-    printf("  ./ecewo --run\n");
-#endif
+    printf("ecewo run\n");
 
     return 0;
 }
@@ -1420,16 +1426,26 @@ int update_project()
 {
     printf("Updating from %s (branch: main)\n", REPO_URL);
 
-    // Check if CBOR library exists
+    // Check if CBOR or JWT library exists
     int cbor_enabled = 0;
+    int jwt_enabled = 0;
+
     if (file_exists("core/CMakeLists.txt"))
     {
         char *content = read_file("core/CMakeLists.txt");
+
         if (content && contains_string(content, "FetchContent_MakeAvailable(tinycbor)"))
         {
             cbor_enabled = 1;
             printf("[Info] tinycbor integration found.\n");
         }
+
+        if (content && contains_string(content, "add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/vendors/l8w8jwt)"))
+        {
+            jwt_enabled = 1;
+            printf("[Info] l8w8jwt integration found.\n");
+        }
+
         free(content);
     }
 
@@ -1446,7 +1462,7 @@ int update_project()
 
     for (int i = 0; i < plugin_count; i++)
     {
-        // Skip for CBOR
+        // Skip for CBOR and JWT
         if (plugins[i].c_url == NULL || plugins[i].h_url == NULL)
         {
             existing_plugins[i] = 0;
@@ -1532,10 +1548,10 @@ int update_project()
     }
 
     if (cbor_enabled)
-    {
-        printf("Running handle_cbor()...\n");
         handle_cbor();
-    }
+
+    if (jwt_enabled)
+        handle_jwt_cmake();
 
     free(existing_plugins);
     return 0;

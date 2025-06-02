@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(ecewo VERSION 0.24.0 LANGUAGES C)
+project(ecewo VERSION 0.24.1 LANGUAGES C)
 
 # Platform definitions
 if(WIN32)

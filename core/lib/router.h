@@ -64,29 +64,29 @@ void set_header(Res *res, const char *name, const char *value);
 
 void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len);
 
-static inline void _text(Res *res, int status, const char *body)
+static inline void reply_text(Res *res, int status, const char *body)
 {
     reply(res, status, "text/plain", body, strlen(body));
 }
 
-static inline void _html(Res *res, int status, const char *body)
+static inline void reply_html(Res *res, int status, const char *body)
 {
     reply(res, status, "text/html", body, strlen(body));
 }
 
-static inline void _json(Res *res, int status, const char *body)
+static inline void reply_json(Res *res, int status, const char *body)
 {
     reply(res, status, "application/json", body, strlen(body));
 }
 
-static inline void _cbor(Res *res, int status, const char *body, size_t body_len)
+static inline void reply_cbor(Res *res, int status, const char *body, size_t body_len)
 {
     reply(res, status, "application/cbor", body, body_len);
 }
 
-#define text(status, body) _text(res, status, body)
-#define html(status, body) _html(res, status, body)
-#define json(status, body) _json(res, status, body)
-#define cbor(status, body, body_len) _cbor(res, status, body, body_len)
+#define send_text(status, body) reply_text(res, status, body)
+#define send_html(status, body) reply_html(res, status, body)
+#define send_json(status, body) reply_json(res, status, body)
+#define send_cbor(status, body, body_len) reply_cbor(res, status, body, body_len)
 
 #endif

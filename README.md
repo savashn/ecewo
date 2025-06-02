@@ -45,31 +45,31 @@ Ecewo is still a work in progress, so it’s not stable or production-ready yet.
 - CMake version 3.10 or higher
 - A C compiler (GCC, Clang, or MSVC)
 - Git
-- MSYS2 and Git Bash if you are using Windows
+- MSYS2 if you are using Windows
 
 ### Quick Start
 
 Install Ecewo CLI:
 
-```bash
+```shell
 curl -o installer.sh "https://raw.githubusercontent.com/savashn/ecewo/main/installer.sh" && chmod +x installer.sh && ./installer.sh
 ```
 
 This command installs the Ecewo CLI to your user path. To install it to the system path for all users, run the following command with administrator privileges:
 
-```bash
+```shell
 curl -o installer.sh "https://raw.githubusercontent.com/savashn/ecewo/main/installer.sh" && chmod +x installer.sh && ./installer.sh --admin
 ```
 
 And then run the following commands to start:
 
-```
+```shell
 ecewo create
 ```
 
 This command will automatically create a `hello world` example and generate a new script file. Run the following command to build and start the server at `http://localhost:4000`.
 
-```
+```shell
 ecewo run
 ```
 
@@ -97,7 +97,7 @@ void hello_world(Req *req, Res *res);
 
 void hello_world(Req *req, Res *res)
 {
-    text(200, "hello world!");
+    send_text(200, "hello world!");
 }
 
 ```
@@ -133,6 +133,7 @@ In Ecewo, almost everything is a **plugin**. You can install them using Ecewo CL
 - `sqlite` for [using SQLite database](https://ecewo.vercel.app/docs/using-a-database)
 - `cookie` for [cookie management](https://ecewo.vercel.app/docs/auth#cookies)
 - `session` for authentication with [sessions](https://ecewo.vercel.app/docs/auth#sessions)
+- `l8w8jwt` for authentication with [JWT](https://ecewo.vercel.app/docs/auth#jwt)
 
 ### License
 

@@ -476,19 +476,6 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
 
 void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len)
 {
-    // Determine payload length
-    size_t payload_len;
-    if (body_len == SIZE_MAX)
-    {
-        // If SIZE_MAX, treat as string and calculate length
-        payload_len = body ? strlen((const char *)body) : 0;
-    }
-    else
-    {
-        // Use provided length (for binary data)
-        payload_len = body_len;
-    }
-
     // Build headers string
     size_t header_buffer_size = 1024; // Initial size
     char *all_headers = malloc(header_buffer_size);
@@ -553,7 +540,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         status,
         all_headers,
         content_type,
-        payload_len,
+        body_len,
         res->keep_alive ? "keep-alive" : "close");
 
     if (base_header_len < 0)
@@ -564,7 +551,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     }
 
     // Allocate response buffer
-    size_t total_len = (size_t)base_header_len + payload_len;
+    size_t total_len = (size_t)base_header_len + body_len;
     char *response = malloc(total_len);
     if (!response)
     {
@@ -586,7 +573,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         status,
         all_headers,
         content_type,
-        payload_len,
+        body_len,
         res->keep_alive ? "keep-alive" : "close");
 
     free(all_headers);
@@ -599,9 +586,9 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     }
 
     // Copy body (binary safe)
-    if (payload_len > 0 && body)
+    if (body_len > 0 && body)
     {
-        memcpy(response + written, body, payload_len);
+        memcpy(response + written, body, body_len);
     }
 
     // Debug info
