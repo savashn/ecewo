@@ -4,11 +4,22 @@
     </a>
 </div>
 
-### Built for Modern Web Development in C
+<hr />
 
-Ecewo is a modern C microframework that simplifies the complexities of C programming — inspired by the simplicity of Express.js and the plugin system of Fastify.
+Minimalist and unopinionated web framework designed to make modern web development in C easier — inspired by the simplicity of Express.js and the modularity of Fastify’s plugin architecture.
 
-**This is a hobby project I started to improve my programming skills and it is still work in progress. So, it’s not stable or production-ready yet. See [FAQ](https://ecewo.vercel.app/docs/faq).**
+### In short, Ecewo is:
+- **Modern**
+- **Minimalist**
+- **Lightweight**
+- **Low overhead**
+- **Developer friendly**
+- **Unopinionated**
+- **Fast**
+
+Ecewo is still a work in progress, so it’s not stable or production-ready yet. See [FAQ](https://ecewo.vercel.app/docs/faq).
+
+<hr />
 
 ### Table of Contents
 
@@ -24,7 +35,7 @@ Ecewo is a modern C microframework that simplifies the complexities of C program
 
 - Full asynchronous operations support
 - Built-in JSON and CBOR support
-- Cookie management and session-based authentication mechanism
+- Cookie management and session or JWT based authentication mechanism
 - Easy management of environment variables
 - Flexible middleware support (route-specific and global)
 - Express.js-like routing mechanism
@@ -33,6 +44,7 @@ Ecewo is a modern C microframework that simplifies the complexities of C program
 
 - CMake version 3.10 or higher
 - A C compiler (GCC, Clang, or MSVC)
+- Git
 - MSYS2 and Git Bash if you are using Windows
 
 ### Quick Start

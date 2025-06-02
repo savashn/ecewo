@@ -75,6 +75,7 @@ static Plugin plugins[] = {
     {"session", "plugins", SESSION_C_URL, SESSION_H_URL, 0},
     {"async", "plugins", ASYNC_C_URL, ASYNC_H_URL, 0},
     {"cbor", NULL, NULL, NULL, 0},
+    {"l8w8jwt", NULL, NULL, NULL, 0},
 };
 
 static const int plugin_count = sizeof(plugins) / sizeof(Plugin);
@@ -96,6 +97,7 @@ typedef struct
     int session;
     int async_plugin;
     int cbor;
+    int l8w8jwt;
 } flags_t;
 
 //
@@ -882,6 +884,62 @@ int update_cmake_file(const char *dir)
     return result;
 }
 
+// Utility function to update "target_link_libraries"
+char *add_to_target_link_libraries(const char *content, const char *lib_to_add)
+{
+    char *link_pos = strstr(content, "target_link_libraries(");
+    if (!link_pos)
+    {
+        // If not found, create a copy so that the caller can free the buffer later:
+        char *copy = malloc(strlen(content) + 1);
+        if (!copy)
+            return NULL;
+        strcpy(copy, content);
+        return copy;
+    }
+
+    char *paren_close = strchr(link_pos, ')');
+    if (!paren_close)
+    {
+        // If ')' is not found, treat as error and return a copy:
+        char *copy = malloc(strlen(content) + 1);
+        if (!copy)
+            return NULL;
+        strcpy(copy, content);
+        return copy;
+    }
+
+    // The parameter must be space-prefixed (e.g., " l8w8jwt")
+    const char *to_insert = lib_to_add;
+
+    // Calculate the required size for the new buffer:
+    //    - Length of the original content
+    //    - + Length of “to_insert”
+    //    - + 1 for the terminating '\0'
+
+    size_t orig_len = strlen(content);
+    size_t insert_len = strlen(to_insert);
+    size_t new_capacity = orig_len + insert_len + 1;
+    char *temp = malloc(new_capacity);
+    if (!temp)
+    {
+        return NULL;
+    }
+
+    // Copy everything up to (but not including) the closing parenthesis:
+    size_t offset = (size_t)(paren_close - content);
+    strncpy(temp, content, offset);
+    temp[offset] = '\0';
+
+    // Append the library name to insert
+    strcat(temp, to_insert);
+
+    // Append the closing parenthesis and the rest of the content:
+    strcat(temp, paren_close);
+
+    return temp;
+}
+
 // Handle TinyCBOR integration
 void handle_cbor()
 {
@@ -941,31 +999,135 @@ void handle_cbor()
         strcpy(new_content, content);
     }
 
-    // Replace target_link_libraries line
-    char *link_pos = strstr(new_content, "target_link_libraries(core uv llhttp_static)");
-    if (link_pos)
+    char *updated = add_to_target_link_libraries(new_content, " tinycbor");
+    if (!updated)
     {
-        char *temp = malloc(strlen(new_content) + 100);
-        size_t prefix_len = link_pos - new_content;
-        strncpy(temp, new_content, prefix_len);
-        temp[prefix_len] = '\0';
-        strcat(temp, "target_link_libraries(core uv llhttp_static tinycbor)");
-
-        char *line_end = strchr(link_pos, '\n');
-        if (line_end)
-        {
-            strcat(temp, line_end);
-        }
-
+        printf("Error: Adding TinyCBOR to target_link_libraries has failed\n");
+        free(content);
         free(new_content);
-        new_content = temp;
+        return;
     }
+
+    free(new_content);
+    new_content = updated;
 
     write_file(cmake_file, new_content);
     free(content);
     free(new_content);
 
     printf("TinyCBOR added successfully\n");
+}
+
+void handle_jwt()
+{
+    const char *cmake_file = "core/CMakeLists.txt";
+
+    printf("Checking l8w8jwt integration...\n");
+
+    char *content = read_file(cmake_file);
+    if (!content)
+    {
+        printf("Error: Cannot read CMakeLists.txt\n");
+        return;
+    }
+
+    if (contains_string(content, "add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/vendors/l8w8jwt)"))
+    {
+        printf("l8w8jwt is already added\n");
+        free(content);
+        return;
+    }
+
+    printf("Adding l8w8jwt...\n");
+
+    // Install l8w8jwt as github submodule
+    int ret;
+
+    // Add it as github submodule
+    ret = system("git submodule add https://github.com/GlitchedPolygons/l8w8jwt.git core/vendors/l8w8jwt");
+    if (ret != 0)
+    {
+        fprintf(stderr, "Error: 'git submodule add' failed: %d\n", ret);
+        return;
+    }
+
+    ret = system("git submodule update --init --recursive");
+    if (ret != 0)
+    {
+        fprintf(stderr, "Error: 'git submodule update --init --recursive' failed: %d\n", ret);
+        return;
+    }
+
+    // Add to CMake
+    const char *l8w8jwt_block =
+        "patch_cmake_minimum_required(\n"
+        "  \"${CMAKE_CURRENT_SOURCE_DIR}/vendors/l8w8jwt/lib/mbedtls/CMakeLists.txt\"\n"
+        "  \"mbedTLS\"\n"
+        ")\n"
+        "\n"
+        "patch_cmake_minimum_required(\n"
+        "   \"${CMAKE_CURRENT_SOURCE_DIR}/vendors/l8w8jwt/lib/chillbuff/CMakeLists.txt\"\n"
+        "   \"chillbuff\"\n"
+        ")\n"
+        "\n"
+        "add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/vendors/l8w8jwt)\n";
+
+    // Replace "# Empty place for l8w8jwt" with the l8w8jwt block
+    size_t new_capacity = strlen(content) + strlen(l8w8jwt_block) + 1;
+    char *new_content = malloc(new_capacity);
+    if (!new_content)
+    {
+        free(content);
+        printf("Error: malloc failed when allocating new_content\n");
+        return;
+    }
+
+    char *pos = strstr(content, "# Empty place for l8w8jwt (do not touch this comment line)");
+    if (pos)
+    {
+        size_t prefix_len = (size_t)(pos - content);
+        strncpy(new_content, content, prefix_len);
+        new_content[prefix_len] = '\0';
+
+        strcat(new_content, l8w8jwt_block);
+
+        char *line_end = strchr(pos, '\n');
+        if (line_end)
+        {
+            strcat(new_content, line_end + 1);
+        }
+    }
+    else
+    {
+        strcpy(new_content, content);
+    }
+
+    // Replace target_link_libraries line
+    char *updated = add_to_target_link_libraries(new_content, " l8w8jwt");
+    if (!updated)
+    {
+        printf("Error: Adding l8w8jwt to target_link_libraries has failed\n");
+        free(content);
+        free(new_content);
+        return;
+    }
+
+    free(new_content);
+    new_content = updated;
+
+    if (write_file(cmake_file, new_content) != 0)
+    {
+        printf("Error: Cannot write to %s\n", cmake_file);
+    }
+    else
+    {
+        printf("l8w8jwt added successfully\n");
+    }
+
+    free(content);
+    free(new_content);
+
+    printf("l8w8jwt added successfully\n");
 }
 
 // Install plugin function
@@ -1068,16 +1230,22 @@ int create_project()
     {
         if (plugins[i].selected)
         {
-            // Eğer TinyCBOR seçilmişse, sadece CMake tarafını güncelle
+            // Specific processes only for cbor and l8w8jwt
             if (strcmp(plugins[i].name, "cbor") == 0)
             {
                 printf("Handling TinyCBOR integration...\n");
                 handle_cbor();
-                // bu iterasyonda indirme yapma, diğer pluginlere devam et
                 continue;
             }
 
-            // Diğer pluginler için normal indirme/dosya kopyalama
+            if (strcmp(plugins[i].name, "l8w8jwt") == 0)
+            {
+                printf("Handling l8w8jwt integration...\n");
+                handle_jwt();
+                continue;
+            }
+
+            // Installing process for the other plugins
             if (install_plugin(
                     plugins[i].name,
                     plugins[i].folder,
@@ -1099,7 +1267,9 @@ int create_project()
         "#define HANDLERS_H\n"
         "\n"
         "#include \"ecewo.h\"\n"
+        "\n"
         "void hello_world(Req *req, Res *res);\n"
+        "\n"
         "#endif\n";
 
     if (write_file("src/handlers.h", handlers_h_content) != 0)
@@ -1377,13 +1547,14 @@ void show_install_help()
 {
     printf("Plugins:\n");
     printf("=============================================\n");
-    printf("  cJSON     ecewo install cjson\n");
-    printf("  .env      ecewo install dotenv\n");
+    printf("  Async     ecewo install async\n");
+    printf("  JSON      ecewo install cjson\n");
+    printf("  CBOR      ecewo install cbor\n");
+    printf("  dotenv    ecewo install dotenv\n");
     printf("  SQLite3   ecewo install sqlite\n");
     printf("  Cookie    ecewo install cookie\n");
     printf("  Session   ecewo install session\n");
-    printf("  Async     ecewo install async\n");
-    printf("  TinyCBOR  ecewo install cbor\n");
+    printf("  JWT       ecewo install l8w8jwt\n");
     printf("=============================================\n");
 }
 
@@ -1461,6 +1632,10 @@ void parse_arguments(int argc, char *argv[], flags_t *flags)
         {
             flags->cbor = 1;
         }
+        else if (strcmp(argv[i], "l8w8jwt") == 0)
+        {
+            flags->l8w8jwt = 1;
+        }
         else
         {
             printf("Unknown argument: %s\n", argv[i]);
@@ -1514,7 +1689,7 @@ int main(int argc, char *argv[])
     if (flags.install)
     {
         int has_plugin_arg = flags.cjson || flags.dotenv || flags.sqlite ||
-                             flags.cookie || flags.session || flags.async_plugin || flags.cbor;
+                             flags.cookie || flags.session || flags.async_plugin || flags.cbor || flags.l8w8jwt;
 
         if (!has_plugin_arg)
         {
@@ -1525,6 +1700,11 @@ int main(int argc, char *argv[])
         if (flags.cbor)
         {
             handle_cbor();
+        }
+
+        if (flags.l8w8jwt)
+        {
+            handle_jwt();
         }
 
         if (flags.cjson)
