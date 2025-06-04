@@ -940,7 +940,7 @@ char *add_to_target_link_libraries(const char *content, const char *lib_to_add)
     return temp;
 }
 
-// Handle TinyCBOR integration
+// Handle TinyCBOR and l8w8jwt integration
 void handle_cbor()
 {
     const char *cmake_file = "core/CMakeLists.txt";
@@ -1298,7 +1298,7 @@ int create_project()
         "\n"
         "void hello_world(Req *req, Res *res)\n"
         "{\n"
-        "  text(200, \"hello world!\");\n"
+        "  send_text(200, \"hello world!\");\n"
         "}\n";
 
     if (write_file("src/handlers.c", handlers_c_content) != 0)
@@ -1714,44 +1714,28 @@ int main(int argc, char *argv[])
         }
 
         if (flags.cbor)
-        {
             handle_cbor();
-        }
 
         if (flags.l8w8jwt)
-        {
             handle_jwt();
-        }
 
         if (flags.cjson)
-        {
             install_plugin("cJSON", "vendors", CJSON_C_URL, CJSON_H_URL);
-        }
 
         if (flags.dotenv)
-        {
             install_plugin("dotenv", "vendors", DOTENV_C_URL, DOTENV_H_URL);
-        }
 
         if (flags.sqlite)
-        {
             install_plugin("sqlite3", "vendors", SQLITE_C_URL, SQLITE_H_URL);
-        }
 
         if (flags.cookie)
-        {
             install_plugin("cookie", "plugins", COOKIE_C_URL, COOKIE_H_URL);
-        }
 
         if (flags.session)
-        {
             install_plugin("session", "plugins", SESSION_C_URL, SESSION_H_URL);
-        }
 
         if (flags.async_plugin)
-        {
             install_plugin("async", "plugins", ASYNC_C_URL, ASYNC_H_URL);
-        }
 
         printf("Migration complete.\n");
         return 0;

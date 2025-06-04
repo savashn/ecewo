@@ -454,7 +454,8 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
         // Add CORS headers for 404 responses too
         cors_add_headers(&context, &res);
 
-        reply(&res, 404, "text/plain", "404 Not Found", SIZE_MAX);
+        const char *not_found_msg = "404 Not Found";
+        reply(&res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
 
         // Cleanup
         res_free(&res);

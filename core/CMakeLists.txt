@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(ecewo VERSION 0.24.1 LANGUAGES C)
+project(ecewo VERSION 0.24.2 LANGUAGES C)
 
 # Platform definitions
 if(WIN32)
@@ -113,9 +113,6 @@ target_include_directories(core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/plugins
     ${CMAKE_CURRENT_SOURCE_DIR}/vendors
     ${CMAKE_CURRENT_SOURCE_DIR}/vendors/l8w8jwt/include
-    ${CMAKE_BINARY_DIR}/libuv/include
-    ${CMAKE_BINARY_DIR}/llhttp/include
-    ${CMAKE_BINARY_DIR}/tinycbor/include
     ${CMAKE_BINARY_DIR}/_deps/libuv-src/src
     ${CMAKE_BINARY_DIR}/_deps/libuv-src/include
     ${CMAKE_BINARY_DIR}/_deps/llhttp-src/src
