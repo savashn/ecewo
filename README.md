@@ -6,9 +6,9 @@
 
 <hr />
 
-Minimalist and easy-to-use web framework designed to make modern web development in C easier — inspired by the simplicity of Express.js and the modularity of Fastify’s plugin architecture.
+### Minimalist and easy-to-use web framework for C — inspired by the simplicity of [Express.js](https://expressjs.com/) and the plugin architecture of [Fastify](https://fastify.dev/).
 
-**This is a hobby project I'm developing to improve my programming skills. It's still a work in progress, so it's not stable or production-ready yet. See [FAQ](https://ecewo.vercel.app/docs/faq).**
+**This is a hobby project that I'm developing to improve my programming skills. So it's not stable or production-ready. See [FAQ](https://ecewo.vercel.app/docs/faq).**
 
 <hr />
 
