@@ -88,6 +88,7 @@ typedef struct
     int update;
     int migrate;
     int install;
+    int uninstall;
     int create;
     int help;
     int cjson;
@@ -771,12 +772,79 @@ char *generate_src_files_section(const char *dir)
     return NULL;
 }
 
+char *filter_out_l8w8jwt(const char *src)
+{
+    if (!src)
+        return NULL;
+    size_t src_len = strlen(src);
+    // Original length +1 will be enough. (Since lines are removed, the result may actually be shorter.)
+    char *result = malloc(src_len + 1);
+    if (!result)
+        return NULL;
+
+    const char *read_ptr = src;
+    char *write_ptr = result;
+
+    while (*read_ptr)
+    {
+        // Read the line (until \n or end)
+        const char *newline = strchr(read_ptr, '\n');
+        size_t line_len = newline ? (size_t)(newline - read_ptr) : strlen(read_ptr);
+
+        // Copy line into temporary buffer (null-terminated)
+        char line[1024];
+        if (line_len >= sizeof(line))
+        {
+            // If line is longer than 1023 chars, just copy 1023 and null-terminate (rare case)
+            line_len = sizeof(line) - 1;
+        }
+        memcpy(line, read_ptr, line_len);
+        line[line_len] = '\0';
+
+        // If this line does not contain "vendors/l8w8jwt", copy it to result
+        if (!strstr(line, "vendors/l8w8jwt"))
+        {
+            // Copy original line including newline
+            if (newline)
+            {
+                memcpy(write_ptr, read_ptr, line_len);
+                write_ptr += line_len;
+                *write_ptr++ = '\n';
+                read_ptr = newline + 1;
+            }
+            else
+            {
+                // Last line (no newline)
+                memcpy(write_ptr, read_ptr, line_len);
+                write_ptr += line_len;
+                read_ptr += line_len;
+            }
+        }
+        else
+        {
+            // Skip this line, only move read_ptr after newline. Do not copy.
+            if (newline)
+            {
+                read_ptr = newline + 1;
+            }
+            else
+            {
+                // If the last line is to be skipped, exit loop
+                break;
+            }
+        }
+    }
+
+    *write_ptr = '\0';
+    return result;
+}
+
 int update_cmake_file(const char *dir)
 {
     char cmake_file[256];
     snprintf(cmake_file, sizeof(cmake_file), "%s%sCMakeLists.txt", dir, PATH_SEPARATOR);
 
-    // Check if the src direction exists
+    // Check if source directory exists
     struct stat st;
     if (stat(dir, &st) != 0 || !S_ISDIR(st.st_mode))
     {
@@ -784,7 +852,7 @@ int update_cmake_file(const char *dir)
         return -1;
     }
 
-    // Read the contents of existing CMakeLists.txt
+    // Read existing CMakeLists.txt content
     char *content = read_file(cmake_file);
     if (!content)
     {
@@ -792,7 +860,7 @@ int update_cmake_file(const char *dir)
         return -1;
     }
 
-    // Create a new SRC_FILES section
+    // Generate new SRC_FILES section
     char *new_src_files = generate_src_files_section(dir);
     if (!new_src_files)
     {
@@ -801,6 +869,17 @@ int update_cmake_file(const char *dir)
         return -1;
     }
 
+    // Remove lines that contain vendors/l8w8jwt
+    char *filtered_src_files = filter_out_l8w8jwt(new_src_files);
+    free(new_src_files);
+    if (!filtered_src_files)
+    {
+        printf("Error: Filtering src_files failed\n");
+        free(content);
+        return -1;
+    }
+
+    // Use StringBuilder to construct new content
     StringBuilder *new_content = sb_create();
     char *line_start = content;
     char *line_end;
@@ -814,7 +893,7 @@ int update_cmake_file(const char *dir)
         if (line_end)
         {
             size_t line_len = line_end - line_start;
-            // Windows \r\n handling
+            // Handle Windows \r\n case
             if (line_len > 0 && line_start[line_len - 1] == '\r')
             {
                 line_len--;
@@ -825,20 +904,20 @@ int update_cmake_file(const char *dir)
         }
         else
         {
-            // The last line
+            // Last line
             strcpy(line, line_start);
             line_start += strlen(line_start);
         }
 
-        // Skip the existing SRC_FILES section
+        // Skip old SRC_FILES or APP_SRC sections
         if (contains_string(line, "set(SRC_FILES") || contains_string(line, "set(APP_SRC"))
         {
             in_src_files_section = 1;
             continue;
         }
-
         if (in_src_files_section)
         {
+            // Check for closing parenthesis
             if (strchr(line, ')'))
             {
                 in_src_files_section = 0;
@@ -846,12 +925,12 @@ int update_cmake_file(const char *dir)
             continue;
         }
 
-        // Add SRC_FILES when the comment line is found
+        // When we find the comment marker, insert the filtered list
         if (contains_string(line, "# List of source files (do not touch this comment line)"))
         {
             sb_append(new_content, line);
             sb_append(new_content, "\n");
-            sb_append(new_content, new_src_files);
+            sb_append(new_content, filtered_src_files);
             sb_append(new_content, "\n");
         }
         else
@@ -864,12 +943,12 @@ int update_cmake_file(const char *dir)
             break;
     }
 
-    // Write the updated content to file
+    // Write the resulting content to file
     int result = write_file(cmake_file, new_content->data);
 
     // Cleanup
     free(content);
-    free(new_src_files);
+    free(filtered_src_files);
     sb_free(new_content);
 
     if (result == 0)
@@ -879,6 +958,64 @@ int update_cmake_file(const char *dir)
     else
     {
         printf("CMakeLists.txt couldn't be updated\n");
+    }
+
+    return result;
+}
+
+char *remove_from_target_link_libraries(const char *content, const char *lib_to_remove)
+{
+    const char *link_start = strstr(content, "target_link_libraries(");
+    if (!link_start)
+    {
+        // target_link_libraries not found, return a copy of the original content
+        char *copy = malloc(strlen(content) + 1);
+        if (!copy)
+            return NULL;
+        strcpy(copy, content);
+        return copy;
+    }
+
+    // Find the closing parenthesis
+    const char *paren_close = strchr(link_start, ')');
+    if (!paren_close)
+    {
+        // Closing parenthesis not found, return a copy of the original content
+        char *copy = malloc(strlen(content) + 1);
+        if (!copy)
+            return NULL;
+        strcpy(copy, content);
+        return copy;
+    }
+
+    // Allocate memory for the result (same size as original, safe enough)
+    size_t orig_len = strlen(content);
+    size_t new_capacity = orig_len + 1;
+    char *result = malloc(new_capacity);
+    if (!result)
+        return NULL;
+
+    // Copy content to result, skipping occurrences of lib_to_remove
+    const char *read_ptr = content;
+    char *write_ptr = result;
+
+    while (1)
+    {
+        const char *found = strstr(read_ptr, lib_to_remove);
+        if (!found)
+        {
+            // No more matches, copy the rest and break
+            strcpy(write_ptr, read_ptr);
+            break;
+        }
+        // Copy part before the match
+        size_t chunk_len = (size_t)(found - read_ptr);
+        memcpy(write_ptr, read_ptr, chunk_len);
+        write_ptr += chunk_len;
+
+        // Skip over the matched text
+        read_ptr = found + strlen(lib_to_remove);
+        // Loop continues to remove all matches of " tinycbor"
     }
 
     return result;
@@ -941,7 +1078,128 @@ char *add_to_target_link_libraries(const char *content, const char *lib_to_add)
 }
 
 // Handle TinyCBOR and l8w8jwt integration
-void handle_cbor()
+void uninstall_cbor()
+{
+    const char *cmake_file = "core/CMakeLists.txt";
+
+    printf("Removing TinyCBOR integration...\n");
+
+    // Read the file
+    char *content = read_file(cmake_file);
+    if (!content)
+    {
+        printf("Error: Failed to read CMakeLists.txt\n");
+        return;
+    }
+
+    // Define start and end markers of the block
+    const char *start_marker =
+        "FetchContent_Declare(\n"
+        "  tinycbor";
+    const char *end_marker = "FetchContent_MakeAvailable(tinycbor)";
+    const char *placeholder_comment = "# Empty place for TinyCBOR (do not touch this comment line)\n";
+
+    // Search for the start of the block
+    char *block_start = strstr(content, start_marker);
+    if (block_start)
+    {
+        // Search for the end marker starting from block_start
+        char *end_pos = strstr(block_start, end_marker);
+        if (end_pos)
+        {
+            // Move to the character after newline if it exists, or just past the marker
+            char *after_end = strchr(end_pos, '\n');
+            if (!after_end)
+            {
+                after_end = end_pos + strlen(end_marker);
+            }
+            else
+            {
+                after_end = after_end + 1;
+            }
+
+            // Allocate memory for the new content (original + comment + null terminator)
+            size_t orig_len = strlen(content);
+            size_t comment_len = strlen(placeholder_comment);
+            char *without_block = malloc(orig_len + comment_len + 1);
+            if (!without_block)
+            {
+                free(content);
+                printf("Error: Memory allocation failed\n");
+                return;
+            }
+
+            // Copy the content before the block
+            size_t prefix_len = (size_t)(block_start - content);
+            memcpy(without_block, content, prefix_len);
+
+            // Insert the placeholder comment
+            memcpy(without_block + prefix_len, placeholder_comment, comment_len);
+
+            // Append the remaining content after the block
+            strcpy(without_block + prefix_len + comment_len, after_end);
+
+            free(content);
+            content = without_block;
+            printf("TinyCBOR FetchContent block removed, placeholder comment added.\n");
+        }
+        else
+        {
+            printf("Warning: '%s' not found, block not fully removed.\n", end_marker);
+        }
+    }
+    else
+    {
+        // If the block is not found, check if the placeholder comment is already present
+        if (!strstr(content, placeholder_comment))
+        {
+            // If not, insert the comment at the top of the file
+            size_t orig_len = strlen(content);
+            size_t comment_len = strlen(placeholder_comment);
+            char *with_comment = malloc(orig_len + comment_len + 1);
+            if (!with_comment)
+            {
+                free(content);
+                printf("Error: Memory allocation failed\n");
+                return;
+            }
+            memcpy(with_comment, placeholder_comment, comment_len);
+            strcpy(with_comment + comment_len, content);
+            free(content);
+            content = with_comment;
+            printf("Placeholder comment not found; added at top of file.\n");
+        }
+        else
+        {
+            printf("Placeholder comment already present; skipping comment insertion.\n");
+        }
+    }
+
+    // Remove the ' tinycbor' entry from target_link_libraries
+    const char *lib_to_remove = " tinycbor";
+    char *updated = remove_from_target_link_libraries(content, lib_to_remove);
+    if (!updated)
+    {
+        printf("Error: Failed to remove 'tinycbor' from target_link_libraries\n");
+        free(content);
+        return;
+    }
+
+    // Write the updated content back to the file
+    if (write_file(cmake_file, updated) != 0)
+    {
+        printf("Error: Failed to write to %s\n", cmake_file);
+    }
+    else
+    {
+        printf("TinyCBOR integration successfully removed; placeholder comment is in place.\n");
+    }
+
+    free(content);
+    free(updated);
+}
+
+void install_cbor()
 {
     const char *cmake_file = "core/CMakeLists.txt";
 
@@ -1018,7 +1276,121 @@ void handle_cbor()
     printf("TinyCBOR added successfully\n");
 }
 
-void handle_jwt_cmake()
+void remove_jwt_cmake()
+{
+    const char *cmake_file = "core/CMakeLists.txt";
+    printf("Uninstalling l8w8jwt...\n");
+
+    char *content = read_file(cmake_file);
+    if (!content)
+    {
+        printf("Error: Cannot read CMakeLists.txt\n");
+        return;
+    }
+
+    // Remove " l8w8jwt" from the target_link_libraries line
+    const char *lib_to_remove = " l8w8jwt";
+    char *without_lib = remove_from_target_link_libraries(content, lib_to_remove);
+    if (!without_lib)
+    {
+        printf("Error: Cannot remove 'l8w8jwt' from target_link_libraries\n");
+        free(content);
+        return;
+    }
+    free(content);
+    content = without_lib;
+
+    // Remove the CMake block and add a placeholder comment
+    const char *start_marker =
+        "patch_cmake_minimum_required(\n"
+        "  \"${CMAKE_CURRENT_SOURCE_DIR}/vendors/l8w8jwt";
+    const char *end_marker = "add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/vendors/l8w8jwt)";
+    const char *placeholder_comment =
+        "# Empty place for l8w8jwt (do not touch this comment line)\n";
+
+    char *block_start = strstr(content, start_marker);
+    if (block_start)
+    {
+        char *end_pos = strstr(block_start, end_marker);
+        if (end_pos)
+        {
+            char *after_end = strchr(end_pos, '\n');
+            if (!after_end)
+            {
+                after_end = end_pos + strlen(end_marker);
+            }
+            else
+            {
+                after_end = after_end + 1;
+            }
+
+            size_t orig_len = strlen(content);
+            size_t comment_len = strlen(placeholder_comment);
+            // Since the removed block will reduce total size,
+            // allocating (orig_len + comment_len + 1) is sufficient
+            char *without_block = malloc(orig_len + comment_len + 1);
+            if (!without_block)
+            {
+                free(content);
+                printf("Error: Memory allocation failed\n");
+                return;
+            }
+
+            // Copy content before the block
+            size_t prefix_len = (size_t)(block_start - content);
+            memcpy(without_block, content, prefix_len);
+
+            // Insert placeholder comment
+            memcpy(without_block + prefix_len, placeholder_comment, comment_len);
+
+            // Copy remaining content after the block
+            strcpy(without_block + prefix_len + comment_len, after_end);
+
+            free(content);
+            content = without_block;
+            printf("l8w8jwt CMake blocks are removed and added the comment line\n");
+        }
+        else
+        {
+            printf("Warning: 'add_subdirectory(.../vendors/l8w8jwt)' not found, the block cannot be removed\n");
+        }
+    }
+    else
+    {
+        // If the block is not found, check for existence of placeholder comment
+        if (!strstr(content, "# Empty place for l8w8jwt (do not touch this comment line)"))
+        {
+            size_t orig_len = strlen(content);
+            size_t comment_len = strlen(placeholder_comment);
+            char *with_comment = malloc(orig_len + comment_len + 1);
+            if (!with_comment)
+            {
+                free(content);
+                printf("Error: Cannot allocate the memory\n");
+                return;
+            }
+            // Insert placeholder at the beginning
+            memcpy(with_comment, placeholder_comment, comment_len);
+            strcpy(with_comment + comment_len, content);
+            free(content);
+            content = with_comment;
+        }
+    }
+
+    // Write the updated content back to the file
+    if (write_file(cmake_file, content) != 0)
+    {
+        printf("Error: Cannot write to %s\n", cmake_file);
+    }
+    else
+    {
+        printf("Updated CMakeLists.txt: The 'l8w8jwt' link is removed and added the comment line\n");
+    }
+
+    free(content);
+}
+
+void add_jwt_cmake()
 {
     const char *cmake_file = "core/CMakeLists.txt";
     char *content = read_file(cmake_file);
@@ -1097,7 +1469,39 @@ void handle_jwt_cmake()
     free(new_content);
 }
 
-void handle_jwt()
+void uninstall_jwt()
+{
+    printf("Removing l8w8jwt submodule and CMake integration...\n");
+
+    // Deinitialize from Git submodule
+    // If it's already removed, print a warning and continue
+    int ret = system("git submodule deinit -f core/vendors/l8w8jwt");
+    if (ret != 0)
+    {
+        fprintf(stderr, "Warning: 'git submodule deinit' failed or already removed: %d\n", ret);
+    }
+
+    // Remove the submodule from Git tracking
+    ret = system("git rm -f core/vendors/l8w8jwt");
+    if (ret != 0)
+    {
+        fprintf(stderr, "Warning: 'git rm' failed or already removed: %d\n", ret);
+    }
+
+    // Clean up submodule traces from .git/modules
+    ret = system("rm -rf .git/modules/core/vendors/l8w8jwt");
+    if (ret != 0)
+    {
+        fprintf(stderr, "Warning: Failed to delete '.git/modules/.../l8w8jwt' or not found: %d\n", ret);
+    }
+
+    // Revert l8w8jwt additions from CMakeLists.txt
+    remove_jwt_cmake();
+
+    printf("l8w8jwt submodule and CMake integration successfully removed.\n");
+}
+
+void install_jwt()
 {
     const char *cmake_file = "core/CMakeLists.txt";
 
@@ -1141,7 +1545,7 @@ void handle_jwt()
 
     // Add to CMake
     free(content);
-    handle_jwt_cmake();
+    add_jwt_cmake();
 }
 
 // Install plugin function
@@ -1177,6 +1581,44 @@ int install_plugin(const char *plugin_name, const char *folder, const char *c_ur
     printf("Installation completed to %s\n", target_dir);
 
     // Update CMake file
+    return update_cmake_file("core");
+}
+
+int uninstall_plugin(const char *plugin_name, const char *folder)
+{
+    char c_path[256], h_path[256];
+    build_plugin_path(c_path, sizeof(c_path), plugin_name, "c", folder);
+    build_plugin_path(h_path, sizeof(h_path), plugin_name, "h", folder);
+
+    int removed_any = 0;
+
+    if (file_exists(c_path))
+    {
+        if (remove(c_path) == 0)
+        {
+            printf("Deleted: %s\n", c_path);
+            removed_any++;
+        }
+        else
+        {
+            perror("Deletion Error: .c file couldn't be deleted");
+        }
+    }
+
+    if (file_exists(h_path))
+    {
+        if (remove(h_path) == 0)
+        {
+            printf("Deleted: %s\n", h_path);
+            removed_any++;
+        }
+        else
+        {
+            perror("Deletion Error: .h file couldn't be deleted");
+        }
+    }
+
+    printf("%d plugin has been uninstalled.", removed_any);
     return update_cmake_file("core");
 }
 
@@ -1248,14 +1690,14 @@ int create_project()
             if (strcmp(plugins[i].name, "cbor") == 0)
             {
                 printf("Handling TinyCBOR integration...\n");
-                handle_cbor();
+                install_cbor();
                 continue;
             }
 
             if (strcmp(plugins[i].name, "l8w8jwt") == 0)
             {
                 printf("Handling l8w8jwt integration...\n");
-                handle_jwt();
+                install_jwt();
                 continue;
             }
 
@@ -1548,10 +1990,10 @@ int update_project()
     }
 
     if (cbor_enabled)
-        handle_cbor();
+        install_cbor();
 
     if (jwt_enabled)
-        handle_jwt_cmake();
+        add_jwt_cmake();
 
     free(existing_plugins);
     return 0;
@@ -1583,7 +2025,8 @@ void show_help()
     printf("  ecewo rebuild   # Build from scratch\n");
     printf("  ecewo update    # Update Ecewo\n");
     printf("  ecewo migrate   # Migrate the CMakeLists.txt file\n");
-    printf("  ecewo install   # Install packages\n");
+    printf("  ecewo install   # Install plugins\n");
+    printf("  ecewo uninstall # Uninstall plugins\n");
     printf("==========================================================\n");
 
     show_install_help();
@@ -1619,6 +2062,10 @@ void parse_arguments(int argc, char *argv[], flags_t *flags)
         else if (strcmp(argv[i], "install") == 0)
         {
             flags->install = 1;
+        }
+        else if (strcmp(argv[i], "uninstall") == 0)
+        {
+            flags->uninstall = 1;
         }
         else if (strcmp(argv[i], "cjson") == 0)
         {
@@ -1668,7 +2115,7 @@ int main(int argc, char *argv[])
     parse_arguments(argc, argv, &flags);
 
     // Check if no parameters were provided
-    if ((!flags.create && !flags.run && !flags.rebuild && !flags.update && !flags.migrate && !flags.install) || (flags.help))
+    if ((!flags.create && !flags.run && !flags.rebuild && !flags.update && !flags.migrate && !flags.install && !flags.uninstall) || (flags.help))
     {
         show_help();
         return 0;
@@ -1701,6 +2148,45 @@ int main(int argc, char *argv[])
         return update_project();
     }
 
+    if (flags.uninstall)
+    {
+        int has_plugin_arg = flags.cjson || flags.dotenv || flags.sqlite ||
+                             flags.cookie || flags.session || flags.async_plugin || flags.cbor || flags.l8w8jwt;
+
+        if (!has_plugin_arg)
+        {
+            show_install_help();
+            return 0;
+        }
+
+        if (flags.cbor)
+            uninstall_cbor();
+
+        if (flags.l8w8jwt)
+            uninstall_jwt();
+
+        if (flags.cjson)
+            uninstall_plugin("cJSON", "vendors");
+
+        if (flags.dotenv)
+            uninstall_plugin("dotenv", "vendors");
+
+        if (flags.sqlite)
+            uninstall_plugin("sqlite3", "vendors");
+
+        if (flags.cookie)
+            uninstall_plugin("cookie", "plugins");
+
+        if (flags.session)
+            uninstall_plugin("session", "plugin");
+
+        if (flags.async_plugin)
+            uninstall_plugin("async", "plugins");
+
+        printf("Migration complete.\n");
+        return 0;
+    }
+
     // Handle install command
     if (flags.install)
     {
@@ -1714,10 +2200,10 @@ int main(int argc, char *argv[])
         }
 
         if (flags.cbor)
-            handle_cbor();
+            install_cbor();
 
         if (flags.l8w8jwt)
-            handle_jwt();
+            install_jwt();
 
         if (flags.cjson)
             install_plugin("cJSON", "vendors", CJSON_C_URL, CJSON_H_URL);
