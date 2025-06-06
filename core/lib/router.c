@@ -278,7 +278,6 @@ static void res_init(Res *res, uv_tcp_t *client_socket)
     res->content_type = "text/plain";
     res->body = NULL;
     res->body_len = 0;
-    res->set_cookie = NULL;
     res->keep_alive = 1;
     res->headers = NULL;
     res->header_count = 0;
@@ -288,12 +287,6 @@ static void res_init(Res *res, uv_tcp_t *client_socket)
 // Free response structure
 static void res_free(Res *res)
 {
-    if (res->set_cookie)
-    {
-        free(res->set_cookie);
-        res->set_cookie = NULL;
-    }
-
     if (res->headers)
     {
         for (int i = 0; i < res->header_count; i++)
@@ -415,24 +408,11 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
             .headers = context.headers,
         };
 
-        // // Prepare response object with defaults
-        // Res res = {
-        //     .client_socket = client_socket,
-        //     .status = 200,
-        //     .content_type = "text/plain",
-        //     .body = NULL,
-        //     .set_cookie = NULL,
-        //     .keep_alive = context.keep_alive // Set the keep-alive status
-        // };
-
         // Add CORS headers if enabled
         cors_add_headers(&context, &res);
 
         // Call the handler for this route
         routes[i].handler(&req, &res);
-
-        // Send response
-        // reply(&res, res.status, res.content_type, res.body, res.body_len);
 
         // Cleanup
         res_free(&res);
@@ -506,25 +486,6 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         }
         header_pos += sprintf(all_headers + header_pos, "%s: %s\r\n",
                               res->headers[i].name, res->headers[i].value);
-    }
-
-    // Add cookie header if present
-    if (res->set_cookie)
-    {
-        int needed = snprintf(NULL, 0, "Set-Cookie: %s\r\n", res->set_cookie);
-        if (header_pos + needed >= header_buffer_size)
-        {
-            header_buffer_size = (header_pos + needed + 1) * 2;
-            char *new_buffer = realloc(all_headers, header_buffer_size);
-            if (!new_buffer)
-            {
-                perror("realloc for headers");
-                free(all_headers);
-                return;
-            }
-            all_headers = new_buffer;
-        }
-        header_pos += sprintf(all_headers + header_pos, "Set-Cookie: %s\r\n", res->set_cookie);
     }
 
     all_headers[header_pos] = '\0';

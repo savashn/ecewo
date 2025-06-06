@@ -330,7 +330,7 @@ void free_session(Session *sess)
 Session *get_session(request_t *headers)
 {
     // Extract the session_id cookie (heap-allocated)
-    char *sid = get_cookie(headers, "session_id");
+    char *sid = handle_get_cookie(headers, "session_id");
     if (!sid)
         return NULL;
 

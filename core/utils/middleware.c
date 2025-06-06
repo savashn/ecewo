@@ -264,7 +264,7 @@ void register_route(const char *method, const char *path, MiddlewareArray middle
 }
 
 // Cleanup function to free all allocated resources
-void free_mw()
+void final_middleware()
 {
     for (int i = 0; i < route_count; i++)
     {

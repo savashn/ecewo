@@ -30,7 +30,6 @@ typedef struct
     char *content_type;
     void *body;
     size_t body_len;
-    char *set_cookie;
     int keep_alive;
     http_header_t *headers; // Dynamic header array
     int header_count;

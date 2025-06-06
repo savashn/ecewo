@@ -1,7 +1,9 @@
+#include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include "cookie.h"
 
-char *get_cookie(request_t *headers, const char *name)
+char *handle_get_cookie(request_t *headers, const char *name)
 {
     const char *cookie_header = get_req(headers, "Cookie");
     if (!cookie_header)
@@ -30,34 +32,33 @@ char *get_cookie(request_t *headers, const char *name)
     return value;
 }
 
-void set_cookie(Res *res, const char *name, const char *value, int max_age)
+void handle_set_cookie(Res *res, const char *name, const char *value, int max_age)
 {
     if (!res || !name || !value || max_age <= 0)
         return;
 
-    // Calculate how many bytes are needed before formatting the header
     int needed = snprintf(
         NULL, 0,
-        "Set-Cookie: %s=%s; Max-Age=%d; Path=/; HttpOnly; Secure; SameSite=Lax\r\n",
+        "%s=%s; Max-Age=%d; Path=/; HttpOnly; Secure; SameSite=Lax",
         name, value, max_age);
     if (needed < 0)
     {
-        fprintf(stderr, "Cookie header formatting error\n");
+        fprintf(stderr, "Cookie formatting error\n");
         return;
     }
 
-    // Allocate one extra byte for the null terminator
-    res->set_cookie = malloc((size_t)needed + 1);
-    if (!res->set_cookie)
+    char *cookie_val = malloc((size_t)needed + 1);
+    if (!cookie_val)
     {
-        perror("malloc for set_cookie");
+        perror("malloc for cookie_val");
         return;
     }
+    snprintf(cookie_val,
+             (size_t)needed + 1,
+             "%s=%s; Max-Age=%d; Path=/; HttpOnly; Secure; SameSite=Lax",
+             name, value, max_age);
 
-    // Format the actual header into the allocated buffer
-    snprintf(
-        res->set_cookie,
-        (size_t)needed + 1,
-        "Set-Cookie: %s=%s; Max-Age=%d; Path=/; HttpOnly; Secure; SameSite=Lax\r\n",
-        name, value, max_age);
+    set_header(res, "Set-Cookie", cookie_val);
+
+    free(cookie_val);
 }

@@ -48,7 +48,7 @@ void register_route_with_middleware(const char *method, const char *path,
                                     RequestHandler handler);
 
 void register_route(const char *method, const char *path, MiddlewareArray middleware, RequestHandler handler);
-void free_mw();
+void final_middleware();
 
 // Middleware array creator macro
 #define use(...) (MiddlewareArray){(MiddlewareHandler[]){__VA_ARGS__}, sizeof((MiddlewareHandler[]){__VA_ARGS__}) / sizeof(MiddlewareHandler), 1}
