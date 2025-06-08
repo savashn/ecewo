@@ -69,35 +69,15 @@ Run `ecewo` in the terminal to see all the CLI commands.
 ### Example "Hello World"
 
 ```c
-// src/handlers.h
+// src/main.c
 
-#ifndef HANDLERS_H
-#define HANDLERS_H
-
-#include "ecewo.h"
-
-void hello_world(Req *req, Res *res);
-
-#endif
-```
-
-```c
-// src/handlers.c
-
-#include "handlers.h"
+#include "server.h"    // To start the server via ecewo();
+#include "ecewo.h"     // To use the API
 
 void hello_world(Req *req, Res *res)
 {
-    send_text(200, "hello world!");
+    send_text(200, "Hello, World!");
 }
-
-```
-
-```c
-// src/main.c
-
-#include "server.h"
-#include "handlers.h"
 
 int main()
 {
