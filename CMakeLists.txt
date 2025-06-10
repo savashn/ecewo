@@ -1,34 +1,155 @@
 cmake_minimum_required(VERSION 3.10)
-project(ecewo C)
+project(ecewo VERSION 0.26.0 LANGUAGES C)
 
-set(CMAKE_C_STANDARD 99)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+# Project options
+option(ECEWO_INSTALL "Install ecewo" ON)
 
-# Core modules
-add_subdirectory(core)
-
-# Programmer modules
-if(EXISTS "${CMAKE_SOURCE_DIR}/src/CMakeLists.txt")
-    add_subdirectory(src)
-    add_compile_definitions(ENV="${CMAKE_SOURCE_DIR}/.env")
+# Platform definitions
+if(WIN32)
+    add_definitions(-DPLATFORM_WINDOWS)
+elseif(APPLE)
+    add_definitions(-DPLATFORM_MACOS)
+elseif(UNIX)
+    add_definitions(-DPLATFORM_LINUX)
 endif()
 
-add_executable(server ${APP_SRC})
+include(FetchContent)
 
-target_link_libraries(server PRIVATE core)
-
-target_include_directories(server PRIVATE
-    ${CMAKE_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/core
-    ${CMAKE_BINARY_DIR}
+# Fetch libuv from the GitHub repository
+FetchContent_Declare(
+  libuv
+  GIT_REPOSITORY https://github.com/libuv/libuv.git
+  GIT_TAG v1.51.0
 )
 
-# Installation targets
-install(TARGETS server DESTINATION bin)
+# Make libuv available to the project
+FetchContent_MakeAvailable(libuv)
 
-# Run target
-add_custom_target(run
-    COMMAND server
-    DEPENDS server
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-)
+# Fetch llhttp from the GitHub repository
+FetchContent_Declare(llhttp
+  URL "https://github.com/nodejs/llhttp/archive/refs/tags/release/v8.1.0.tar.gz")
+
+# Static build configuration for llhttp
+set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
+set(BUILD_STATIC_LIBS ON CACHE INTERNAL "")
+
+FetchContent_MakeAvailable(llhttp)
+
+# Prevent multiple inclusion when used as a subdirectory
+if(NOT TARGET ecewo)
+
+    # List of source files
+    set(ECEWO_SRC_FILES
+        src/ecewo.c
+        src/server/server.c
+        src/lib/request.c
+        src/lib/router.c
+        src/lib/middleware.c
+        src/utils/cors.c
+        src/utils/async.c
+        src/utils/cookie.c
+    )
+
+    # Make source files relative to CMAKE_CURRENT_SOURCE_DIR
+    list(TRANSFORM ECEWO_SRC_FILES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
+
+    # Create library
+    add_library(ecewo STATIC ${ECEWO_SRC_FILES})
+
+    # Include directories
+    target_include_directories(ecewo PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/config>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/lib>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/server>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/utils>
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/_deps/libuv-src/include>
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/_deps/llhttp-src/include>
+        $<INSTALL_INTERFACE:include>
+        $<INSTALL_INTERFACE:include/ecewo>
+    )
+
+    # Private include directories for internal dependencies
+    target_include_directories(ecewo PRIVATE
+        ${CMAKE_BINARY_DIR}/_deps/libuv-src/src
+        ${CMAKE_BINARY_DIR}/_deps/llhttp-src/src
+    )
+
+    # Create configuration file
+    set(ECEWO_COPYRIGHT "2025 © Savas Sahin <savashn>")
+
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/config/config.h.in"
+        "${CMAKE_BINARY_DIR}/ecewo_config.h"
+    )
+
+    # Link libraries
+    target_link_libraries(ecewo PUBLIC uv_a llhttp_static)
+
+    # Link additional libraries for Windows
+    if(WIN32)
+        target_link_libraries(ecewo PRIVATE wsock32 ws2_32)
+    endif()
+
+    # Compiler settings
+    if(MSVC)
+        # Settings for Visual Studio
+        target_compile_options(ecewo PRIVATE /W4)
+        target_compile_definitions(ecewo PRIVATE _CRT_SECURE_NO_WARNINGS)
+    else()
+        # Settings for GCC/Clang
+        target_compile_options(ecewo PRIVATE -Wall -Wextra -std=gnu11)
+    endif()
+
+    # Set target properties
+    set_target_properties(ecewo PROPERTIES
+        VERSION ${PROJECT_VERSION}
+        SOVERSION ${PROJECT_VERSION_MAJOR}
+        EXPORT_NAME ecewo
+    )
+
+    # Debug information
+    message(STATUS "Configuring ecewo version ${ecewo_VERSION}")
+    message(STATUS "Target platform: ${CMAKE_SYSTEM_NAME}")
+
+    # Install rules (only if this is the main project or ECEWO_INSTALL is ON)
+    if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME AND ECEWO_INSTALL)
+        include(GNUInstallDirs)
+        
+        # Install the library
+        install(TARGETS ecewo
+            EXPORT ecewoTargets
+            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+            INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        )
+        
+        # Install header files
+        install(DIRECTORY src/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ecewo
+            FILES_MATCHING PATTERN "*.h"
+        )
+        
+        # Install config header
+        install(FILES "${CMAKE_BINARY_DIR}/ecewo_config.h"
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ecewo
+        )
+        
+        # Install llhttp headers (needed for public API)
+        install(DIRECTORY ${llhttp_SOURCE_DIR}/include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ecewo
+            FILES_MATCHING PATTERN "*.h"
+        )
+        
+        # Install export targets
+        install(EXPORT ecewoTargets
+            FILE ecewoTargets.cmake
+            NAMESPACE ecewo::
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ecewo
+        )
+    endif()
+
+endif() # NOT TARGET ecewo

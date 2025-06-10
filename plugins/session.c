@@ -53,7 +53,7 @@ int init_sessions(void)
 }
 
 // Clean up and free all session resources
-void final_sessions(void)
+void reset_sessions(void)
 {
     if (!initialized)
     {

@@ -19,7 +19,7 @@ typedef struct
 int init_sessions(void);
 
 // Clean up and free all session resources
-void final_sessions(void);
+void reset_sessions(void);
 
 // Function to create a new session
 // Creates a new session, generates a session ID, and initializes session data
