@@ -3,19 +3,20 @@
 
 #include "router.h"
 
+// Forward declaration of Chain structure
 typedef struct Chain Chain;
 
 // Function pointer type for middleware
 typedef int (*MiddlewareHandler)(Req *req, Res *res, Chain *chain);
 
 // Structure to store middleware chain context
-typedef struct
+struct Chain
 {
     MiddlewareHandler *handlers;  // Array of middleware handlers
     int count;                    // Number of handlers in the chain
     int current;                  // Current position in the middleware chain
     RequestHandler route_handler; // The final route handler
-} Chain;
+};
 
 typedef struct
 {
