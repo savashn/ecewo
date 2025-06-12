@@ -4,7 +4,7 @@
 #include "router.h"
 
 // Function pointer type for middleware
-typedef int (*MiddlewareHandler)(Req *req, Res *res, void *next_ctx);
+typedef int (*MiddlewareHandler)(Req *req, Res *res, Chain *chain);
 
 typedef struct
 {
