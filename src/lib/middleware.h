@@ -3,6 +3,15 @@
 
 #include "router.h"
 
+// Structure to store middleware chain context
+typedef struct
+{
+    MiddlewareHandler *handlers;  // Array of middleware handlers
+    int count;                    // Number of handlers in the chain
+    int current;                  // Current position in the middleware chain
+    RequestHandler route_handler; // The final route handler
+} Chain;
+
 // Function pointer type for middleware
 typedef int (*MiddlewareHandler)(Req *req, Res *res, Chain *chain);
 
@@ -16,15 +25,6 @@ typedef struct
 // Maximum number of middleware functions that can be registered
 // #define MAX_GLOBAL_MIDDLEWARE 20
 // #define MAX_ROUTE_MIDDLEWARE 10
-
-// Structure to store middleware chain context
-typedef struct
-{
-    MiddlewareHandler *handlers;  // Array of middleware handlers
-    int count;                    // Number of handlers in the chain
-    int current;                  // Current position in the middleware chain
-    RequestHandler route_handler; // The final route handler
-} Chain;
 
 // Global middleware array
 // extern MiddlewareHandler global_middleware[MAX_GLOBAL_MIDDLEWARE];

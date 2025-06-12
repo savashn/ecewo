@@ -8,6 +8,14 @@ MiddlewareHandler *global_middleware = NULL;
 int global_middleware_count = 0;
 int global_middleware_capacity = 0;
 
+// Middleware info structure
+typedef struct
+{
+    MiddlewareHandler *middleware;
+    int middleware_count;
+    RequestHandler handler;
+} MiddlewareInfo;
+
 // Add middleware to global chain
 void hook(MiddlewareHandler middleware_handler)
 {
@@ -70,14 +78,6 @@ int next(Chain *chain, Req *req, Res *res)
         return 0; // No route handler
     }
 }
-
-// Middleware info structure
-typedef struct
-{
-    MiddlewareHandler *middleware;
-    int middleware_count;
-    RequestHandler handler;
-} MiddlewareInfo;
 
 // Clean up middleware info resources
 void free_middleware_info(MiddlewareInfo *info)
