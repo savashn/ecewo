@@ -416,11 +416,52 @@ void free_session(Session *sess)
 Session *get_session(request_t *headers)
 {
     // Extract the session_id cookie (heap-allocated)
-    char *sid = handle_get_cookie(headers, "session_id");
+    char *sid = handle_get_cookie(headers, "session");
     if (!sid)
         return NULL;
 
     Session *sess = find_session(sid);
     free(sid);
     return sess;
+}
+
+void print_sessions(void)
+{
+    time_t now = time(NULL);
+    for (int i = 0; i < max_sessions; i++) {
+        Session *s = &sessions[i];
+        if (s->id[0] == '\0') 
+            continue;  // boş slotlar atla
+        printf("[#%02d] id=%s, expires in %lds, data=%s\n",
+               i,
+               s->id,
+               (long)(s->expires - now),
+               s->data ? s->data : "{}");
+    }
+}
+
+void send_session(Res *res, Session *sess)
+{
+    if (!sess || sess->id[0] == '\0') {
+        return;
+    }
+
+    time_t now = time(NULL);
+    // TTL: expires - now
+    int max_age = (int)difftime(sess->expires, now);
+    if (max_age < 0) {
+        return;
+    }
+
+    set_cookie("session", sess->id, max_age);
+}
+
+void delete_session(Res *res, Session *sess)
+{
+    if (!res || !sess || sess->id[0] == '\0')
+        return;
+
+    free_session(sess);
+
+    set_cookie("session", "", 0);
 }

@@ -44,4 +44,8 @@ void free_session(Session *sess);
 // Returns the session if found and authenticated, NULL otherwise
 Session *get_session(request_t *headers);
 
+void print_sessions(void);
+void send_session(Res *res, Session *sess);
+void delete_session(Res *res, Session *sess);
+
 #endif

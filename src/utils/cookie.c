@@ -34,7 +34,7 @@ char *handle_get_cookie(request_t *headers, const char *name)
 
 void handle_set_cookie(Res *res, const char *name, const char *value, int max_age)
 {
-    if (!res || !name || !value || max_age <= 0)
+    if (!res || !name || !value || max_age < 0)
         return;
 
     int needed = snprintf(
