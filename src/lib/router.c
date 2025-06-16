@@ -186,6 +186,50 @@ static void res_free(Res *res)
     res->header_capacity = 0;
 }
 
+// Initializes the Req context
+static void req_init_context(Req *req)
+{
+    req->context.data = NULL;
+    req->context.size = 0;
+    req->context.cleanup = NULL;
+}
+
+// Context management functions
+void req_set_context(Req *req, void *data, size_t size, void (*cleanup)(void *))
+{
+    if (!req)
+        return;
+    
+    // Clear existing context first
+    req_clear_context(req);
+    
+    req->context.data = data;
+    req->context.size = size;
+    req->context.cleanup = cleanup;
+}
+
+void* req_get_context(Req *req)
+{
+    if (!req)
+        return NULL;
+    return req->context.data;
+}
+
+void req_clear_context(Req *req)
+{
+    if (!req)
+        return;
+    
+    if (req->context.data && req->context.cleanup)
+    {
+        req->context.cleanup(req->context.data);
+    }
+    
+    req->context.data = NULL;
+    req->context.size = 0;
+    req->context.cleanup = NULL;
+}
+
 // Called when a request is received
 int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len)
 {
@@ -254,8 +298,14 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
             .query = context.query_params,
             .headers = context.headers};
 
+        // Initialize context
+        req_init_context(&req);
+
         cors_add_headers(&context, &res);
         routes[i].handler(&req, &res);
+
+        // Cleanup context after handler execution
+        req_clear_context(&req);
 
         res_free(&res);
         http_context_free(&context);

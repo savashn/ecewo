@@ -4,6 +4,14 @@
 #include "uv.h"
 #include <stdbool.h>
 
+// Context structure for middleware data
+typedef struct
+{
+    void *data;
+    size_t size;
+    void (*cleanup)(void *data);
+} req_context_t;
+
 typedef struct
 {
     uv_tcp_t *client_socket;
@@ -14,6 +22,7 @@ typedef struct
     request_t headers;
     request_t query;
     request_t params;
+    req_context_t context;
 } Req;
 
 // HTTP Header structure
@@ -62,6 +71,11 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
 void set_header(Res *res, const char *name, const char *value);
 
 void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len);
+
+// Context management functions
+void req_set_context(Req *req, void *data, size_t size, void (*cleanup)(void *));
+void* req_get_context(Req *req);
+void req_clear_context(Req *req);
 
 static inline void reply_text(Res *res, int status, const char *body)
 {
