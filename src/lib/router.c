@@ -194,28 +194,7 @@ static void req_init_context(Req *req)
     req->context.cleanup = NULL;
 }
 
-// Context management functions
-void req_set_context(Req *req, void *data, size_t size, void (*cleanup)(void *))
-{
-    if (!req)
-        return;
-    
-    // Clear existing context first
-    req_clear_context(req);
-    
-    req->context.data = data;
-    req->context.size = size;
-    req->context.cleanup = cleanup;
-}
-
-void* req_get_context(Req *req)
-{
-    if (!req)
-        return NULL;
-    return req->context.data;
-}
-
-void req_clear_context(Req *req)
+static void req_clear_context(Req *req)
 {
     if (!req)
         return;
@@ -228,6 +207,27 @@ void req_clear_context(Req *req)
     req->context.data = NULL;
     req->context.size = 0;
     req->context.cleanup = NULL;
+}
+
+// Context management functions
+void set_context(Req *req, void *data, size_t size, void (*cleanup)(void *))
+{
+    if (!req)
+        return;
+    
+    // Clear existing context first
+    req_clear_context(req);
+    
+    req->context.data = data;
+    req->context.size = size;
+    req->context.cleanup = cleanup;
+}
+
+void* get_context(Req *req)
+{
+    if (!req)
+        return NULL;
+    return req->context.data;
 }
 
 // Called when a request is received

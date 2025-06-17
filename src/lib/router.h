@@ -73,9 +73,8 @@ void set_header(Res *res, const char *name, const char *value);
 void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len);
 
 // Context management functions
-void req_set_context(Req *req, void *data, size_t size, void (*cleanup)(void *));
-void* req_get_context(Req *req);
-void req_clear_context(Req *req);
+void set_context(Req *req, void *data, size_t size, void (*cleanup)(void *));
+void* get_context(Req *req);
 
 static inline void reply_text(Res *res, int status, const char *body)
 {
