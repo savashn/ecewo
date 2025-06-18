@@ -42,13 +42,13 @@ int next(Chain *chain, Req *req, Res *res)
     if (!chain)
     {
         printf("Error: NULL middleware chain\n");
-        return 0;
+        return -1;
     }
 
     if (!req || !res)
     {
         printf("Error: NULL request or response\n");
-        return 0;
+        return -1;
     }
 
     // Check if we have more middleware to execute
@@ -174,9 +174,9 @@ void route_handler_with_middleware(Req *req, Res *res)
     free(combined_handlers);
 
     // If middleware chain failed to execute the route handler
-    if (!result && middleware_info->handler)
+    if (result == 0 && middleware_info->handler)
     {
-        printf("Middleware chain did not execute route handler, running it directly\n");
+        // Middleware chain did not execute route handler, running it directly
         middleware_info->handler(req, res);
     }
 }
