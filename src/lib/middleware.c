@@ -173,11 +173,19 @@ void route_handler_with_middleware(Req *req, Res *res)
     // Free the combined handlers
     free(combined_handlers);
 
-    // If middleware chain failed to execute the route handler
-    if (result == 0 && middleware_info->handler)
+    // Return value meanings:
+    // -1: Error (e.g., NULL pointer)
+    //  0: Middleware chain stopped (e.g., auth failed) - NORMAL CASE
+    //  1: Chain completed successfully and handler was called
+
+    // Only call the handler directly if an actual error occurred (-1)
+    if (result == -1)
     {
-        // Middleware chain did not execute route handler, running it directly
-        middleware_info->handler(req, res);
+        printf("ERROR: Middleware chain failed, calling handler directly as fallback\n");
+        if (middleware_info->handler)
+        {
+            middleware_info->handler(req, res);
+        }
     }
 }
 
