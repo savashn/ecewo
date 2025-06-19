@@ -16,8 +16,7 @@
 
 - [Out of The Box Features](#out-of-the-box-features)
 - [Requirements](#requirements)
-- [Installation](#installation)
-- [Example "Hello World"](#example-hello-world)
+- [Quick Start](#quick-start)
 - [Benchmarks](#benchmarks)
 - [Documentation](#documentation)
 - [License](#license)
@@ -35,53 +34,58 @@
 - A C compiler (GCC, Clang, or MSVC)
 - CMake version 3.10 or higher
 
-### Installation
+### Quick Start
 
-Add Ecewo into your `CMakeLists.txt`:
 ```cmake
+# CMakeLists.txt
+
+cmake_minimum_required(VERSION 3.10)
+project(your_project VERSION 1.0.0 LANGUAGES C)
+
 include(FetchContent)
 
+# Fetch Ecewo from GitHub
 FetchContent_Declare(
     ecewo
     GIT_REPOSITORY https://github.com/savashn/ecewo.git
     GIT_TAG main
 )
 
+# Make Ecewo available
 FetchContent_MakeAvailable(ecewo)
-```
 
-And link Ecewo:
-```cmake
-target_link_libraries(your_project PRIVATE ecewo)
-```
+# Create the executable
+add_executable(server
+    main.c
+)
 
-Build:
-```shell
-mkdir build && cd build
-cmake .. && cmake --build .
+# Link Ecewo
+target_link_libraries(server PRIVATE ecewo)
 ```
-
-### Example "Hello World"
 
 ```c
-// src/main.c
+// main.c
 
 #include "server.h"    // To start the server via ecewo();
 #include "ecewo.h"     // To use the API
 
-void hello_world(Req *req, Res *res)
-{
+void hello_world(Req *req, Res *res) {
     send_text(200, "Hello, World!");
 }
 
-int main()
-{
+int main() {
     init_router();
     get("/", hello_world);
-    ecewo(4000);
+    ecewo(3000);
     reset_router();
     return 0;
 }
+```
+
+Build:
+
+```shell
+mkdir build && cd build && cmake .. && cmake --build .
 ```
 
 ### Benchmarks
