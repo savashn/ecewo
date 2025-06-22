@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.14)
 project(ecewo VERSION 0.29.0 LANGUAGES C)
 
 # Project options

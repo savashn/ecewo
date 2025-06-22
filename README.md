@@ -34,7 +34,7 @@ So it’s really simple, but in a C kind of way.
 ### Requirements
 
 - A C compiler (GCC, Clang, or MSVC)
-- CMake version 3.10 or higher
+- CMake version 3.14 or higher
 
 ### Quick Start
 
