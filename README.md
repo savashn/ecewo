@@ -8,9 +8,11 @@
 
 ### Minimalist and easy-to-use web framework for C — inspired by the simplicity of [Express.js](https://expressjs.com/).
 
-**This is a hobby project that I'm developing to improve my programming skills. So it's not stable or production-ready. See [FAQ](https://ecewo.vercel.app/docs/faq).**
+So it’s really simple, but in a C kind of way.
 
 <hr />
+
+> **This is a hobby project that I'm developing to improve my programming skills. So it might not be production-ready, and it doesn't need to be. Personally, I wouldn't recommend using C for production-level web development, as it's too risky and unnecessary. See [FAQ](https://ecewo.vercel.app/docs/faq).**
 
 ### Table of Contents
 

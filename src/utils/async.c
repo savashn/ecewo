@@ -72,7 +72,7 @@ void fail(async_t *task, const char *error_msg)
 }
 
 // Creates and executes an async task
-int async_execute(
+int task_execute(
     void *context,                    // User context to pass to callbacks
     async_work_fn_t work_fn,          // Function to execute in the thread pool
     async_response_handler_t handler) // Response handler called after task completion
@@ -114,7 +114,7 @@ int async_execute(
 }
 
 // Chains another async task after a successful response
-void await_execute(
+void then_execute(
     void *context,                    // User context
     int success,                      // Whether previous task was successful
     char *error,                      // Error message if previous task failed
@@ -124,7 +124,7 @@ void await_execute(
     if (success)
     {
         // Previous task was successful, chain the next task
-        async_execute(context, next_work_fn, handler);
+        task_execute(context, next_work_fn, handler);
     }
     else
     {

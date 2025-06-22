@@ -30,30 +30,22 @@ static void _async_work_cb(uv_work_t *req);
 static void _async_after_work_cb(uv_work_t *req, int status);
 void ok(async_t *task);
 void fail(async_t *task, const char *error_msg);
-int async_execute(
+int task_execute(
     void *context,
     async_work_fn_t work_fn,
     async_response_handler_t handler);
 
-void await_execute(
+void then_execute(
     void *context,
     int success,
     char *error,
     async_work_fn_t next_work_fn,
     async_response_handler_t handler);
 
-#define async(ctx, tag) \
-    async_execute(      \
-        ctx,            \
-        tag##_work,     \
-        tag##_done)
-
-#define await(ctx, tag) \
-    await_execute(      \
-        ctx,            \
-        success,        \
-        error,          \
-        tag##_work,     \
-        tag##_done)
+static inline int task(void *ctx, async_work_fn_t work, async_response_handler_t done)
+{
+    return task_execute(ctx, work, done);
+}
+#define then(ctx, work, done) then_execute(ctx, success, error, work, done)
 
 #endif
