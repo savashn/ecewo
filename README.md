@@ -38,10 +38,9 @@ So it’s really simple, but in a C kind of way.
 
 ### Quick Start
 
+**CMakeLists.txt:**
 ```cmake
-# CMakeLists.txt
-
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.14)
 project(your_project VERSION 1.0.0 LANGUAGES C)
 
 include(FetchContent)
@@ -65,11 +64,10 @@ add_executable(server
 target_link_libraries(server PRIVATE ecewo)
 ```
 
+**main.c:**
 ```c
-// main.c
-
 #include "server.h"    // To start the server via ecewo();
-#include "ecewo.h"     // To use the API
+#include "ecewo.h"     // To use the main API
 
 void hello_world(Req *req, Res *res) {
     send_text(200, "Hello, World!");
@@ -84,7 +82,7 @@ int main() {
 }
 ```
 
-Build:
+**Build:**
 
 ```shell
 mkdir build && cd build && cmake .. && cmake --build .
