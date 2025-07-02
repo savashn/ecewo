@@ -12,7 +12,7 @@ So it’s really simple, but in a C kind of way.
 
 <hr />
 
-> **This is a hobby project that I'm developing to improve my programming skills. So it might not be production-ready, and it doesn't need to be. Personally, I wouldn't recommend using C for production-level web development, as it's too risky and unnecessary. See [FAQ](https://ecewo.vercel.app/docs/faq).**
+> **This is a hobby project that I'm developing to improve my programming skills. So it might not be production-ready yet, and it doesn't have to be. See [FAQ](https://ecewo.vercel.app/docs/faq).**
 
 ### Table of Contents
 
