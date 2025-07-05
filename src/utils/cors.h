@@ -22,4 +22,4 @@ void cors_add_headers(const http_context_t *ctx, Res *res);
 void init_cors(cors_t *opts);
 bool is_origin_allowed(const char *origin);
 
-#endif // CORS_H
+#endif

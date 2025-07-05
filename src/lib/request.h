@@ -73,8 +73,17 @@ void parse_params(const char *path, const char *route_path, request_t *params);
 // Get value by key from request_t structure
 const char *get_req(const request_t *request, const char *key);
 
-#define get_params(name) get_req(&req->params, name);
-#define get_query(name) get_req(&req->query, name);
-#define get_headers(name) get_req(&req->headers, name);
+static inline const char *get_params(const request_t *req, const char *key)
+{
+    return get_req(&req->params, key);
+}
+static inline const char *get_query(const request_t *req, const char *key)
+{
+    return get_req(&req->query, key);
+}
+static inline const char *get_headers(const request_t *req, const char *key)
+{
+    return get_req(&req->headers, key);
+}
 
-#endif // REQUEST_H
+#endif

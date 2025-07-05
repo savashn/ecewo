@@ -70,36 +70,31 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
 
 void set_header(Res *res, const char *name, const char *value);
 
-void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len);
-
 // Context management functions
 void set_context(Req *req, void *data, size_t size, void (*cleanup)(void *));
 void *get_context(Req *req);
 
-static inline void reply_text(Res *res, int status, const char *body)
+void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len);
+
+static inline void send_text(Res *res, int status, const char *body)
 {
     reply(res, status, "text/plain", body, strlen(body));
 }
 
-static inline void reply_html(Res *res, int status, const char *body)
+static inline void send_html(Res *res, int status, const char *body)
 {
     reply(res, status, "text/html", body, strlen(body));
 }
 
-static inline void reply_json(Res *res, int status, const char *body)
+static inline void send_json(Res *res, int status, const char *body)
 {
     reply(res, status, "application/json", body, strlen(body));
 }
 
-static inline void reply_cbor(Res *res, int status, const char *body, size_t body_len)
+static inline void send_cbor(Res *res, int status, const char *body, size_t body_len)
 {
     reply(res, status, "application/cbor", body, body_len);
 }
-
-#define send_text(status, body) reply_text(res, status, body)
-#define send_html(status, body) reply_html(res, status, body)
-#define send_json(status, body) reply_json(res, status, body)
-#define send_cbor(status, body, body_len) reply_cbor(res, status, body, body_len)
 
 Res *copy_res(const Res *original);
 void destroy_res(Res *res);

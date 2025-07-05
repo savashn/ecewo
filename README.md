@@ -71,7 +71,7 @@ target_link_libraries(server PRIVATE ecewo)
 #include "ecewo.h"     // To use the main API
 
 void hello_world(Req *req, Res *res) {
-    send_text(200, "Hello, World!");
+    send_text(res, 200, "Hello, World!");
 }
 
 int main() {
