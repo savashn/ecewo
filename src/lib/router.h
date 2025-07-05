@@ -96,7 +96,9 @@ static inline void send_cbor(Res *res, int status, const char *body, size_t body
     reply(res, status, "application/cbor", body, body_len);
 }
 
+Req *copy_req(const Req *original);
 Res *copy_res(const Res *original);
+void destroy_req(Req *req);
 void destroy_res(Res *res);
 
 static inline const char *get_params(const Req *req, const char *key)

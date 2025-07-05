@@ -449,6 +449,7 @@ void set_header(Res *res, const char *name, const char *value)
     res->header_count++;
 }
 
+// Deep copy function for Res
 Res *copy_res(const Res *original)
 {
     if (!original)
@@ -514,6 +515,7 @@ Res *copy_res(const Res *original)
     return copy;
 }
 
+// Cleanup function for
 void destroy_res(Res *res)
 {
     if (!res)
@@ -522,4 +524,223 @@ void destroy_res(Res *res)
     res_clean(res);
 
     free(res);
+}
+
+// Cleanup function for request_t
+static void cleanup_request_t(request_t *req_data)
+{
+    if (!req_data || !req_data->items)
+        return;
+
+    // Free all key-value pairs
+    for (int i = 0; i < req_data->count; i++)
+    {
+        if (req_data->items[i].key)
+        {
+            free(req_data->items[i].key);
+            req_data->items[i].key = NULL;
+        }
+        if (req_data->items[i].value)
+        {
+            free(req_data->items[i].value);
+            req_data->items[i].value = NULL;
+        }
+    }
+
+    // Free items array
+    free(req_data->items);
+    req_data->items = NULL;
+    req_data->count = 0;
+    req_data->capacity = 0;
+}
+
+// Deep copy function for request_t
+static request_t copy_request_t(const request_t *original)
+{
+    request_t copy;
+    memset(&copy, 0, sizeof(request_t));
+
+    if (!original || original->count == 0)
+    {
+        return copy;
+    }
+
+    // Allocate items array
+    copy.capacity = original->capacity;
+    copy.count = original->count;
+    copy.items = malloc(copy.capacity * sizeof(request_item_t));
+
+    if (!copy.items)
+    {
+        // Allocation failed, return empty
+        copy.capacity = 0;
+        copy.count = 0;
+        return copy;
+    }
+
+    // Copy each item
+    for (int i = 0; i < original->count; i++)
+    {
+        // Copy key
+        if (original->items[i].key)
+        {
+            copy.items[i].key = strdup(original->items[i].key);
+            if (!copy.items[i].key)
+            {
+                // Cleanup on failure
+                for (int j = 0; j < i; j++)
+                {
+                    free(copy.items[j].key);
+                    free(copy.items[j].value);
+                }
+                free(copy.items);
+                memset(&copy, 0, sizeof(request_t));
+                return copy;
+            }
+        }
+        else
+        {
+            copy.items[i].key = NULL;
+        }
+
+        // Copy value
+        if (original->items[i].value)
+        {
+            copy.items[i].value = strdup(original->items[i].value);
+            if (!copy.items[i].value)
+            {
+                // Cleanup on failure
+                free(copy.items[i].key);
+                for (int j = 0; j < i; j++)
+                {
+                    free(copy.items[j].key);
+                    free(copy.items[j].value);
+                }
+                free(copy.items);
+                memset(&copy, 0, sizeof(request_t));
+                return copy;
+            }
+        }
+        else
+        {
+            copy.items[i].value = NULL;
+        }
+    }
+
+    return copy;
+}
+
+// Deep copy function for Req
+Req *copy_req(const Req *original)
+{
+    if (!original)
+        return NULL;
+
+    Req *copy = malloc(sizeof(Req));
+    if (!copy)
+        return NULL;
+
+    // Copy primitive fields
+    copy->client_socket = original->client_socket;
+    copy->body_len = original->body_len;
+
+    // Deep copy method string
+    if (original->method)
+    {
+        copy->method = strdup(original->method);
+        if (!copy->method)
+        {
+            free(copy);
+            return NULL;
+        }
+    }
+    else
+    {
+        copy->method = NULL;
+    }
+
+    // Deep copy path string
+    if (original->path)
+    {
+        copy->path = strdup(original->path);
+        if (!copy->path)
+        {
+            if (copy->method)
+                free((void *)copy->method);
+            free(copy);
+            return NULL;
+        }
+    }
+    else
+    {
+        copy->path = NULL;
+    }
+
+    // Deep copy body
+    if (original->body && original->body_len > 0)
+    {
+        copy->body = malloc(original->body_len + 1);
+        if (!copy->body)
+        {
+            if (copy->method)
+                free((void *)copy->method);
+            if (copy->path)
+                free((void *)copy->path);
+            free(copy);
+            return NULL;
+        }
+        memcpy(copy->body, original->body, original->body_len);
+        copy->body[original->body_len] = '\0'; // Null terminate
+    }
+    else
+    {
+        copy->body = NULL;
+    }
+
+    // Deep copy headers, query, params
+    // You'll need to implement copy_request_t based on your request_t structure
+    copy->headers = copy_request_t(&original->headers);
+    copy->query = copy_request_t(&original->query);
+    copy->params = copy_request_t(&original->params);
+
+    // Initialize context (don't copy original context, start fresh)
+    req_init_context(copy);
+
+    return copy;
+}
+
+// Cleanup function for copied Req
+void destroy_req(Req *req)
+{
+    if (!req)
+        return;
+
+    // Clear context first
+    req_clear_context(req);
+
+    // Free allocated strings
+    if (req->method)
+    {
+        free((void *)req->method);
+        req->method = NULL;
+    }
+
+    if (req->path)
+    {
+        free((void *)req->path);
+        req->path = NULL;
+    }
+
+    if (req->body)
+    {
+        free(req->body);
+        req->body = NULL;
+    }
+
+    // Free request_t structures
+    cleanup_request_t(&req->headers);
+    cleanup_request_t(&req->query);
+    cleanup_request_t(&req->params);
+
+    free(req);
 }
