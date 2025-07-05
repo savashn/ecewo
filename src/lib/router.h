@@ -99,4 +99,17 @@ static inline void send_cbor(Res *res, int status, const char *body, size_t body
 Res *copy_res(const Res *original);
 void destroy_res(Res *res);
 
+static inline const char *get_params(const Req *req, const char *key)
+{
+    return get_req(&req->params, key);
+}
+static inline const char *get_query(const Req *req, const char *key)
+{
+    return get_req(&req->query, key);
+}
+static inline const char *get_headers(const Req *req, const char *key)
+{
+    return get_req(&req->headers, key);
+}
+
 #endif
