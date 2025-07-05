@@ -74,7 +74,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
 
 // Context management functions
 void set_context(Req *req, void *data, size_t size, void (*cleanup)(void *));
-void* get_context(Req *req);
+void *get_context(Req *req);
 
 static inline void reply_text(Res *res, int status, const char *body)
 {
@@ -100,5 +100,8 @@ static inline void reply_cbor(Res *res, int status, const char *body, size_t bod
 #define send_html(status, body) reply_html(res, status, body)
 #define send_json(status, body) reply_json(res, status, body)
 #define send_cbor(status, body, body_len) reply_cbor(res, status, body, body_len)
+
+Res *copy_res(const Res *original);
+void destroy_res(Res *res);
 
 #endif

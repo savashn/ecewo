@@ -21,6 +21,7 @@ So it’s really simple, but in a C kind of way.
 - [Quick Start](#quick-start)
 - [Benchmarks](#benchmarks)
 - [Documentation](#documentation)
+- [Example App](#example-app)
 - [License](#license)
 
 ### Out of The Box Features
@@ -112,6 +113,10 @@ The performance of Ecewo is:
 ### Documentation
 
 Refer to the [docs](https://ecewo.vercel.app) for usage.
+
+### Example App
+
+[Here](https://github.com/savashn/ecewo-example) is an example blog app built with Ecewo and PostgreSQL.
 
 ### License
 

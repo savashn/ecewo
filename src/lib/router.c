@@ -170,7 +170,7 @@ static void res_init(Res *res, uv_tcp_t *client_socket)
 }
 
 // Frees the headers
-static void res_free(Res *res)
+static void res_clean(Res *res)
 {
     if (res->headers)
     {
@@ -198,12 +198,12 @@ static void req_clear_context(Req *req)
 {
     if (!req)
         return;
-    
+
     if (req->context.data && req->context.cleanup)
     {
         req->context.cleanup(req->context.data);
     }
-    
+
     req->context.data = NULL;
     req->context.size = 0;
     req->context.cleanup = NULL;
@@ -214,16 +214,16 @@ void set_context(Req *req, void *data, size_t size, void (*cleanup)(void *))
 {
     if (!req)
         return;
-    
+
     // Clear existing context first
     req_clear_context(req);
-    
+
     req->context.data = data;
     req->context.size = size;
     req->context.cleanup = cleanup;
 }
 
-void* get_context(Req *req)
+void *get_context(Req *req)
 {
     if (!req)
         return NULL;
@@ -272,7 +272,7 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     if (cors_handle_preflight(&context, &res))
     {
         reply(&res, res.status, res.content_type, res.body, res.body_len);
-        res_free(&res);
+        res_clean(&res);
         http_context_free(&context);
         return res.keep_alive ? 0 : 1;
     }
@@ -307,7 +307,7 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
         // Cleanup context after handler execution
         req_clear_context(&req);
 
-        res_free(&res);
+        res_clean(&res);
         http_context_free(&context);
         return res.keep_alive ? 0 : 1;
     }
@@ -319,7 +319,7 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
         cors_add_headers(&context, &res);
         const char *not_found_msg = "404 Not Found";
         reply(&res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
-        res_free(&res);
+        res_clean(&res);
         http_context_free(&context);
         return res.keep_alive ? 0 : 1;
     }
@@ -442,7 +442,84 @@ void set_header(Res *res, const char *name, const char *value)
     if (!res->headers[res->header_count].name || !res->headers[res->header_count].value)
     {
         // In case of failure, do not attempt to use the incomplete entry
+        free(res->headers[res->header_count].name);
+        free(res->headers[res->header_count].value);
         return;
     }
     res->header_count++;
+}
+
+Res *copy_res(const Res *original)
+{
+    if (!original)
+        return NULL;
+
+    Res *copy = malloc(sizeof(Res));
+    if (!copy)
+        return NULL;
+
+    // Copy primitive fields
+    *copy = *original;
+    copy->body = original->body; // pointer only, not deep copied
+    copy->content_type = original->content_type;
+
+    // Allocate and copy headers array
+    if (original->header_capacity > 0)
+    {
+        size_t cap = original->header_capacity;
+        copy->headers = malloc(cap * sizeof(http_header_t));
+        if (!copy->headers)
+        {
+            free(copy);
+            return NULL;
+        }
+
+        for (int i = 0; i < original->header_count; ++i)
+        {
+            // Duplicate name
+            if (original->headers[i].name)
+            {
+                copy->headers[i].name = strdup(original->headers[i].name);
+                if (!copy->headers[i].name)
+                {
+                    free_res(copy);
+                    return NULL;
+                }
+            }
+            else
+            {
+                copy->headers[i].name = NULL;
+            }
+            // Duplicate value
+            if (original->headers[i].value)
+            {
+                copy->headers[i].value = strdup(original->headers[i].value);
+                if (!copy->headers[i].value)
+                {
+                    free_res(copy);
+                    return NULL;
+                }
+            }
+            else
+            {
+                copy->headers[i].value = NULL;
+            }
+        }
+    }
+    else
+    {
+        copy->headers = NULL;
+    }
+
+    return copy;
+}
+
+void destroy_res(Res *res)
+{
+    if (!res)
+        return;
+
+    res_clean(res);
+
+    free(res);
 }
