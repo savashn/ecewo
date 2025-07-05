@@ -482,7 +482,7 @@ Res *copy_res(const Res *original)
                 copy->headers[i].name = strdup(original->headers[i].name);
                 if (!copy->headers[i].name)
                 {
-                    free_res(copy);
+                    destroy_res(copy);
                     return NULL;
                 }
             }
@@ -496,7 +496,7 @@ Res *copy_res(const Res *original)
                 copy->headers[i].value = strdup(original->headers[i].value);
                 if (!copy->headers[i].value)
                 {
-                    free_res(copy);
+                    destroy_res(copy);
                     return NULL;
                 }
             }
