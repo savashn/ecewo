@@ -93,22 +93,14 @@ mkdir build && cd build && cmake .. && cmake --build .
 
 Here are 'Hello World' benchmark results for several frameworks compared to Ecewo. See the source code of the [benchmark test](https://github.com/savashn/ecewo-benchmarks).
 
-| Framework | Latency.Avg | Latency.Max | Request.Total | Request.Req/Sec | Transfer.Total | Transfer.Rate |
-|---|---|---|---|---|---|---|
-|ecewo|62.53µs|3.89ms|11,987|66.41|1.4 MB|7.8 kB/s|
-|axum|87.68µs|5.98ms|11,959|66.15|1.6 MB|8.9 kB/s|
-|go|261.69µs|4.38ms|11,961|66.16|1.6 MB|8.9 kB/s|
-|hono|426.24µs|6.46ms|11,965|66.21|2.2 MB|12 kB/s|
-|fastify|489.87µs|7.62ms|11,964|66.22|2.4 MB|13 kB/s|
-|express|1.04ms|7.2ms|11,964|66.18|3.1 MB|17 kB/s
-
-The performance of Ecewo is:
-
-- ~1.4x faster than Axum, but they are almost same
-- ~4.2x faster than Go net/http
-- ~6.8x faster than Hono
-- ~7.8x faster than Fastify
-- ~16.6x faster than Express
+| Framework | Average   | Median   | Max     | P90     | P95      |
+|-----------|-----------|----------|---------|---------|----------|
+| Ecewo     | 71.43µs   | 0s       | 4.97ms  | 503.4µs | 511.1µs  |
+| Axum      | 98.35µs   | 0s       | 3.52ms  | 508µs   | 526.9µs  |
+| Go        | 366.14µs  | 504.4µs  | 4.51ms  | 726µs   | 862.77µs |
+| Hono      | 364.72µs  | 504.9µs  | 4.5ms   | 755.3µs | 1ms      |
+| Fastify   | 490.55µs  | 525.5µs  | 5.99ms  | 896.2µs | 1.06ms   |
+| Express   | 1.11ms    | 1.05ms   | 5.98ms  | 2ms     | 2.36ms   |
 
 ### Documentation
 

@@ -3,11 +3,18 @@
 
 #include "request.h"
 #include "router.h"
+#include <stdbool.h>
 
-char *handle_get_cookie(request_t *headers, const char *name);
-void handle_set_cookie(Res *res, const char *name, const char *value, int max_age);
+typedef struct
+{
+    int max_age;
+    char *path;
+    char *same_site; // "Strict", "Lax", "None"
+    bool http_only;
+    bool secure;
+} cookie_options_t;
 
-#define get_cookie(name) handle_get_cookie(&req->headers, name)
-#define set_cookie(name, value, max_age) handle_set_cookie(res, name, value, max_age)
+char *get_cookie(request_t *req, const char *name);
+void set_cookie(Res *res, const char *name, const char *value, cookie_options_t *options);
 
 #endif
