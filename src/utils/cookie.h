@@ -14,7 +14,7 @@ typedef struct
     bool secure;
 } cookie_options_t;
 
-char *get_cookie(request_t *req, const char *name);
+char *get_cookie(Req *req, const char *name);
 void set_cookie(Res *res, const char *name, const char *value, cookie_options_t *options);
 
 #endif

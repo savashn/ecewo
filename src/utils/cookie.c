@@ -4,7 +4,7 @@
 #include <ctype.h>
 #include "cookie.h"
 
-char *get_cookie(request_t *req, const char *name)
+char *get_cookie(Req *req, const char *name)
 {
     if (!req || !name)
         return NULL;
