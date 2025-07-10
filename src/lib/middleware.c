@@ -33,7 +33,6 @@ void hook(MiddlewareHandler middleware_handler)
     }
 
     global_middleware[global_middleware_count++] = middleware_handler;
-    printf("Added global middleware. Total count: %d\n", global_middleware_count);
 }
 
 // Helper function for middleware chain execution
@@ -257,7 +256,6 @@ void register_route_with_middleware(const char *method, const char *path,
     routes[route_count].middleware_ctx = middleware_info; // Store middleware context
 
     route_count++;
-    printf("Registered route: %s %s with %d middleware\n", method, path, middleware_count);
 }
 
 void register_route(const char *method, const char *path, MiddlewareArray middleware, RequestHandler handler)

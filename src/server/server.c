@@ -47,8 +47,9 @@ void on_read(uv_stream_t *client_stream, ssize_t nread, const uv_buf_t *buf)
 
     if (nread < 0)
     {
-        if (nread != UV_EOF)
+        if (nread != UV_EOF && nread != UV_ECONNRESET)
             fprintf(stderr, "Read error: %s\n", uv_strerror((int)nread));
+
         uv_close((uv_handle_t *)&client->handle, on_client_closed);
         return;
     }

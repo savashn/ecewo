@@ -57,15 +57,11 @@ bool cors_handle_preflight(const http_context_t *ctx, Res *res)
     if (strcmp(ctx->method, "OPTIONS") != 0)
         return false;
 
-    printf("[CORS] Handling preflight request\n");
-
     // Check origin
     const char *origin = get_req(&ctx->headers, "Origin");
-    printf("[CORS] Origin: %s\n", origin ? origin : "NULL");
 
     if (origin && !is_origin_allowed(origin))
     {
-        printf("[CORS] Origin not allowed: %s\n", origin);
         res->status = 403;
         return true;
     }
@@ -95,7 +91,6 @@ bool cors_handle_preflight(const http_context_t *ctx, Res *res)
     if (g_cors_opts->max_age)
         set_header(res, "Access-Control-Max-Age", g_cors_opts->max_age);
 
-    printf("[CORS] Preflight response sent with status 204\n");
     return true;
 }
 
@@ -105,7 +100,6 @@ void cors_add_headers(const http_context_t *ctx, Res *res)
         return;
 
     const char *origin = get_req(&ctx->headers, "Origin");
-    printf("[CORS] Adding headers for origin: %s\n", origin ? origin : "NULL");
 
     bool should_add_cors = false;
 
@@ -130,10 +124,6 @@ void cors_add_headers(const http_context_t *ctx, Res *res)
             set_header(res, "Access-Control-Allow-Headers", g_cors_opts->headers);
         if (g_cors_opts->credentials)
             set_header(res, "Access-Control-Allow-Credentials", g_cors_opts->credentials);
-    }
-    else
-    {
-        printf("[CORS] Origin not allowed, no CORS headers added\n");
     }
 }
 

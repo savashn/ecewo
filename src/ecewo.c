@@ -61,7 +61,6 @@ void expand_routes(void)
 
         routes = new_routes;
         routes_capacity = new_capacity;
-        fprintf(stderr, "Routes capacity expanded to %zu\n", routes_capacity);
     }
 }
 
