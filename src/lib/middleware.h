@@ -21,42 +21,31 @@ struct Chain
 typedef struct
 {
     MiddlewareHandler *handlers;
-    int count;
-    int is_middleware_array;
+    size_t count;
 } MiddlewareArray;
 
-// Maximum number of middleware functions that can be registered
-// #define MAX_GLOBAL_MIDDLEWARE 20
-// #define MAX_ROUTE_MIDDLEWARE 10
+#define use(...)                                        \
+    ((MiddlewareArray){                                 \
+        .handlers = (MiddlewareHandler[]){__VA_ARGS__}, \
+        .count = sizeof((MiddlewareHandler[]){__VA_ARGS__}) / sizeof(MiddlewareHandler)})
 
-// Global middleware array
-// extern MiddlewareHandler global_middleware[MAX_GLOBAL_MIDDLEWARE];
+#define NO_MW ((MiddlewareArray){.handlers = NULL, .count = 0})
+
 #define INITIAL_MW_CAPACITY 4
 
+// Global middleware array
 extern MiddlewareHandler *global_middleware;
 extern int global_middleware_count;
-
 // Function to add global middleware
 void hook(MiddlewareHandler middleware_handler);
 
 // Function to execute the next middleware or route handler in the chain
 int next(Chain *chain, Req *req, Res *res);
 
-// Special value used to denote end of variadic arguments
-#define MIDDLEWARE_END NULL
+void register_route(const char *method, const char *path,
+                    MiddlewareArray middleware,
+                    RequestHandler handler);
 
-// Implementation helper functions
-void register_route_with_middleware(const char *method, const char *path,
-                                    MiddlewareHandler *middleware, int middleware_count,
-                                    RequestHandler handler);
-
-void register_route(const char *method, const char *path, MiddlewareArray middleware, RequestHandler handler);
-void reset_middleware();
-
-// Middleware array creator macro
-#define use(...) (MiddlewareArray){(MiddlewareHandler[]){__VA_ARGS__}, sizeof((MiddlewareHandler[]){__VA_ARGS__}) / sizeof(MiddlewareHandler), 1}
-
-// Default empty middleware array
-#define NO_MW (MiddlewareArray){NULL, 0, 1}
+void reset_middleware(void);
 
 #endif

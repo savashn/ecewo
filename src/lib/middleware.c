@@ -106,7 +106,7 @@ void route_handler_with_middleware(Req *req, Res *res)
     const char *method = req->method ? req->method : "";
     MiddlewareInfo *middleware_info = NULL;
 
-    for (int i = 0; i < route_count; i++)
+    for (size_t i = 0; i < route_count; i++)
     {
         if (routes[i].method && routes[i].path &&
             strcmp(routes[i].method, method) == 0 &&
@@ -272,7 +272,7 @@ void register_route(const char *method, const char *path, MiddlewareArray middle
 // Cleanup function to free all allocated resources
 void reset_middleware()
 {
-    for (int i = 0; i < route_count; i++)
+    for (size_t i = 0; i < route_count; i++)
     {
         if (routes[i].middleware_ctx)
         {
