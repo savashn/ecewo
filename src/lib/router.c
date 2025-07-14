@@ -1,13 +1,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <stddef.h>
 #include "ecewo.h"
 #include "uv.h"
 #include "llhttp.h"
 #include "cors.h"
 
 // Called when write operation is completed
-void write_completion_cb(uv_write_t *req, int status)
+static void write_completion_cb(uv_write_t *req, int status)
 {
     if (status < 0)
     {
@@ -69,7 +70,7 @@ static void send_error(uv_tcp_t *client_socket, int error_code)
     }
 }
 
-// matcher: matches a path with a dynamic parameter route using pointers, no copy
+// Matches a path with a dynamic parameter route using pointers, no copy
 // Segments starting with ":param" in route_path are treated as parameters
 bool matcher(const char *path, const char *route_path)
 {
@@ -124,7 +125,7 @@ bool matcher(const char *path, const char *route_path)
     return (*p == '\0' && *r == '\0');
 }
 
-// extract_path_and_query: malloc-free. Replaces '?' with '\0' in context.url
+// Replaces '?' with '\0' in context.url
 // and returns pointers to path and query
 static int extract_path_and_query(char *url_buf, char **path, char **query)
 {
@@ -155,45 +156,7 @@ static int extract_path_and_query(char *url_buf, char **path, char **query)
     return 0;
 }
 
-// Initializes the Res struct
-static void res_init(Res *res, uv_tcp_t *client_socket)
-{
-    res->client_socket = client_socket;
-    res->status = 200;
-    res->content_type = "text/plain";
-    res->body = NULL;
-    res->body_len = 0;
-    res->keep_alive = 1;
-    res->headers = NULL;
-    res->header_count = 0;
-    res->header_capacity = 0;
-}
-
-// Frees the headers
-static void res_clean(Res *res)
-{
-    if (res->headers)
-    {
-        for (int i = 0; i < res->header_count; i++)
-        {
-            free(res->headers[i].name);
-            free(res->headers[i].value);
-        }
-        free(res->headers);
-        res->headers = NULL;
-    }
-    res->header_count = 0;
-    res->header_capacity = 0;
-}
-
-// Initializes the Req context
-static void req_init_context(Req *req)
-{
-    req->context.data = NULL;
-    req->context.size = 0;
-    req->context.cleanup = NULL;
-}
-
+// Run at the begining of set_context and destroy_req
 static void req_clear_context(Req *req)
 {
     if (!req)
@@ -230,102 +193,260 @@ void *get_context(Req *req)
     return req->context.data;
 }
 
-// Called when a request is received
-int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len)
+// Create and initialize Req on heap
+static Req *create_req(uv_tcp_t *client_socket)
 {
-    if (!request_data || request_len == 0)
+    Req *req = malloc(sizeof(Req));
+    if (!req)
+        return NULL;
+
+    memset(req, 0, sizeof(Req));
+    req->client_socket = client_socket;
+    req->method = NULL;
+    req->path = NULL;
+    req->body = NULL;
+    req->body_len = 0;
+
+    // Initialize request_t structures
+    memset(&req->headers, 0, sizeof(request_t));
+    memset(&req->query, 0, sizeof(request_t));
+    memset(&req->params, 0, sizeof(request_t));
+
+    // Initialize context
+    req->context.data = NULL;
+    req->context.size = 0;
+    req->context.cleanup = NULL;
+
+    return req;
+}
+
+// Create and initialize Res on heap
+static Res *create_res(uv_tcp_t *client_socket)
+{
+    Res *res = malloc(sizeof(Res));
+    if (!res)
+        return NULL;
+
+    memset(res, 0, sizeof(Res));
+    res->client_socket = client_socket;
+    res->status = 200;
+    res->content_type = "text/plain";
+    res->body = NULL;
+    res->body_len = 0;
+    res->keep_alive = 1;
+    res->headers = NULL;
+    res->header_count = 0;
+    res->header_capacity = 0;
+
+    return res;
+}
+
+// Create and initialize http_context_t on heap
+static http_context_t *create_http_context(void)
+{
+    http_context_t *context = malloc(sizeof(http_context_t));
+    if (!context)
+        return NULL;
+
+    http_context_init(context);
+    return context;
+}
+
+// Destroy http_context_t
+static void destroy_http_context(http_context_t *context)
+{
+    if (!context)
+        return;
+
+    http_context_free(context);
+    free(context);
+}
+
+// Cleanup function for request_t
+static void cleanup_request_t(request_t *req_data)
+{
+    if (!req_data || !req_data->items)
+        return;
+
+    for (int i = 0; i < req_data->count; i++)
     {
-        send_error(client_socket, 400);
-        return 1;
+        free(req_data->items[i].key);
+        free(req_data->items[i].value);
     }
 
-    http_context_t context;
-    http_context_init(&context);
+    free(req_data->items);
+    req_data->items = NULL;
+    req_data->count = 0;
+    req_data->capacity = 0;
+}
 
-    enum llhttp_errno err = llhttp_execute(&context.parser, request_data, request_len);
-    if (err != HPE_OK)
+// Deep copy function for request_t
+static request_t copy_request_t(const request_t *original)
+{
+    request_t copy;
+    memset(&copy, 0, sizeof(request_t));
+
+    if (!original || original->count == 0)
     {
-        fprintf(stderr, "HTTP parsing error: %s\n", llhttp_errno_name(err));
-        send_error(client_socket, 400);
-        http_context_free(&context);
-        return 1;
+        return copy;
     }
 
-    // Parser already holds context.url in a null-terminated buffer, so we can
-    // overwrite it to get path and query
-    char *path = NULL;
-    char *query = NULL;
-    if (extract_path_and_query(context.url, &path, &query) != 0)
+    // Allocate items array
+    copy.capacity = original->capacity;
+    copy.count = original->count;
+    copy.items = malloc(copy.capacity * sizeof(request_item_t));
+
+    if (!copy.items)
     {
-        send_error(client_socket, 500);
-        http_context_free(&context);
-        return 1;
+        // Allocation failed, return empty
+        copy.capacity = 0;
+        copy.count = 0;
+        return copy;
     }
 
-    parse_query(query, &context.query_params);
-
-    Res res;
-    res_init(&res, client_socket);
-    res.keep_alive = context.keep_alive;
-
-    // CORS preflight
-    if (cors_handle_preflight(&context, &res))
+    // Copy each item
+    for (int i = 0; i < original->count; i++)
     {
-        reply(&res, res.status, res.content_type, res.body, res.body_len);
-        res_clean(&res);
-        http_context_free(&context);
-        return res.keep_alive ? 0 : 1;
+        // Copy key
+        if (original->items[i].key)
+        {
+            copy.items[i].key = strdup(original->items[i].key);
+            if (!copy.items[i].key)
+            {
+                // Cleanup on failure
+                for (int j = 0; j < i; j++)
+                {
+                    free(copy.items[j].key);
+                    free(copy.items[j].value);
+                }
+                free(copy.items);
+                memset(&copy, 0, sizeof(request_t));
+                return copy;
+            }
+        }
+        else
+        {
+            copy.items[i].key = NULL;
+        }
+
+        // Copy value
+        if (original->items[i].value)
+        {
+            copy.items[i].value = strdup(original->items[i].value);
+            if (!copy.items[i].value)
+            {
+                // Cleanup on failure
+                free(copy.items[i].key);
+                for (int j = 0; j < i; j++)
+                {
+                    free(copy.items[j].key);
+                    free(copy.items[j].value);
+                }
+                free(copy.items);
+                memset(&copy, 0, sizeof(request_t));
+                return copy;
+            }
+        }
+        else
+        {
+            copy.items[i].value = NULL;
+        }
     }
 
-    bool route_found = false;
-    for (int i = 0; i < route_count; i++)
+    return copy;
+}
+
+// Destroy Req
+void destroy_req(Req *req)
+{
+    if (!req)
+        return;
+
+    req_clear_context(req);
+
+    // Free allocated strings
+    if (req->method)
     {
-        if (strcasecmp(context.method, routes[i].method) != 0)
-            continue;
-        if (!matcher(path, routes[i].path))
-            continue;
-
-        route_found = true;
-        parse_params(path, routes[i].path, &context.url_params);
-
-        Req req = {
-            .client_socket = client_socket,
-            .method = context.method,
-            .path = path,
-            .body = context.body,
-            .body_len = context.body_length,
-            .params = context.url_params,
-            .query = context.query_params,
-            .headers = context.headers};
-
-        // Initialize context
-        req_init_context(&req);
-
-        cors_add_headers(&context, &res);
-        routes[i].handler(&req, &res);
-
-        // Cleanup context after handler execution
-        req_clear_context(&req);
-
-        res_clean(&res);
-        http_context_free(&context);
-        return res.keep_alive ? 0 : 1;
+        free((void *)req->method);
+        req->method = NULL;
     }
 
-    if (!route_found)
+    if (req->path)
     {
-        res.status = 404;
-        res.content_type = "text/plain";
-        cors_add_headers(&context, &res);
-        const char *not_found_msg = "404 Not Found";
-        reply(&res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
-        res_clean(&res);
-        http_context_free(&context);
-        return res.keep_alive ? 0 : 1;
+        free((void *)req->path);
+        req->path = NULL;
     }
 
-    // Should never reach here; either route matched or 404 sent
-    return 1;
+    if (req->body)
+    {
+        free(req->body);
+        req->body = NULL;
+    }
+
+    // Free request_t structures
+    cleanup_request_t(&req->headers);
+    cleanup_request_t(&req->query);
+    cleanup_request_t(&req->params);
+
+    free(req);
+}
+
+// Destroy Res
+void destroy_res(Res *res)
+{
+    if (!res)
+        return;
+
+    if (res->headers)
+    {
+        for (int i = 0; i < res->header_count; i++)
+        {
+            free(res->headers[i].name);
+            free(res->headers[i].value);
+        }
+        free(res->headers);
+        res->headers = NULL;
+    }
+    res->header_count = 0;
+    res->header_capacity = 0;
+
+    free(res);
+}
+
+static int populate_req_from_context(Req *req, http_context_t *context, const char *path)
+{
+    // Copy method
+    if (context->method)
+    {
+        req->method = strdup(context->method);
+        if (!req->method)
+            return -1;
+    }
+
+    // Copy path
+    if (path)
+    {
+        req->path = strdup(path);
+        if (!req->path)
+            return -1;
+    }
+
+    // Copy body
+    if (context->body && context->body_length > 0)
+    {
+        req->body = malloc(context->body_length + 1);
+        if (!req->body)
+            return -1;
+        memcpy(req->body, context->body, context->body_length);
+        req->body[context->body_length] = '\0';
+        req->body_len = context->body_length;
+    }
+
+    req->headers = copy_request_t(&context->headers);
+    req->query = copy_request_t(&context->query_params);
+    req->params = copy_request_t(&context->url_params);
+
+    return 0;
 }
 
 // Composes and sends the response (headers + body)
@@ -423,6 +544,123 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     }
 }
 
+// Called when a request is received
+int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len)
+{
+    if (!request_data || request_len == 0)
+    {
+        send_error(client_socket, 400);
+        return 1;
+    }
+
+    http_context_t *ctx = create_http_context();
+    Req *req = create_req(client_socket);
+    Res *res = create_res(client_socket);
+
+    if (!ctx || !req || !res)
+    {
+        destroy_http_context(ctx);
+        destroy_req(req);
+        destroy_res(res);
+        send_error(client_socket, 500);
+        return 1;
+    }
+
+    // Parse HTTP request
+    enum llhttp_errno err = llhttp_execute(&ctx->parser, request_data, request_len);
+    if (err != HPE_OK)
+    {
+        fprintf(stderr, "HTTP parsing error: %s\n", llhttp_errno_name(err));
+        send_error(client_socket, 400);
+        destroy_http_context(ctx);
+        destroy_req(req);
+        destroy_res(res);
+        return 1;
+    }
+
+    // Extract path and query
+    char *path = NULL;
+    char *query = NULL;
+    if (extract_path_and_query(ctx->url, &path, &query) != 0)
+    {
+        send_error(client_socket, 500);
+        destroy_http_context(ctx);
+        destroy_req(req);
+        destroy_res(res);
+        return 1;
+    }
+
+    // Parse query parameters
+    parse_query(query, &ctx->query_params);
+
+    // Set keep-alive from context
+    res->keep_alive = ctx->keep_alive;
+
+    // Handle CORS preflight
+    if (cors_handle_preflight(ctx, res))
+    {
+        reply(res, res->status, res->content_type, res->body, res->body_len);
+        int should_close = !res->keep_alive;
+        destroy_http_context(ctx);
+        destroy_req(req);
+        destroy_res(res);
+        return should_close;
+    }
+
+    // Find matching route
+    bool route_found = false;
+    for (size_t i = 0; i < route_count; i++)
+    {
+        if (strcasecmp(ctx->method, routes[i].method) != 0)
+            continue;
+        if (!matcher(path, routes[i].path))
+            continue;
+
+        route_found = true;
+
+        // Parse URL parameters
+        parse_params(path, routes[i].path, &ctx->url_params);
+
+        // Populate request from context
+        if (populate_req_from_context(req, ctx, path) != 0)
+        {
+            send_error(client_socket, 500);
+            destroy_http_context(ctx);
+            destroy_req(req);
+            destroy_res(res);
+            return 1;
+        }
+
+        // Add CORS headers and call handler
+        cors_add_headers(ctx, res);
+        routes[i].handler(req, res);
+
+        int should_close = !res->keep_alive;
+        destroy_http_context(ctx);
+        destroy_req(req);
+        destroy_res(res);
+        return should_close;
+    }
+
+    // Handle 404
+    if (!route_found)
+    {
+        res->status = 404;
+        res->content_type = "text/plain";
+        cors_add_headers(ctx, res);
+        const char *not_found_msg = "404 Not Found";
+        reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
+        int should_close = !res->keep_alive;
+        destroy_http_context(ctx);
+        destroy_req(req);
+        destroy_res(res);
+        return should_close;
+    }
+
+    // Should never reach here; either route matched or 404 sent
+    return 1;
+}
+
 // Adds a header
 void set_header(Res *res, const char *name, const char *value)
 {
@@ -515,121 +753,6 @@ Res *copy_res(const Res *original)
     return copy;
 }
 
-// Cleanup function for
-void destroy_res(Res *res)
-{
-    if (!res)
-        return;
-
-    res_clean(res);
-
-    free(res);
-}
-
-// Cleanup function for request_t
-static void cleanup_request_t(request_t *req_data)
-{
-    if (!req_data || !req_data->items)
-        return;
-
-    // Free all key-value pairs
-    for (int i = 0; i < req_data->count; i++)
-    {
-        if (req_data->items[i].key)
-        {
-            free(req_data->items[i].key);
-            req_data->items[i].key = NULL;
-        }
-        if (req_data->items[i].value)
-        {
-            free(req_data->items[i].value);
-            req_data->items[i].value = NULL;
-        }
-    }
-
-    // Free items array
-    free(req_data->items);
-    req_data->items = NULL;
-    req_data->count = 0;
-    req_data->capacity = 0;
-}
-
-// Deep copy function for request_t
-static request_t copy_request_t(const request_t *original)
-{
-    request_t copy;
-    memset(&copy, 0, sizeof(request_t));
-
-    if (!original || original->count == 0)
-    {
-        return copy;
-    }
-
-    // Allocate items array
-    copy.capacity = original->capacity;
-    copy.count = original->count;
-    copy.items = malloc(copy.capacity * sizeof(request_item_t));
-
-    if (!copy.items)
-    {
-        // Allocation failed, return empty
-        copy.capacity = 0;
-        copy.count = 0;
-        return copy;
-    }
-
-    // Copy each item
-    for (int i = 0; i < original->count; i++)
-    {
-        // Copy key
-        if (original->items[i].key)
-        {
-            copy.items[i].key = strdup(original->items[i].key);
-            if (!copy.items[i].key)
-            {
-                // Cleanup on failure
-                for (int j = 0; j < i; j++)
-                {
-                    free(copy.items[j].key);
-                    free(copy.items[j].value);
-                }
-                free(copy.items);
-                memset(&copy, 0, sizeof(request_t));
-                return copy;
-            }
-        }
-        else
-        {
-            copy.items[i].key = NULL;
-        }
-
-        // Copy value
-        if (original->items[i].value)
-        {
-            copy.items[i].value = strdup(original->items[i].value);
-            if (!copy.items[i].value)
-            {
-                // Cleanup on failure
-                free(copy.items[i].key);
-                for (int j = 0; j < i; j++)
-                {
-                    free(copy.items[j].key);
-                    free(copy.items[j].value);
-                }
-                free(copy.items);
-                memset(&copy, 0, sizeof(request_t));
-                return copy;
-            }
-        }
-        else
-        {
-            copy.items[i].value = NULL;
-        }
-    }
-
-    return copy;
-}
-
 // Deep copy function for Req
 Req *copy_req(const Req *original)
 {
@@ -704,43 +827,10 @@ Req *copy_req(const Req *original)
     copy->params = copy_request_t(&original->params);
 
     // Initialize context (don't copy original context, start fresh)
-    req_init_context(copy);
+    memset(&copy->context, 0, sizeof(copy->context));
+    copy->context.data = NULL;
+    copy->context.size = 0;
+    copy->context.cleanup = NULL;
 
     return copy;
-}
-
-// Cleanup function for copied Req
-void destroy_req(Req *req)
-{
-    if (!req)
-        return;
-
-    // Clear context first
-    req_clear_context(req);
-
-    // Free allocated strings
-    if (req->method)
-    {
-        free((void *)req->method);
-        req->method = NULL;
-    }
-
-    if (req->path)
-    {
-        free((void *)req->path);
-        req->path = NULL;
-    }
-
-    if (req->body)
-    {
-        free(req->body);
-        req->body = NULL;
-    }
-
-    // Free request_t structures
-    cleanup_request_t(&req->headers);
-    cleanup_request_t(&req->query);
-    cleanup_request_t(&req->params);
-
-    free(req);
 }

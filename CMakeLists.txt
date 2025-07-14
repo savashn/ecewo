@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(ecewo VERSION 0.30.2 LANGUAGES C)
+project(ecewo VERSION 0.30.4 LANGUAGES C)
 
 # Project options
 option(ECEWO_INSTALL "Install ecewo" ON)
