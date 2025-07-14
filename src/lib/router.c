@@ -14,6 +14,7 @@ static void write_completion_cb(uv_write_t *req, int status)
     {
         fprintf(stderr, "Write error: %s\n", uv_strerror(status));
     }
+
     write_req_t *write_req = (write_req_t *)req;
     if (write_req)
     {
@@ -459,8 +460,14 @@ static int populate_req_from_context(Req *req, http_context_t *context, const ch
 // Composes and sends the response (headers + body)
 void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len)
 {
-    // Check if client socket is still valid and not closing
-    if (!res || !res->client_socket || uv_is_closing((uv_handle_t *)res->client_socket))
+    // Comprehensive validation
+    if (!res || !res->client_socket)
+    {
+        return;
+    }
+
+    // Check if handle is valid and not closing
+    if (uv_is_closing((uv_handle_t *)res->client_socket))
     {
         return;
     }
@@ -472,27 +479,43 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         return;
     }
 
+    // Validate parameters
+    if (!content_type)
+        content_type = "text/plain";
+    if (!body)
+        body_len = 0;
+
     // Calculate total size of custom headers
     size_t headers_size = 0;
     for (int i = 0; i < res->header_count; i++)
     {
-        // "Name: Value\r\n"
-        headers_size += strlen(res->headers[i].name) + 2 + strlen(res->headers[i].value) + 2;
+        if (res->headers[i].name && res->headers[i].value)
+        {
+            headers_size += strlen(res->headers[i].name) + 2 + strlen(res->headers[i].value) + 2;
+        }
     }
 
     // Allocate and fill entire header string
     char *all_headers = malloc(headers_size + 1);
     if (!all_headers)
         return;
+
     size_t pos = 0;
     for (int i = 0; i < res->header_count; i++)
     {
-        int n = sprintf(all_headers + pos, "%s: %s\r\n", res->headers[i].name, res->headers[i].value);
-        pos += n;
+        if (res->headers[i].name && res->headers[i].value)
+        {
+            int n = snprintf(all_headers + pos, headers_size - pos + 1,
+                             "%s: %s\r\n", res->headers[i].name, res->headers[i].value);
+            if (n > 0 && (size_t)n < headers_size - pos + 1)
+            {
+                pos += n;
+            }
+        }
     }
     all_headers[pos] = '\0';
 
-    // Now calculate size of entire header + custom headers + body
+    // Calculate response size more safely
     int base_header_len = snprintf(
         NULL, 0,
         "HTTP/1.1 %d\r\n"
@@ -506,6 +529,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         content_type,
         body_len,
         res->keep_alive ? "keep-alive" : "close");
+
     if (base_header_len < 0)
     {
         free(all_headers);
@@ -513,6 +537,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     }
 
     size_t total_len = (size_t)base_header_len + body_len;
+
     char *response = malloc(total_len);
     if (!response)
     {
@@ -534,8 +559,10 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         content_type,
         body_len,
         res->keep_alive ? "keep-alive" : "close");
+
     free(all_headers);
-    if (written < 0)
+
+    if (written < 0 || (size_t)written > total_len)
     {
         free(response);
         return;
@@ -552,10 +579,11 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         free(response);
         return;
     }
+
     write_req->data = response;
     write_req->buf = uv_buf_init(response, (unsigned int)total_len);
 
-    // Double-check before writing
+    // Final check before writing
     if (uv_is_closing((uv_handle_t *)res->client_socket))
     {
         free(response);
@@ -563,7 +591,8 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         return;
     }
 
-    int result = uv_write(&write_req->req, (uv_stream_t *)res->client_socket, &write_req->buf, 1, write_completion_cb);
+    int result = uv_write(&write_req->req, (uv_stream_t *)res->client_socket,
+                          &write_req->buf, 1, write_completion_cb);
     if (result < 0)
     {
         fprintf(stderr, "Write error: %s\n", uv_strerror(result));
@@ -575,9 +604,17 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
 // Called when a request is received
 int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len)
 {
-    if (!request_data || request_len == 0)
+    // Early validation
+    if (!client_socket || !request_data || request_len == 0)
     {
-        send_error(client_socket, 400);
+        if (client_socket)
+            send_error(client_socket, 400);
+        return 1;
+    }
+
+    // Check if socket is still valid
+    if (uv_is_closing((uv_handle_t *)client_socket))
+    {
         return 1;
     }
 

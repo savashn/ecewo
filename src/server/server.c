@@ -19,7 +19,7 @@ typedef struct
     uv_tcp_t handle;
     uv_buf_t read_buf;
     char buffer[READ_BUF_SIZE];
-    int closing; // Flag to track if client is being closed
+    volatile int closing; // Flag to track if client is being closed
 } client_t;
 
 // Global variables for graceful shutdown
@@ -42,54 +42,70 @@ void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
 {
     (void)suggested_size;
     client_t *client = (client_t *)handle->data;
-    if (client && !client->closing)
-    {
-        *buf = client->read_buf;
-    }
-    else
+
+    // More defensive checks
+    if (!client || client->closing || shutdown_requested)
     {
         buf->base = NULL;
         buf->len = 0;
+        return;
     }
+
+    *buf = client->read_buf;
 }
 
 // Called when the connection is closed; frees the client struct.
 void on_client_closed(uv_handle_t *handle)
 {
-    if (handle && handle->data)
+    if (!handle)
+        return;
+
+    client_t *client = (client_t *)handle->data;
+    if (client)
     {
-        client_t *client = (client_t *)handle->data;
         __sync_fetch_and_sub(&active_connections, 1);
+        handle->data = NULL; // Clear the pointer first
         free(client);
-        handle->data = NULL;
     }
 }
 
-// Safe client close function
+// Safe client close function - improved version
 void safe_close_client(client_t *client)
 {
-    if (!client || client->closing)
+    if (!client)
         return;
 
-    client->closing = 1;
-
-    // Stop reading first to prevent new data from being processed
-    int read_result = uv_read_stop((uv_stream_t *)&client->handle);
-    if (read_result != 0)
+    // Use atomic operation to prevent race conditions
+    if (__sync_bool_compare_and_swap(&client->closing, 0, 1))
     {
-        fprintf(stderr, "Error stopping read: %s\n", uv_strerror(read_result));
-    }
+        // Only the first thread to set closing=1 will execute this block
 
-    // Then close the handle if it's not already closing
-    if (!uv_is_closing((uv_handle_t *)&client->handle))
-    {
-        uv_close((uv_handle_t *)&client->handle, on_client_closed);
+        // Stop reading first to prevent new data from being processed
+        int read_result = uv_read_stop((uv_stream_t *)&client->handle);
+        if (read_result != 0 && read_result != UV_EINVAL)
+        {
+            fprintf(stderr, "Error stopping read: %s\n", uv_strerror(read_result));
+        }
+
+        // Then close the handle if it's not already closing
+        if (!uv_is_closing((uv_handle_t *)&client->handle))
+        {
+            uv_close((uv_handle_t *)&client->handle, on_client_closed);
+        }
+        else
+        {
+            // If handle is already closing, we still need to decrement counter
+            __sync_fetch_and_sub(&active_connections, 1);
+        }
     }
 }
 
 // Called when data is read
 void on_read(uv_stream_t *client_stream, ssize_t nread, const uv_buf_t *buf)
 {
+    if (!client_stream || !client_stream->data)
+        return;
+
     client_t *client = (client_t *)client_stream->data;
     if (!client || client->closing)
         return;
@@ -112,7 +128,7 @@ void on_read(uv_stream_t *client_stream, ssize_t nread, const uv_buf_t *buf)
     if (nread == 0)
         return;
 
-    if (buf && buf->base)
+    if (buf && buf->base && nread > 0)
     {
         int should_close = router(&client->handle, buf->base, (size_t)nread);
         if (should_close)
@@ -139,17 +155,26 @@ void on_new_connection(uv_stream_t *server_stream, int status)
         return;
     }
 
-    client_t *client = calloc(1, sizeof(client_t));
+    client_t *client = malloc(sizeof(client_t));
     if (!client)
     {
         fprintf(stderr, "Failed to allocate client\n");
         return;
     }
 
-    memset(&client->handle, 0, sizeof(client->handle));
-    uv_tcp_init(uv_default_loop(), &client->handle);
-    client->handle.data = client;
+    memset(client, 0, sizeof(client_t));
     client->closing = 0;
+
+    // Initialize the handle
+    int init_result = uv_tcp_init(uv_default_loop(), &client->handle);
+    if (init_result != 0)
+    {
+        fprintf(stderr, "TCP init error: %s\n", uv_strerror(init_result));
+        free(client);
+        return;
+    }
+
+    client->handle.data = client;
 
     // Pre-allocate the read buffer
     client->read_buf = uv_buf_init(client->buffer, READ_BUF_SIZE);
@@ -158,8 +183,17 @@ void on_new_connection(uv_stream_t *server_stream, int status)
     {
         int enable = 1;
         uv_tcp_nodelay(&client->handle, enable);
-        uv_read_start((uv_stream_t *)&client->handle, alloc_buffer, on_read);
-        __sync_fetch_and_add(&active_connections, 1);
+
+        int read_result = uv_read_start((uv_stream_t *)&client->handle, alloc_buffer, on_read);
+        if (read_result == 0)
+        {
+            __sync_fetch_and_add(&active_connections, 1);
+        }
+        else
+        {
+            fprintf(stderr, "Read start error: %s\n", uv_strerror(read_result));
+            uv_close((uv_handle_t *)&client->handle, on_client_closed);
+        }
     }
     else
     {
@@ -183,7 +217,7 @@ void on_server_closed(uv_handle_t *handle)
 // Called when a signal handler is closed
 void on_signal_closed(uv_handle_t *handle)
 {
-    signal_handlers_closed++;
+    __sync_fetch_and_add(&signal_handlers_closed, 1);
     if (handle == (uv_handle_t *)&sigint_handle)
         printf("SIGINT handler closed\n");
 #ifndef _WIN32
@@ -209,27 +243,27 @@ void on_timer_closed(uv_handle_t *handle)
 void walk_callback(uv_handle_t *handle, void *arg)
 {
     (void)arg;
-    if (!uv_is_closing(handle))
+    if (uv_is_closing(handle))
+        return;
+
+    if (handle->type == UV_TCP && global_server && handle != (uv_handle_t *)global_server)
     {
-        if (handle->type == UV_TCP && global_server && handle != (uv_handle_t *)global_server)
+        // This is a client connection
+        client_t *client = (client_t *)handle->data;
+        if (client)
         {
-            // Safe client close
-            client_t *client = (client_t *)handle->data;
-            if (client)
-            {
-                safe_close_client(client);
-            }
+            safe_close_client(client);
         }
-        else if (handle->type == UV_TIMER)
-        {
-            fprintf(stderr, "Closing remaining timer...\n");
-            uv_close(handle, on_timer_closed);
-        }
-        else if (handle->type == UV_ASYNC)
-        {
-            fprintf(stderr, "Closing remaining async handle...\n");
-            uv_close(handle, NULL);
-        }
+    }
+    else if (handle->type == UV_TIMER)
+    {
+        fprintf(stderr, "Closing remaining timer...\n");
+        uv_close(handle, on_timer_closed);
+    }
+    else if (handle->type == UV_ASYNC)
+    {
+        fprintf(stderr, "Closing remaining async handle...\n");
+        uv_close(handle, NULL);
     }
 }
 
@@ -265,20 +299,24 @@ void graceful_shutdown()
     // First, close all client connections
     uv_walk(uv_default_loop(), walk_callback, NULL);
 
-    // Wait a bit for connections to close
+    // Wait for connections to close with better timeout handling
     int wait_iterations = 0;
-    while (active_connections > 0 && wait_iterations < 100)
+    int max_wait = 200; // Increase timeout
+
+    while (active_connections > 0 && wait_iterations < max_wait)
     {
         uv_run(uv_default_loop(), UV_RUN_NOWAIT);
         wait_iterations++;
-        if (wait_iterations % 20 == 0)
+
+        if (wait_iterations % 40 == 0) // Less frequent logging
         {
-            printf("Waiting for %d connections to close...\n", active_connections);
+            printf("Waiting for %d connections to close... (iter %d)\n",
+                   active_connections, wait_iterations);
         }
-        // Small delay to prevent busy waiting
+
         if (active_connections > 0)
         {
-            sleep_ms(10); // Wait for 10ms
+            sleep_ms(50); // Longer delay
         }
     }
 
@@ -303,6 +341,7 @@ void graceful_shutdown()
     uv_signal_stop(&sighup_handle);
 #endif
 
+    // Close signal handlers
     if (!uv_is_closing((uv_handle_t *)&sigint_handle))
         uv_close((uv_handle_t *)&sigint_handle, on_signal_closed);
 #ifndef _WIN32
@@ -359,9 +398,12 @@ void ecewo(unsigned short PORT)
         exit(1);
     }
 
+    // Initialize variables
     server_freed = 0;
     signal_handlers_closed = 0;
     active_connections = 0;
+    shutdown_requested = 0;
+
     uv_tcp_init(loop, server);
 
     // Bind the server socket to the specified port
@@ -413,13 +455,13 @@ void ecewo(unsigned short PORT)
     uv_run(loop, UV_RUN_DEFAULT);
 
     // Wait for all handles to be closed properly
-    int max_iterations = 100;
+    int max_iterations = 150;
     int iterations = 0;
     while (uv_loop_alive(loop) && iterations < max_iterations)
     {
         uv_run(loop, UV_RUN_NOWAIT);
         iterations++;
-        if (iterations % 10 == 0)
+        if (iterations % 20 == 0)
         {
             printf("Waiting for handles to close... (iteration %d)\n", iterations);
             report_open_handles(loop);
@@ -439,7 +481,7 @@ void ecewo(unsigned short PORT)
 
         // Give more time for cleanup
         iterations = 0;
-        while (uv_loop_alive(loop) && iterations < 30)
+        while (uv_loop_alive(loop) && iterations < 50)
         {
             uv_run(loop, UV_RUN_NOWAIT);
             iterations++;
