@@ -15,8 +15,15 @@ static void write_completion_cb(uv_write_t *req, int status)
         fprintf(stderr, "Write error: %s\n", uv_strerror(status));
     }
     write_req_t *write_req = (write_req_t *)req;
-    free(write_req->data);
-    free(write_req);
+    if (write_req)
+    {
+        if (write_req->data)
+        {
+            free(write_req->data);
+            write_req->data = NULL;
+        }
+        free(write_req);
+    }
 }
 
 // Sends error responses (400 or 500)
@@ -452,6 +459,19 @@ static int populate_req_from_context(Req *req, http_context_t *context, const ch
 // Composes and sends the response (headers + body)
 void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len)
 {
+    // Check if client socket is still valid and not closing
+    if (!res || !res->client_socket || uv_is_closing((uv_handle_t *)res->client_socket))
+    {
+        return;
+    }
+
+    // Check if the handle is still readable/writable
+    if (!uv_is_readable((uv_stream_t *)res->client_socket) ||
+        !uv_is_writable((uv_stream_t *)res->client_socket))
+    {
+        return;
+    }
+
     // Calculate total size of custom headers
     size_t headers_size = 0;
     for (int i = 0; i < res->header_count; i++)
@@ -535,6 +555,14 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     write_req->data = response;
     write_req->buf = uv_buf_init(response, (unsigned int)total_len);
 
+    // Double-check before writing
+    if (uv_is_closing((uv_handle_t *)res->client_socket))
+    {
+        free(response);
+        free(write_req);
+        return;
+    }
+
     int result = uv_write(&write_req->req, (uv_stream_t *)res->client_socket, &write_req->buf, 1, write_completion_cb);
     if (result < 0)
     {
@@ -590,6 +618,15 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
         return 1;
     }
 
+    if (!path)
+    {
+        send_error(client_socket, 400);
+        destroy_http_context(ctx);
+        destroy_req(req);
+        destroy_res(res);
+        return 1;
+    }
+
     // Parse query parameters
     parse_query(query, &ctx->query_params);
 
@@ -609,9 +646,31 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
 
     // Find matching route
     bool route_found = false;
+    if (!routes || route_count == 0)
+    {
+        cors_add_headers(ctx, res);
+        const char *not_found_msg = "404 Not Found";
+        reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
+        int should_close = !res->keep_alive;
+        destroy_http_context(ctx);
+        destroy_req(req);
+        destroy_res(res);
+        return should_close;
+    }
+
+    // Method NULL check
+    if (!ctx->method)
+    {
+        send_error(client_socket, 400);
+        destroy_http_context(ctx);
+        destroy_req(req);
+        destroy_res(res);
+        return 1;
+    }
+
     for (size_t i = 0; i < route_count; i++)
     {
-        if (strcasecmp(ctx->method, routes[i].method) != 0)
+        if (!ctx->method || !routes[i].method || strcasecmp(ctx->method, routes[i].method) != 0)
             continue;
         if (!matcher(path, routes[i].path))
             continue;
@@ -623,6 +682,16 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
 
         // Populate request from context
         if (populate_req_from_context(req, ctx, path) != 0)
+        {
+            send_error(client_socket, 500);
+            destroy_http_context(ctx);
+            destroy_req(req);
+            destroy_res(res);
+            return 1;
+        }
+
+        // Handler NULL check
+        if (!routes[i].handler)
         {
             send_error(client_socket, 500);
             destroy_http_context(ctx);

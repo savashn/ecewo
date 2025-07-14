@@ -2,6 +2,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#ifdef _WIN32
+#include <windows.h>
+#define sleep_ms(ms) Sleep(ms)
+#else
+#include <unistd.h>
+#define sleep_ms(ms) usleep((ms) * 1000)
+#endif
 #include "router.h"
 #include "uv.h"
 
@@ -27,7 +34,6 @@ static uv_signal_t sighup_handle;
 #endif
 static volatile int shutdown_requested = 0;
 static volatile int server_freed = 0;
-static volatile int shutdown_in_progress = 0;
 static volatile int active_connections = 0;
 static volatile int signal_handlers_closed = 0;
 
@@ -44,20 +50,6 @@ void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
     {
         buf->base = NULL;
         buf->len = 0;
-    }
-}
-
-// Called after writing is complete; only frees the buffer.
-void on_write_end(uv_write_t *req, int status)
-{
-    if (status)
-        fprintf(stderr, "Write error: %s\n", uv_strerror(status));
-
-    write_req_t *wr = (write_req_t *)req;
-    if (wr)
-    {
-        free(wr->data);
-        free(wr);
     }
 }
 
@@ -81,10 +73,14 @@ void safe_close_client(client_t *client)
 
     client->closing = 1;
 
-    // Stop reading first
-    uv_read_stop((uv_stream_t *)&client->handle);
+    // Stop reading first to prevent new data from being processed
+    int read_result = uv_read_stop((uv_stream_t *)&client->handle);
+    if (read_result != 0)
+    {
+        fprintf(stderr, "Error stopping read: %s\n", uv_strerror(read_result));
+    }
 
-    // Then close the handle
+    // Then close the handle if it's not already closing
     if (!uv_is_closing((uv_handle_t *)&client->handle))
     {
         uv_close((uv_handle_t *)&client->handle, on_client_closed);
@@ -259,11 +255,10 @@ void report_open_handles(uv_loop_t *loop)
 // Graceful shutdown procedure
 void graceful_shutdown()
 {
-    if (shutdown_requested || shutdown_in_progress)
+    if (shutdown_requested)
         return;
 
     shutdown_requested = 1;
-    shutdown_in_progress = 1;
     printf("\nShutdown signal received. Shutting down gracefully...\n");
     printf("Active connections: %d\n", active_connections);
 
@@ -272,14 +267,24 @@ void graceful_shutdown()
 
     // Wait a bit for connections to close
     int wait_iterations = 0;
-    while (active_connections > 0 && wait_iterations < 50)
+    while (active_connections > 0 && wait_iterations < 100)
     {
         uv_run(uv_default_loop(), UV_RUN_NOWAIT);
         wait_iterations++;
-        if (wait_iterations % 10 == 0)
+        if (wait_iterations % 20 == 0)
         {
             printf("Waiting for %d connections to close...\n", active_connections);
         }
+        // Small delay to prevent busy waiting
+        if (active_connections > 0)
+        {
+            sleep_ms(10); // Wait for 10ms
+        }
+    }
+
+    if (active_connections > 0)
+    {
+        printf("Warning: %d connections still active after timeout\n", active_connections);
     }
 
     // Then close the server
