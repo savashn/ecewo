@@ -23,6 +23,8 @@ static void write_completion_cb(uv_write_t *req, int status)
             free(write_req->data);
             write_req->data = NULL;
         }
+
+        memset(write_req, 0, sizeof(write_req_t));
         free(write_req);
     }
 }
@@ -30,29 +32,39 @@ static void write_completion_cb(uv_write_t *req, int status)
 // Sends error responses (400 or 500)
 static void send_error(uv_tcp_t *client_socket, int error_code)
 {
-    const char *err = NULL;
-    if (error_code == 500)
-    {
-        err = "HTTP/1.1 500 Internal Server Error\r\n"
-              "Content-Type: text/plain\r\n"
-              "Content-Length: 21\r\n"
-              "Connection: close\r\n"
-              "\r\n"
-              "Internal Server Error";
-    }
-    else if (error_code == 400)
-    {
-        err = "HTTP/1.1 400 Bad Request\r\n"
-              "Content-Type: text/plain\r\n"
-              "Content-Length: 11\r\n"
-              "Connection: close\r\n"
-              "\r\n"
-              "Bad Request";
-    }
-    else
-    {
+    if (!client_socket)
         return;
-    }
+
+    // Handle status check
+    if (uv_is_closing((uv_handle_t *)client_socket))
+        return;
+
+    // Stream status check
+    if (!uv_is_readable((uv_stream_t *)client_socket) ||
+        !uv_is_writable((uv_stream_t *)client_socket))
+        return;
+
+    const char *err = NULL;
+    const char *err_500 = "HTTP/1.1 500 Internal Server Error\r\n"
+                          "Content-Type: text/plain\r\n"
+                          "Content-Length: 21\r\n"
+                          "Connection: close\r\n"
+                          "\r\n"
+                          "Internal Server Error";
+
+    const char *err_400 = "HTTP/1.1 400 Bad Request\r\n"
+                          "Content-Type: text/plain\r\n"
+                          "Content-Length: 11\r\n"
+                          "Connection: close\r\n"
+                          "\r\n"
+                          "Bad Request";
+
+    if (error_code == 500)
+        err = err_500;
+    else if (error_code == 400)
+        err = err_400;
+    else
+        return;
 
     write_req_t *write_req = malloc(sizeof(write_req_t));
     if (!write_req)
@@ -65,11 +77,23 @@ static void send_error(uv_tcp_t *client_socket, int error_code)
         free(write_req);
         return;
     }
-    memcpy(response, err, len + 1);
+
+    memcpy(response, err, len);
+    response[len] = '\0';
+
+    memset(write_req, 0, sizeof(write_req_t));
     write_req->data = response;
     write_req->buf = uv_buf_init(response, (unsigned int)len);
 
-    int res = uv_write(&write_req->req, (uv_stream_t *)client_socket, &write_req->buf, 1, write_completion_cb);
+    if (uv_is_closing((uv_handle_t *)client_socket))
+    {
+        free(response);
+        free(write_req);
+        return;
+    }
+
+    int res = uv_write(&write_req->req, (uv_stream_t *)client_socket,
+                       &write_req->buf, 1, write_completion_cb);
     if (res < 0)
     {
         fprintf(stderr, "Write error: %s\n", uv_strerror(res));
@@ -498,7 +522,10 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     // Allocate and fill entire header string
     char *all_headers = malloc(headers_size + 1);
     if (!all_headers)
+    {
+        send_error(res->client_socket, 500);
         return;
+    }
 
     size_t pos = 0;
     for (int i = 0; i < res->header_count; i++)
@@ -507,9 +534,15 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         {
             int n = snprintf(all_headers + pos, headers_size - pos + 1,
                              "%s: %s\r\n", res->headers[i].name, res->headers[i].value);
-            if (n > 0 && (size_t)n < headers_size - pos + 1)
+            if (n > 0 && (size_t)n <= headers_size - pos)
             {
                 pos += n;
+            }
+            else
+            {
+                free(all_headers);
+                send_error(res->client_socket, 500);
+                return;
             }
         }
     }
@@ -533,15 +566,17 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     if (base_header_len < 0)
     {
         free(all_headers);
+        send_error(res->client_socket, 500);
         return;
     }
 
     size_t total_len = (size_t)base_header_len + body_len;
 
-    char *response = malloc(total_len);
+    char *response = malloc(total_len + 1);
     if (!response)
     {
         free(all_headers);
+        send_error(res->client_socket, 500);
         return;
     }
 
@@ -565,6 +600,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     if (written < 0 || (size_t)written > total_len)
     {
         free(response);
+        send_error(res->client_socket, 500);
         return;
     }
 
@@ -577,9 +613,11 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     if (!write_req)
     {
         free(response);
+        send_error(res->client_socket, 500);
         return;
     }
 
+    memset(write_req, 0, sizeof(write_req_t));
     write_req->data = response;
     write_req->buf = uv_buf_init(response, (unsigned int)total_len);
 
@@ -598,7 +636,11 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         fprintf(stderr, "Write error: %s\n", uv_strerror(result));
         free(response);
         free(write_req);
+        return;
     }
+
+    // Success
+    // The write_completion_cb will do the cleanup
 }
 
 // Called when a request is received
@@ -751,11 +793,8 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     // Handle 404
     if (!route_found)
     {
-        res->status = 404;
-        res->content_type = "text/plain";
         cors_add_headers(ctx, res);
-        const char *not_found_msg = "404 Not Found";
-        reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
+        reply(res, 404, "text/plain", "404 Not Found", strlen("404 Not Found"));
         int should_close = !res->keep_alive;
         destroy_http_context(ctx);
         destroy_req(req);
