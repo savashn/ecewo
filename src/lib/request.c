@@ -6,11 +6,18 @@
 // Buffer growth strategy
 #define MIN_BUFFER_SIZE 64
 #define GROWTH_FACTOR 1.5
-#define MAX_SINGLE_ALLOCATION (1024 * 1024) // 1MB limit per allocation
+#define MAX_SINGLE_ALLOCATION (10 * 1024 * 1024) // 10MB limit per allocation
+#define ABSOLUTE_MAX_REQUEST (50 * 1024 * 1024)  // 50MB absolute limit
 
 // Calculate next buffer size with optimized growth
 static size_t calculate_next_size(size_t current, size_t needed)
 {
+    if (needed > ABSOLUTE_MAX_REQUEST)
+    {
+        fprintf(stderr, "Request too large: %zu bytes\n", needed);
+        return 0;
+    }
+
     if (needed <= current)
         return current;
 
@@ -45,11 +52,18 @@ static int ensure_buffer_capacity(char **buffer, size_t *capacity, size_t curren
     size_t total_needed = current_length + additional_needed + 1; // +1 for null terminator
 
     if (total_needed <= *capacity)
-    {
         return 0; // No reallocation needed
+
+    if (total_needed > ABSOLUTE_MAX_REQUEST)
+    {
+        fprintf(stderr, "Request exceeds maximum size: %zu bytes\n", total_needed);
+        return -2;
     }
 
     size_t new_capacity = calculate_next_size(*capacity, total_needed);
+    if (new_capacity == 0)
+        return -2;
+
     char *new_buffer = realloc(*buffer, new_capacity);
     if (!new_buffer)
     {
@@ -204,8 +218,14 @@ static int on_body_cb(llhttp_t *parser, const char *at, size_t length)
     http_context_t *context = (http_context_t *)parser->data;
 
     // Only reallocate if necessary
-    if (ensure_buffer_capacity(&context->body, &context->body_capacity,
-                               context->body_length, length) != 0)
+    int result = ensure_buffer_capacity(&context->body, &context->body_capacity,
+                                        context->body_length, length);
+
+    if (result == -2)
+    {
+        return HPE_USER;
+    }
+    else if (result != 0)
     {
         return 1;
     }
@@ -388,9 +408,7 @@ void parse_query(const char *query_string, request_t *query)
     query->items = NULL;
 
     if (!query_string || strlen(query_string) == 0)
-    {
         return;
-    }
 
     // Count parameters first to allocate once
     int param_count = 1;
@@ -416,9 +434,18 @@ void parse_query(const char *query_string, request_t *query)
         query->items[i].value = NULL;
     }
 
-    char buffer[1024];
-    strncpy(buffer, query_string, sizeof(buffer) - 1);
-    buffer[sizeof(buffer) - 1] = '\0';
+    size_t query_len = strlen(query_string);
+    char *buffer = malloc(query_len + 1);
+    if (!buffer)
+    {
+        perror("malloc query buffer");
+        free(query->items);
+        query->items = NULL;
+        query->capacity = 0;
+        return;
+    }
+
+    strcpy(buffer, query_string);
 
     char *pair = strtok(buffer, "&");
     while (pair && query->count < query->capacity)
@@ -441,6 +468,8 @@ void parse_query(const char *query_string, request_t *query)
         }
         pair = strtok(NULL, "&");
     }
+
+    free(buffer);
 }
 
 // Parameter parsing
