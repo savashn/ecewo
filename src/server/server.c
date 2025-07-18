@@ -22,6 +22,10 @@ typedef struct
     volatile int closing; // Flag to track if client is being closed
 } client_t;
 
+// Function pointers for optional pquv integration
+static int (*pquv_has_active_ops_fn)(void) = NULL;
+static int (*pquv_get_active_count_fn)(void) = NULL;
+
 // Global variables for graceful shutdown
 static uv_tcp_t *global_server = NULL;
 static uv_signal_t sigint_handle;
@@ -38,6 +42,24 @@ static volatile int active_connections = 0;
 static volatile int signal_handlers_closed = 0;
 
 static void (*app_shutdown_hook)(void) = NULL;
+
+// Register optional pquv functions
+void register_pquv(int (*has_active_ops)(void), int (*get_active_count)(void))
+{
+    pquv_has_active_ops_fn = has_active_ops;
+    pquv_get_active_count_fn = get_active_count;
+}
+
+// Safe wrappers for pquv functions
+static inline int has_pquv_active_operations(void)
+{
+    return pquv_has_active_ops_fn ? pquv_has_active_ops_fn() : 0;
+}
+
+static inline int get_pquv_active_count(void)
+{
+    return pquv_get_active_count_fn ? pquv_get_active_count_fn() : 0;
+}
 
 void shutdown_hook(void (*hook)(void))
 {
@@ -326,6 +348,16 @@ void close_remaining_handles(uv_handle_t *handle, void *arg)
     uv_close(handle, NULL);
 }
 
+// Timeout callback for graceful shutdown
+void shutdown_timeout_cb(uv_timer_t *handle)
+{
+    (void)handle;
+    printf("Shutdown timeout reached, forcing exit...\n");
+
+    // Force close remaining handles
+    uv_walk(uv_default_loop(), close_remaining_handles, NULL);
+}
+
 // Graceful shutdown procedure
 void graceful_shutdown()
 {
@@ -371,7 +403,7 @@ void graceful_shutdown()
     while (uv_loop_alive(uv_default_loop()) && wait_cycles < 300) // 30 seconds max
     {
         // Check if shutdown conditions are met
-        if (active_connections == 0 && !pquv_has_active_operations())
+        if (active_connections == 0 && !has_pquv_active_operations())
         {
             printf("All operations completed, finishing shutdown...\n");
             break;
@@ -379,8 +411,16 @@ void graceful_shutdown()
 
         if (wait_cycles % 50 == 0 && wait_cycles > 0) // Every 5 seconds
         {
-            printf("Waiting for shutdown: %d connections, %d async ops\n",
-                   active_connections, pquv_get_active_count());
+            int pquv_count = get_pquv_active_count();
+            if (pquv_get_active_count_fn)
+            {
+                printf("Waiting for shutdown: %d connections, %d async ops\n",
+                       active_connections, pquv_count);
+            }
+            else
+            {
+                printf("Waiting for shutdown: %d connections\n", active_connections);
+            }
             report_open_handles(uv_default_loop());
         }
 
