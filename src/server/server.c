@@ -37,6 +37,13 @@ static volatile int server_freed = 0;
 static volatile int active_connections = 0;
 static volatile int signal_handlers_closed = 0;
 
+static void (*app_shutdown_hook)(void) = NULL;
+
+void shutdown_hook(void (*hook)(void))
+{
+    app_shutdown_hook = hook;
+}
+
 // Allocation callback: returns the preallocated buffer for each connection.
 void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
 {
@@ -295,6 +302,9 @@ void graceful_shutdown()
     shutdown_requested = 1;
     printf("\nShutdown signal received. Shutting down gracefully...\n");
     printf("Active connections: %d\n", active_connections);
+
+    if (app_shutdown_hook)
+        app_shutdown_hook();
 
     // First, close all client connections
     uv_walk(uv_default_loop(), walk_callback, NULL);
