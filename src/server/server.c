@@ -345,7 +345,15 @@ void close_remaining_handles(uv_handle_t *handle, void *arg)
         break;
     }
 
-    uv_close(handle, NULL);
+    // Close the handle with proper callback for signals
+    if (handle->type == UV_SIGNAL)
+    {
+        uv_close(handle, on_signal_closed);
+    }
+    else
+    {
+        uv_close(handle, NULL);
+    }
 }
 
 // Timeout callback for graceful shutdown
@@ -379,14 +387,33 @@ void graceful_shutdown()
         app_shutdown_hook();
     }
 
-    // Stop signal handlers
+    // Stop and CLOSE signal handlers
     uv_signal_stop(&sigint_handle);
+    if (!uv_is_closing((uv_handle_t *)&sigint_handle))
+    {
+        uv_close((uv_handle_t *)&sigint_handle, on_signal_closed);
+    }
+
 #ifndef _WIN32
     uv_signal_stop(&sigterm_handle);
+    if (!uv_is_closing((uv_handle_t *)&sigterm_handle))
+    {
+        uv_close((uv_handle_t *)&sigterm_handle, on_signal_closed);
+    }
 #endif
+
 #ifdef _WIN32
     uv_signal_stop(&sigbreak_handle);
+    if (!uv_is_closing((uv_handle_t *)&sigbreak_handle))
+    {
+        uv_close((uv_handle_t *)&sigbreak_handle, on_signal_closed);
+    }
+
     uv_signal_stop(&sighup_handle);
+    if (!uv_is_closing((uv_handle_t *)&sighup_handle))
+    {
+        uv_close((uv_handle_t *)&sighup_handle, on_signal_closed);
+    }
 #endif
 
     // Close client connections
