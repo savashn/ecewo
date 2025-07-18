@@ -12,7 +12,7 @@
 #include "router.h"
 #include "uv.h"
 
-#define READ_BUF_SIZE 4096 // 4 KB read buffer
+#define READ_BUF_SIZE 8192
 
 typedef struct
 {
@@ -212,7 +212,6 @@ void on_new_connection(uv_stream_t *server_stream, int status)
 void on_server_closed(uv_handle_t *handle)
 {
     (void)handle;
-    printf("Server closed successfully\n");
     if (global_server && !server_freed)
     {
         free(global_server);
@@ -225,18 +224,6 @@ void on_server_closed(uv_handle_t *handle)
 void on_signal_closed(uv_handle_t *handle)
 {
     __sync_fetch_and_add(&signal_handlers_closed, 1);
-    if (handle == (uv_handle_t *)&sigint_handle)
-        printf("SIGINT handler closed\n");
-#ifndef _WIN32
-    else if (handle == (uv_handle_t *)&sigterm_handle)
-        printf("SIGTERM handler closed\n");
-#endif
-#ifdef _WIN32
-    else if (handle == (uv_handle_t *)&sigbreak_handle)
-        printf("SIGBREAK handler closed\n");
-    else if (handle == (uv_handle_t *)&sighup_handle)
-        printf("SIGHUP handler closed\n");
-#endif
 }
 
 // Timer close callback
@@ -272,6 +259,11 @@ void walk_callback(uv_handle_t *handle, void *arg)
         fprintf(stderr, "Closing remaining async handle...\n");
         uv_close(handle, NULL);
     }
+    else if (handle->type == UV_POLL)
+    {
+        fprintf(stderr, "Closing UV_POLL handle...\n");
+        uv_close(handle, NULL);
+    }
 }
 
 // DEBUG
@@ -290,7 +282,8 @@ void report_open_handles(uv_loop_t *loop)
 {
     int count = 0;
     uv_walk(loop, count_handles, &count);
-    fprintf(stderr, ">>> %d handle(s) still open\n", count);
+    if (count > 0)
+        fprintf(stderr, ">>> %d handle(s) still open\n", count);
 }
 
 // Graceful shutdown procedure
@@ -300,8 +293,6 @@ void graceful_shutdown()
         return;
 
     shutdown_requested = 1;
-    printf("\nShutdown signal received. Shutting down gracefully...\n");
-    printf("Active connections: %d\n", active_connections);
 
     if (app_shutdown_hook)
         app_shutdown_hook();
@@ -364,8 +355,6 @@ void graceful_shutdown()
     if (!uv_is_closing((uv_handle_t *)&sighup_handle))
         uv_close((uv_handle_t *)&sighup_handle, on_signal_closed);
 #endif
-
-    report_open_handles(uv_default_loop());
 }
 
 // Signal callback: triggered when signals are received
@@ -477,8 +466,6 @@ void ecewo(unsigned short PORT)
             report_open_handles(loop);
         }
     }
-
-    report_open_handles(loop);
 
     // Try to close the loop
     int close_result = uv_loop_close(loop);
