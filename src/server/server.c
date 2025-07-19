@@ -261,6 +261,18 @@ void on_signal_closed(uv_handle_t *handle)
         return;
     }
 
+    // Prevent double-counting with atomic operation
+    static volatile int close_call_count = 0;
+    int current_count = __sync_fetch_and_add(&close_call_count, 1) + 1;
+
+    // Don't count beyond initialized handlers
+    if (current_count > signal_handlers_initialized)
+    {
+        printf("WARNING: Signal handler closed callback called too many times (%d/%d)\n",
+               current_count, signal_handlers_initialized);
+        return;
+    }
+
     int closed_count = __sync_fetch_and_add(&signal_handlers_closed, 1) + 1;
     printf("Signal handler closed (%d/%d)\n", closed_count, signal_handlers_initialized);
 
@@ -447,6 +459,15 @@ void graceful_shutdown()
         }
 
         printf("=== GRACEFUL SHUTDOWN COMPLETED ===\n");
+
+        sigint_handle.signal_cb = NULL;
+#ifndef _WIN32
+        sigterm_handle.signal_cb = NULL;
+#endif
+#ifdef _WIN32
+        sigbreak_handle.signal_cb = NULL;
+        sighup_handle.signal_cb = NULL;
+#endif
     }
     else
     {
