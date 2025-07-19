@@ -251,17 +251,29 @@ void walk_callback(uv_handle_t *handle, void *arg)
     }
     else if (handle->type == UV_TIMER)
     {
-        fprintf(stderr, "Closing remaining timer...\n");
+        fprintf(stderr, "Closing remaining timer handle...\n");
+        uv_timer_stop((uv_timer_t *)handle);
         uv_close(handle, on_timer_closed);
+    }
+    else if (handle->type == UV_POLL)
+    {
+        fprintf(stderr, "Closing UV_POLL handle...\n");
+        uv_poll_stop((uv_poll_t *)handle);
+        uv_close(handle, NULL);
     }
     else if (handle->type == UV_ASYNC)
     {
         fprintf(stderr, "Closing remaining async handle...\n");
         uv_close(handle, NULL);
     }
-    else if (handle->type == UV_POLL)
+    else if (handle->type == UV_SIGNAL)
     {
-        fprintf(stderr, "Closing UV_POLL handle...\n");
+        fprintf(stderr, "Closing remaining signal handle...\n");
+        // Don't close signal handles here - they're handled separately
+    }
+    else
+    {
+        fprintf(stderr, "Closing unknown handle type: %s\n", uv_handle_type_name(handle->type));
         uv_close(handle, NULL);
     }
 }
