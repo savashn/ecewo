@@ -278,8 +278,21 @@ void force_close_callback(uv_handle_t *handle, void *arg)
 void on_signal_closed(uv_handle_t *handle)
 {
     (void)handle;
-    __sync_fetch_and_add(&signal_handlers_closed, 1);
+    int closed_count = __sync_fetch_and_add(&signal_handlers_closed, 1) + 1;
     printf("Signal handler closed\n");
+
+    // Stop the main loop when all signal handlers are closed
+#ifdef _WIN32
+    int expected_signals = 3; // SIGINT, SIGBREAK, SIGHUP
+#else
+    int expected_signals = 2; // SIGINT, SIGTERM
+#endif
+
+    if (closed_count >= expected_signals && shutdown_requested)
+    {
+        printf("All signal handlers closed, stopping main loop\n");
+        uv_stop(uv_default_loop());
+    }
 }
 
 void graceful_shutdown()
@@ -412,6 +425,10 @@ void graceful_shutdown()
         sleep_ms(10);
     }
 
+    // 10. Stop the main loop to ensure clean exit
+    printf("Stopping main event loop\n");
+    uv_stop(uv_default_loop());
+
     printf("=== GRACEFUL SHUTDOWN COMPLETED ===\n");
 }
 
@@ -441,6 +458,8 @@ static void debug_walk_callback(uv_handle_t *handle, void *arg)
 
 void ecewo(unsigned short PORT)
 {
+    printf("Main loop starting with UV_RUN_DEFAULT\n");
+
     uv_loop_t *loop = uv_default_loop();
     uv_tcp_t *server = malloc(sizeof(*server));
     if (!server)
@@ -500,7 +519,7 @@ void ecewo(unsigned short PORT)
     // Main event loop
     uv_run(loop, UV_RUN_DEFAULT);
 
-    printf("Main loop exited, performing final cleanup...\n");
+    printf("UV_RUN_DEFAULT returned, main loop exited\n");
 
     // Simple final cleanup
     int iterations = 0;
