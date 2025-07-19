@@ -232,7 +232,41 @@ void walk_callback(uv_handle_t *handle, void *arg)
     }
 }
 
-// BASIT graceful shutdown with PQUV support
+void force_close_callback(uv_handle_t *handle, void *arg)
+{
+    (void)arg;
+    if (uv_is_closing(handle))
+        return;
+
+    switch (handle->type)
+    {
+    case UV_TCP:
+        if (global_server && handle != (uv_handle_t *)global_server)
+        {
+            client_t *client = (client_t *)handle->data;
+            if (client)
+            {
+                safe_close_client(client);
+            }
+        }
+        break;
+    case UV_TIMER:
+    case UV_POLL:
+    case UV_ASYNC:
+    case UV_IDLE:
+    case UV_PREPARE:
+    case UV_CHECK:
+    case UV_SIGNAL:
+        printf("Force closing handle type: %d\n", handle->type);
+        uv_close(handle, NULL);
+        break;
+    default:
+        printf("Unknown handle type: %d\n", handle->type);
+        uv_close(handle, NULL);
+        break;
+    }
+}
+
 void graceful_shutdown()
 {
     if (shutdown_requested)
@@ -241,37 +275,51 @@ void graceful_shutdown()
     shutdown_requested = 1;
     printf("=== GRACEFUL SHUTDOWN INITIATED ===\n");
 
-    // 1. Close server to prevent new connections
+    // Close server to prevent new connections
     if (global_server && !uv_is_closing((uv_handle_t *)global_server))
     {
         printf("Closing server to stop new connections...\n");
         uv_close((uv_handle_t *)global_server, on_server_closed);
     }
 
-    // 2. Call app shutdown hook early (includes database shutdown)
+    // Close all client connections FIRST
+    printf("Closing client connections...\n");
+    uv_walk(uv_default_loop(), walk_callback, NULL);
+
+    // Wait for client connections to close before database cleanup
+    printf("Waiting for client connections to close...\n");
+    int wait_iterations = 0;
+    int max_wait = 100; // 5 seconds for clients
+
+    while (wait_iterations < max_wait && active_connections > 0)
+    {
+        uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+        wait_iterations++;
+        if (wait_iterations % 20 == 0)
+        {
+            printf("Waiting for %d client connections...\n", active_connections);
+        }
+        sleep_ms(50);
+    }
+
+    // NOW call app shutdown hook (database cleanup)
     if (app_shutdown_hook)
     {
         printf("Calling application shutdown hook...\n");
         app_shutdown_hook();
     }
 
-    // 3. Close all client connections
-    printf("Closing client connections...\n");
-    uv_walk(uv_default_loop(), walk_callback, NULL);
-
-    // 4. Wait for connections AND database operations to close
-    printf("Waiting for connections and database operations to complete...\n");
-    int wait_iterations = 0;
-    int max_wait = 200; // 10 seconds max
+    // Wait for database operations to complete
+    printf("Waiting for database operations to complete...\n");
+    wait_iterations = 0;
+    max_wait = 200; // 10 seconds max
 
     while (wait_iterations < max_wait)
     {
-        int connections = active_connections;
         int pquv_active = has_pquv_active_operations();
         int pquv_count = get_pquv_active_count();
 
-        // Check if shutdown conditions are met
-        if (connections == 0 && !pquv_active)
+        if (!pquv_active && active_connections == 0)
         {
             printf("All operations completed, finishing shutdown...\n");
             break;
@@ -282,31 +330,32 @@ void graceful_shutdown()
             if (pquv_get_active_count_fn)
             {
                 printf("Waiting: %d connections, %d database operations\n",
-                       connections, pquv_count);
+                       active_connections, pquv_count);
             }
             else
             {
-                printf("Waiting: %d connections\n", connections);
+                printf("Waiting: %d connections\n", active_connections);
             }
         }
 
         uv_run(uv_default_loop(), UV_RUN_NOWAIT);
         wait_iterations++;
-
-        if (connections > 0 || pquv_active)
-        {
-            sleep_ms(50);
-        }
+        sleep_ms(50);
     }
 
-    if (active_connections > 0 || has_pquv_active_operations())
+    // Force close any remaining handles
+    printf("Final handle cleanup...\n");
+    uv_walk(uv_default_loop(), force_close_callback, NULL);
+
+    // Run a few more cycles to process the closes
+    for (int i = 0; i < 50; i++)
     {
-        printf("Warning: Some operations did not complete within timeout\n");
-        printf("Active connections: %d, PQUV operations: %d\n",
-               active_connections, get_pquv_active_count());
+        if (!uv_loop_alive(uv_default_loop()))
+            break;
+        uv_run(uv_default_loop(), UV_RUN_NOWAIT);
     }
 
-    // 5. Stop and close signal handlers
+    // Stop and close signal handlers
     printf("Closing signal handlers...\n");
     uv_signal_stop(&sigint_handle);
     uv_close((uv_handle_t *)&sigint_handle, NULL);
