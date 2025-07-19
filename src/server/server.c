@@ -253,12 +253,19 @@ void force_close_callback(uv_handle_t *handle, void *arg)
 
 void on_signal_closed(uv_handle_t *handle)
 {
-    (void)handle;
+    // Verify this is actually a signal handle
+    if (!handle || handle->type != UV_SIGNAL)
+    {
+        printf("WARNING: on_signal_closed called for non-signal handle (type=%d)\n",
+               handle ? handle->type : -1);
+        return;
+    }
+
     int closed_count = __sync_fetch_and_add(&signal_handlers_closed, 1) + 1;
     printf("Signal handler closed (%d/%d)\n", closed_count, signal_handlers_initialized);
 
     // Stop the main loop when all signal handlers are closed
-    if (closed_count >= signal_handlers_initialized && shutdown_requested)
+    if (closed_count == signal_handlers_initialized && shutdown_requested)
     {
         printf("All signal handlers closed, stopping main loop\n");
         uv_stop(uv_default_loop());
@@ -341,30 +348,68 @@ void graceful_shutdown()
 
         // 6. Stop and close signal handlers PROPERLY
         printf("Closing signal handlers...\n");
+        signal_handlers_closed = 0; // Reset counter
 
-        // Stop all signal handlers first
-        uv_signal_stop(&sigint_handle);
+        // Stop all signal handlers first - this prevents new signals from being handled
+        if (uv_is_active((uv_handle_t *)&sigint_handle))
+        {
+            uv_signal_stop(&sigint_handle);
+        }
 #ifndef _WIN32
-        uv_signal_stop(&sigterm_handle);
+        if (uv_is_active((uv_handle_t *)&sigterm_handle))
+        {
+            uv_signal_stop(&sigterm_handle);
+        }
 #endif
 #ifdef _WIN32
-        uv_signal_stop(&sigbreak_handle);
-        uv_signal_stop(&sighup_handle);
+        if (uv_is_active((uv_handle_t *)&sigbreak_handle))
+        {
+            uv_signal_stop(&sigbreak_handle);
+        }
+        if (uv_is_active((uv_handle_t *)&sighup_handle))
+        {
+            uv_signal_stop(&sighup_handle);
+        }
 #endif
 
-        // Then close them
+        // Then close them - only if not already closing
         if (!uv_is_closing((uv_handle_t *)&sigint_handle))
+        {
             uv_close((uv_handle_t *)&sigint_handle, on_signal_closed);
+        }
+        else
+        {
+            signal_handlers_closed++;
+        }
 
 #ifndef _WIN32
         if (!uv_is_closing((uv_handle_t *)&sigterm_handle))
+        {
             uv_close((uv_handle_t *)&sigterm_handle, on_signal_closed);
+        }
+        else
+        {
+            signal_handlers_closed++;
+        }
 #endif
 #ifdef _WIN32
         if (!uv_is_closing((uv_handle_t *)&sigbreak_handle))
+        {
             uv_close((uv_handle_t *)&sigbreak_handle, on_signal_closed);
+        }
+        else
+        {
+            signal_handlers_closed++;
+        }
+
         if (!uv_is_closing((uv_handle_t *)&sighup_handle))
+        {
             uv_close((uv_handle_t *)&sighup_handle, on_signal_closed);
+        }
+        else
+        {
+            signal_handlers_closed++;
+        }
 #endif
 
         // 7. Wait for signal handlers to close
@@ -384,14 +429,21 @@ void graceful_shutdown()
             sleep_ms(50);
         }
 
-        // 8. Final cleanup
+        // 8. Final cleanup - don't run forever
         printf("Final handle cleanup...\n");
 
-        // Run event loop until no more active handles
-        while (uv_loop_alive(uv_default_loop()))
+        // Run event loop until no more active handles, but with a limit
+        int cleanup_iterations = 0;
+        while (uv_loop_alive(uv_default_loop()) && cleanup_iterations < 100)
         {
             uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+            cleanup_iterations++;
             sleep_ms(10);
+        }
+
+        if (cleanup_iterations >= 100)
+        {
+            printf("WARNING: Cleanup timeout reached after %d iterations\n", cleanup_iterations);
         }
 
         printf("=== GRACEFUL SHUTDOWN COMPLETED ===\n");
@@ -405,6 +457,14 @@ void graceful_shutdown()
 void signal_handler(uv_signal_t *handle, int signum)
 {
     (void)handle;
+
+    // Prevent multiple signal handling during shutdown
+    if (shutdown_requested)
+    {
+        printf("Signal %d received but shutdown already in progress\n", signum);
+        return;
+    }
+
     printf("\nReceived signal %d, shutting down gracefully...\n", signum);
     graceful_shutdown();
 }
@@ -420,10 +480,20 @@ static void debug_walk_callback(uv_handle_t *handle, void *arg)
 
     const char *type_name = (handle->type < 18) ? handle_type_names[handle->type] : "UNKNOWN";
 
-    printf("Remaining handle: type=%d (%s), closing=%s, data=%p\n",
+    printf("Remaining handle: type=%d (%s), closing=%s, active=%s, data=%p",
            handle->type, type_name,
            uv_is_closing(handle) ? "yes" : "no",
+           uv_is_active(handle) ? "yes" : "no",
            handle->data);
+
+    // Special info for signal handles
+    if (handle->type == UV_SIGNAL)
+    {
+        uv_signal_t *sig = (uv_signal_t *)handle;
+        printf(", signum=%d", sig->signum);
+    }
+
+    printf("\n");
 }
 
 void ecewo(unsigned short PORT)
