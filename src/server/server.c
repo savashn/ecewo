@@ -32,10 +32,10 @@ static uv_signal_t sigterm_handle;
 static uv_signal_t sigbreak_handle;
 static uv_signal_t sighup_handle;
 #endif
-static volatile int shutdown_requested = 0;
 static volatile int server_freed = 0;
 static volatile int active_connections = 0;
 static volatile int signal_handlers_closed = 0;
+volatile int shutdown_requested = 0;
 
 static void (*app_shutdown_hook)(void) = NULL;
 
@@ -251,13 +251,14 @@ void walk_callback(uv_handle_t *handle, void *arg)
     }
     else if (handle->type == UV_TIMER)
     {
-        fprintf(stderr, "Closing remaining timer handle...\n");
+        // PQUV timer handles - force stop and close
+        fprintf(stderr, "Closing PQUV timer handle...\n");
         uv_timer_stop((uv_timer_t *)handle);
         uv_close(handle, on_timer_closed);
     }
     else if (handle->type == UV_POLL)
     {
-        fprintf(stderr, "Closing UV_POLL handle...\n");
+        fprintf(stderr, "Closing UV_POLL handle (likely PQUV)...\n");
         uv_poll_stop((uv_poll_t *)handle);
         uv_close(handle, NULL);
     }
@@ -268,8 +269,8 @@ void walk_callback(uv_handle_t *handle, void *arg)
     }
     else if (handle->type == UV_SIGNAL)
     {
-        fprintf(stderr, "Closing remaining signal handle...\n");
-        // Don't close signal handles here - they're handled separately
+        // Signal handles are managed separately - skip
+        return;
     }
     else
     {
