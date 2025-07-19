@@ -253,30 +253,35 @@ void on_signal_closed(uv_handle_t *handle)
     if (!handle)
         return;
 
-    // Identify which signal handler this is and mark as uninitialized
-    if (handle == (uv_handle_t *)&sigint_handle)
+    // More robust signal handler identification
+    const char *signal_name = "unknown";
+    if (handle == (uv_handle_t *)&sigint_handle && sigint_initialized)
     {
         sigint_initialized = 0;
+        signal_name = "SIGINT";
     }
 #ifndef _WIN32
-    else if (handle == (uv_handle_t *)&sigterm_handle)
+    else if (handle == (uv_handle_t *)&sigterm_handle && sigterm_initialized)
     {
         sigterm_initialized = 0;
+        signal_name = "SIGTERM";
     }
 #endif
 #ifdef _WIN32
-    else if (handle == (uv_handle_t *)&sigbreak_handle)
+    else if (handle == (uv_handle_t *)&sigbreak_handle && sigbreak_initialized)
     {
         sigbreak_initialized = 0;
+        signal_name = "SIGBREAK";
     }
-    else if (handle == (uv_handle_t *)&sighup_handle)
+    else if (handle == (uv_handle_t *)&sighup_handle && sighup_initialized)
     {
         sighup_initialized = 0;
+        signal_name = "SIGHUP";
     }
 #endif
 
     int current_closed = __sync_fetch_and_add(&signal_handlers_closed, 1) + 1;
-    printf("Signal handler closed (%d/%d)\n", current_closed, expected_signal_closes);
+    printf("Signal handler closed: %s (%d/%d)\n", signal_name, current_closed, expected_signal_closes);
 }
 
 // Timer close callback
@@ -348,7 +353,6 @@ void close_remaining_handles(uv_handle_t *handle, void *arg)
 
     printf("Force closing handle type: %s\n", uv_handle_type_name(handle->type));
 
-    // For specific handle types, do proper cleanup
     switch (handle->type)
     {
     case UV_TIMER:
@@ -364,48 +368,40 @@ void close_remaining_handles(uv_handle_t *handle, void *arg)
             client_t *client = (client_t *)handle->data;
             if (client && !client->closing)
             {
-                // Force close without safe_close_client to avoid races
                 client->closing = 1;
                 uv_read_stop((uv_stream_t *)handle);
             }
         }
         break;
     case UV_SIGNAL:
-        uv_signal_stop((uv_signal_t *)handle);
-        break;
+        break; // Handled in graceful shutdown
     case UV_ASYNC:
-        // Stop async handles
         break;
     default:
         break;
     }
 
-    // Close the handle - use NULL callback for force cleanup to avoid complications
     uv_close(handle, NULL);
 }
 
 // Timeout callback for graceful shutdown
 void shutdown_timeout_cb(uv_timer_t *handle)
 {
-    (void)handle;
-    printf("Shutdown timeout reached, forcing exit...\n");
-
-    // Force close remaining handles
+    // Don't close the timer here - it will be closed in graceful_shutdown
+    // Just force close other remaining handles
     uv_walk(uv_default_loop(), close_remaining_handles, NULL);
 }
 
 // Safe signal handler close function
-static void safe_close_signal_handler(uv_signal_t *handle, volatile int *initialized_flag)
+static void safe_close_signal_handler(uv_signal_t *handle,
+                                      volatile int *initialized_flag)
 {
-    if (!handle || !initialized_flag)
-        return;
-
-    // Check if this handle was actually initialized and is not already closing
     if (*initialized_flag && !uv_is_closing((uv_handle_t *)handle))
     {
         uv_signal_stop(handle);
         uv_close((uv_handle_t *)handle, on_signal_closed);
         expected_signal_closes++;
+        *initialized_flag = 0;
     }
 }
 
@@ -430,11 +426,11 @@ void graceful_shutdown()
         app_shutdown_hook();
     }
 
-    // Reset expected signal closes and close signal handlers safely
+    // FIXED: Reset counters properly
     expected_signal_closes = 0;
     signal_handlers_closed = 0;
 
-    // Use safe signal handler closing
+    // Close signal handlers - FIXED: Check initialization properly
     safe_close_signal_handler(&sigint_handle, &sigint_initialized);
 #ifndef _WIN32
     safe_close_signal_handler(&sigterm_handle, &sigterm_initialized);
@@ -449,17 +445,17 @@ void graceful_shutdown()
     // Close client connections
     uv_walk(uv_default_loop(), walk_callback, NULL);
 
-    // Setup timeout
-    uv_timer_t timeout_watcher;
+    // FIXED: Setup timeout with proper callback
+    static uv_timer_t timeout_watcher;
     uv_timer_init(uv_default_loop(), &timeout_watcher);
-    timeout_watcher.data = uv_default_loop();
+    timeout_watcher.data = &timeout_watcher; // Self-reference for cleanup
     uv_timer_start(&timeout_watcher, shutdown_timeout_cb, 15000, 0);
 
     // Wait for connections and database to close
     int wait_cycles = 0;
     while (uv_loop_alive(uv_default_loop()) && wait_cycles < 300) // 30 seconds max
     {
-        // Check if shutdown conditions are met (including signal handlers)
+        // Check if shutdown conditions are met
         if (active_connections == 0 &&
             !has_pquv_active_operations() &&
             signal_handlers_closed >= expected_signal_closes)
@@ -480,16 +476,19 @@ void graceful_shutdown()
         wait_cycles++;
     }
 
-    // Stop timeout
-    uv_timer_stop(&timeout_watcher);
-    uv_close((uv_handle_t *)&timeout_watcher, NULL);
-
-    // Wait for timeout timer to close and any remaining signal handlers
-    int final_wait = 0;
-    while (uv_loop_alive(uv_default_loop()) && final_wait < 50)
+    // FIXED: Stop and close timeout properly
+    if (!uv_is_closing((uv_handle_t *)&timeout_watcher))
     {
-        uv_run(uv_default_loop(), UV_RUN_ONCE);
-        final_wait++;
+        uv_timer_stop(&timeout_watcher);
+        uv_close((uv_handle_t *)&timeout_watcher, on_timer_closed);
+
+        // Wait for timer to close
+        int timer_wait = 0;
+        while (uv_loop_alive(uv_default_loop()) && timer_wait < 20)
+        {
+            uv_run(uv_default_loop(), UV_RUN_ONCE);
+            timer_wait++;
+        }
     }
 
     printf("Attempting to close event loop...\n");
@@ -502,41 +501,53 @@ void graceful_shutdown()
         printf("Failed to close loop: %s\n", uv_strerror(rc));
         report_open_handles(uv_default_loop());
 
-        // Force close remaining handles with more aggressive approach
+        // FIXED: More aggressive cleanup
         printf("Force closing remaining handles...\n");
 
-        // Multiple passes to ensure all handles are closed
-        for (int pass = 0; pass < 3; pass++)
+        // Multiple passes with handle type specific cleanup
+        for (int pass = 0; pass < 5; pass++) // Increased passes
         {
             printf("Cleanup pass %d\n", pass + 1);
             uv_walk(uv_default_loop(), close_remaining_handles, NULL);
 
-            // Run loop to process closes
+            // Run loop longer to process closes
             int iterations = 0;
-            while (uv_loop_alive(uv_default_loop()) && iterations < 20)
+            while (uv_loop_alive(uv_default_loop()) && iterations < 50) // Increased iterations
             {
-                uv_run(uv_default_loop(), UV_RUN_ONCE);
+                uv_run(uv_default_loop(), UV_RUN_NOWAIT);
                 iterations++;
+            }
+
+            // Check if loop is now closeable
+            rc = uv_loop_close(uv_default_loop());
+            if (rc == 0)
+            {
+                printf("Loop closed successfully after pass %d\n", pass + 1);
+                goto cleanup_success;
             }
         }
 
-        // Final attempt
+        // Final desperate attempt
+        printf("Final desperate cleanup attempt...\n");
         rc = uv_loop_close(uv_default_loop());
         if (rc != 0)
         {
-            printf("Still failed to close loop: %s\n", uv_strerror(rc));
+            printf("CRITICAL: Could not close event loop: %s\n", uv_strerror(rc));
             report_open_handles(uv_default_loop());
+            printf("WARNING: Event loop could not be cleanly closed - forcing exit\n");
 
-            // At this point, force exit if necessary
-            printf("WARNING: Event loop could not be cleanly closed\n");
+            // At this point, we have a leak but need to continue
+            // Reset the loop to default state if possible
+            // This is a last resort and may cause issues
         }
         else
         {
-            printf("Loop closed successfully after force cleanup\n");
+            printf("Loop finally closed after aggressive cleanup\n");
         }
     }
     else
     {
+    cleanup_success:
         printf("Loop closed successfully\n");
     }
 
