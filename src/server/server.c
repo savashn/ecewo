@@ -306,22 +306,30 @@ void graceful_shutdown()
 
     shutdown_requested = 1;
 
+    // Call application cleanup first (PQUV, DB, modules)
     if (app_shutdown_hook)
         app_shutdown_hook();
 
-    // First, close all client connections
+    // EXTRA: Process UV events after app cleanup to handle PQUV cleanup
+    printf("Processing UV events after application cleanup...\n");
+    for (int i = 0; i < 50; i++)
+    {
+        uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+    }
+
+    // Close all client connections
     uv_walk(uv_default_loop(), walk_callback, NULL);
 
-    // Wait for connections to close with better timeout handling
+    // Wait for connections to close
     int wait_iterations = 0;
-    int max_wait = 200; // Increase timeout
+    int max_wait = 200;
 
     while (active_connections > 0 && wait_iterations < max_wait)
     {
         uv_run(uv_default_loop(), UV_RUN_NOWAIT);
         wait_iterations++;
 
-        if (wait_iterations % 40 == 0) // Less frequent logging
+        if (wait_iterations % 40 == 0)
         {
             printf("Waiting for %d connections to close... (iter %d)\n",
                    active_connections, wait_iterations);
@@ -329,7 +337,7 @@ void graceful_shutdown()
 
         if (active_connections > 0)
         {
-            sleep_ms(50); // Longer delay
+            sleep_ms(50);
         }
     }
 
@@ -338,7 +346,7 @@ void graceful_shutdown()
         printf("Warning: %d connections still active after timeout\n", active_connections);
     }
 
-    // Then close the server
+    // Close the server
     if (global_server && !uv_is_closing((uv_handle_t *)global_server))
     {
         uv_close((uv_handle_t *)global_server, on_server_closed);
