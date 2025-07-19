@@ -484,13 +484,6 @@ void graceful_shutdown()
         shutdown_state = SHUTDOWN_STATE_CLOSING_CONNECTIONS;
     }
 
-    // Call app shutdown hook early
-    if (app_shutdown_hook)
-    {
-        printf("Calling application shutdown hook...\n");
-        app_shutdown_hook();
-    }
-
     // Phase 2: Setup signal handler cleanup
     shutdown_state = SHUTDOWN_STATE_CLOSING_SIGNALS;
     expected_signal_closes = 0;
@@ -517,9 +510,9 @@ void graceful_shutdown()
         memset(&shutdown_timer, 0, sizeof(shutdown_timer));
         if (uv_timer_init(uv_default_loop(), &shutdown_timer) == 0)
         {
-            shutdown_timer.data = (void *)0xDEADBEEF; // Mark as shutdown timer
+            shutdown_timer.data = (void *)0xDEADBEEF;
             shutdown_timer_active = 1;
-            uv_timer_start(&shutdown_timer, shutdown_timeout_cb, 30000, 0); // 30 second timeout
+            uv_timer_start(&shutdown_timer, shutdown_timeout_cb, 30000, 0);
             printf("Shutdown timer started (30 seconds)\n");
         }
     }
@@ -529,12 +522,11 @@ void graceful_shutdown()
     printf("Phase 5: Waiting for operations to complete...\n");
 
     int wait_cycles = 0;
-    const int max_wait_cycles = 600; // 60 seconds
+    const int max_wait_cycles = 600;
 
     while (uv_loop_alive(uv_default_loop()) && wait_cycles < max_wait_cycles &&
            shutdown_state != SHUTDOWN_STATE_FORCE_CLEANUP)
     {
-        // Check shutdown conditions
         int connections = active_connections;
         int pquv_active = has_pquv_active_operations();
         int signals_closed = signal_handlers_closed;
@@ -546,7 +538,7 @@ void graceful_shutdown()
             break;
         }
 
-        if (wait_cycles % 50 == 0 && wait_cycles > 0) // Every 5 seconds
+        if (wait_cycles % 50 == 0 && wait_cycles > 0)
         {
             uint64_t elapsed = get_shutdown_elapsed_ms();
             printf("Shutdown progress (%llu ms): %d connections, %d async ops, %d/%d signals\n",
@@ -558,6 +550,12 @@ void graceful_shutdown()
         wait_cycles++;
     }
 
+    if (app_shutdown_hook)
+    {
+        printf("Calling application shutdown hook...\n");
+        app_shutdown_hook();
+    }
+
     // Phase 6: Final cleanup
     printf("Phase 6: Final cleanup...\n");
 
@@ -567,7 +565,6 @@ void graceful_shutdown()
         uv_timer_stop(&shutdown_timer);
         uv_close((uv_handle_t *)&shutdown_timer, on_timer_closed);
 
-        // Wait for timer to close
         int timer_wait = 0;
         while (shutdown_timer_active && uv_loop_alive(uv_default_loop()) && timer_wait < 50)
         {
@@ -579,20 +576,17 @@ void graceful_shutdown()
     printf("Attempting to close event loop...\n");
     report_open_handles(uv_default_loop());
 
-    // Try to close the loop
     int rc = uv_loop_close(uv_default_loop());
     if (rc != 0)
     {
         printf("Failed to close loop: %s\n", uv_strerror(rc));
         printf("Performing aggressive cleanup...\n");
 
-        // Multiple cleanup passes with increasing aggressiveness
         for (int pass = 0; pass < 3; pass++)
         {
             printf("Aggressive cleanup pass %d\n", pass + 1);
             uv_walk(uv_default_loop(), close_remaining_handles, NULL);
 
-            // Process closes
             for (int i = 0; i < 100; i++)
             {
                 if (!uv_loop_alive(uv_default_loop()))
@@ -600,7 +594,6 @@ void graceful_shutdown()
                 uv_run(uv_default_loop(), UV_RUN_NOWAIT);
             }
 
-            // Try to close loop again
             rc = uv_loop_close(uv_default_loop());
             if (rc == 0)
             {
