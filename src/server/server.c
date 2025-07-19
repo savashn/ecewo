@@ -40,6 +40,7 @@ static volatile int shutdown_requested = 0;
 static volatile int server_freed = 0;
 static volatile int active_connections = 0;
 static volatile int signal_handlers_closed = 0;
+static volatile int signal_handlers_initialized = 0;
 
 static void (*app_shutdown_hook)(void) = NULL;
 
@@ -246,49 +247,18 @@ void force_close_callback(uv_handle_t *handle, void *arg)
 
     const char *type_name = (handle->type < 18) ? handle_type_names[handle->type] : "UNKNOWN";
 
-    switch (handle->type)
-    {
-    case UV_TCP:
-        if (global_server && handle != (uv_handle_t *)global_server)
-        {
-            client_t *client = (client_t *)handle->data;
-            if (client)
-            {
-                safe_close_client(client);
-            }
-        }
-        break;
-    case UV_TIMER:
-    case UV_POLL:
-    case UV_ASYNC:
-    case UV_IDLE:
-    case UV_PREPARE:
-    case UV_CHECK:
-    case UV_SIGNAL:
-        printf("Force closing %s handle\n", type_name);
-        uv_close(handle, NULL);
-        break;
-    default:
-        printf("Force closing unknown handle type: %d (%s)\n", handle->type, type_name);
-        uv_close(handle, NULL);
-        break;
-    }
+    printf("Force closing %s handle\n", type_name);
+    uv_close(handle, NULL);
 }
 
 void on_signal_closed(uv_handle_t *handle)
 {
     (void)handle;
     int closed_count = __sync_fetch_and_add(&signal_handlers_closed, 1) + 1;
-    printf("Signal handler closed\n");
+    printf("Signal handler closed (%d/%d)\n", closed_count, signal_handlers_initialized);
 
     // Stop the main loop when all signal handlers are closed
-#ifdef _WIN32
-    int expected_signals = 3; // SIGINT, SIGBREAK, SIGHUP
-#else
-    int expected_signals = 2; // SIGINT, SIGTERM
-#endif
-
-    if (closed_count >= expected_signals && shutdown_requested)
+    if (closed_count >= signal_handlers_initialized && shutdown_requested)
     {
         printf("All signal handlers closed, stopping main loop\n");
         uv_stop(uv_default_loop());
@@ -297,139 +267,139 @@ void on_signal_closed(uv_handle_t *handle)
 
 void graceful_shutdown()
 {
-    if (shutdown_requested)
-        return;
-
-    shutdown_requested = 1;
-    printf("=== GRACEFUL SHUTDOWN INITIATED ===\n");
-
-    // 1. Close server to prevent new connections
-    if (global_server && !uv_is_closing((uv_handle_t *)global_server))
+    if (__sync_bool_compare_and_swap(&shutdown_requested, 0, 1))
     {
-        printf("Closing server to stop new connections...\n");
-        uv_close((uv_handle_t *)global_server, on_server_closed);
-    }
+        printf("=== GRACEFUL SHUTDOWN INITIATED ===\n");
 
-    // 2. Close all client connections FIRST
-    printf("Closing client connections...\n");
-    uv_walk(uv_default_loop(), walk_callback, NULL);
-
-    // 3. Wait for client connections to close before database cleanup
-    printf("Waiting for client connections to close...\n");
-    int wait_iterations = 0;
-    int max_wait = 100; // 5 seconds for clients
-
-    while (wait_iterations < max_wait && active_connections > 0)
-    {
-        uv_run(uv_default_loop(), UV_RUN_NOWAIT);
-        wait_iterations++;
-        if (wait_iterations % 20 == 0)
+        // 1. Close server to prevent new connections
+        if (global_server && !uv_is_closing((uv_handle_t *)global_server))
         {
-            printf("Waiting for %d client connections...\n", active_connections);
-        }
-        sleep_ms(50);
-    }
-
-    // 4. NOW call app shutdown hook (database cleanup)
-    if (app_shutdown_hook)
-    {
-        printf("Calling application shutdown hook...\n");
-        app_shutdown_hook();
-    }
-
-    // 5. Wait for database operations to complete
-    printf("Waiting for database operations to complete...\n");
-    wait_iterations = 0;
-    max_wait = 200; // 10 seconds max
-
-    while (wait_iterations < max_wait)
-    {
-        int pquv_active = has_pquv_active_operations();
-        int pquv_count = get_pquv_active_count();
-
-        if (!pquv_active && active_connections == 0)
-        {
-            printf("All operations completed, finishing shutdown...\n");
-            break;
+            printf("Closing server to stop new connections...\n");
+            uv_close((uv_handle_t *)global_server, on_server_closed);
         }
 
-        if (wait_iterations % 20 == 0 && wait_iterations > 0)
+        // 2. Close all client connections FIRST
+        printf("Closing client connections...\n");
+        uv_walk(uv_default_loop(), walk_callback, NULL);
+
+        // 3. Wait for client connections to close before database cleanup
+        printf("Waiting for client connections to close...\n");
+        int wait_iterations = 0;
+        int max_wait = 100; // 5 seconds for clients
+
+        while (wait_iterations < max_wait && active_connections > 0)
         {
-            if (pquv_get_active_count_fn)
+            uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+            wait_iterations++;
+            if (wait_iterations % 20 == 0)
             {
-                printf("Waiting: %d connections, %d database operations\n",
-                       active_connections, pquv_count);
+                printf("Waiting for %d client connections...\n", active_connections);
             }
-            else
-            {
-                printf("Waiting: %d connections\n", active_connections);
-            }
+            sleep_ms(50);
         }
 
-        uv_run(uv_default_loop(), UV_RUN_NOWAIT);
-        wait_iterations++;
-        sleep_ms(50);
-    }
+        // 4. NOW call app shutdown hook (database cleanup)
+        if (app_shutdown_hook)
+        {
+            printf("Calling application shutdown hook...\n");
+            app_shutdown_hook();
+        }
 
-    // 6. Stop and close signal handlers PROPERLY
-    printf("Closing signal handlers...\n");
-    signal_handlers_closed = 0;
+        // 5. Wait for database operations to complete
+        printf("Waiting for database operations to complete...\n");
+        wait_iterations = 0;
+        max_wait = 200; // 10 seconds max
 
-    uv_signal_stop(&sigint_handle);
-    uv_close((uv_handle_t *)&sigint_handle, on_signal_closed);
+        while (wait_iterations < max_wait)
+        {
+            int pquv_active = has_pquv_active_operations();
+            int pquv_count = get_pquv_active_count();
+
+            if (!pquv_active && active_connections == 0)
+            {
+                printf("All operations completed, finishing shutdown...\n");
+                break;
+            }
+
+            if (wait_iterations % 20 == 0 && wait_iterations > 0)
+            {
+                if (pquv_get_active_count_fn)
+                {
+                    printf("Waiting: %d connections, %d database operations\n",
+                           active_connections, pquv_count);
+                }
+                else
+                {
+                    printf("Waiting: %d connections\n", active_connections);
+                }
+            }
+
+            uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+            wait_iterations++;
+            sleep_ms(50);
+        }
+
+        // 6. Stop and close signal handlers PROPERLY
+        printf("Closing signal handlers...\n");
+
+        // Stop all signal handlers first
+        uv_signal_stop(&sigint_handle);
+#ifndef _WIN32
+        uv_signal_stop(&sigterm_handle);
+#endif
+#ifdef _WIN32
+        uv_signal_stop(&sigbreak_handle);
+        uv_signal_stop(&sighup_handle);
+#endif
+
+        // Then close them
+        if (!uv_is_closing((uv_handle_t *)&sigint_handle))
+            uv_close((uv_handle_t *)&sigint_handle, on_signal_closed);
 
 #ifndef _WIN32
-    uv_signal_stop(&sigterm_handle);
-    uv_close((uv_handle_t *)&sigterm_handle, on_signal_closed);
+        if (!uv_is_closing((uv_handle_t *)&sigterm_handle))
+            uv_close((uv_handle_t *)&sigterm_handle, on_signal_closed);
 #endif
 #ifdef _WIN32
-    uv_signal_stop(&sigbreak_handle);
-    uv_signal_stop(&sighup_handle);
-    uv_close((uv_handle_t *)&sigbreak_handle, on_signal_closed);
-    uv_close((uv_handle_t *)&sighup_handle, on_signal_closed);
+        if (!uv_is_closing((uv_handle_t *)&sigbreak_handle))
+            uv_close((uv_handle_t *)&sigbreak_handle, on_signal_closed);
+        if (!uv_is_closing((uv_handle_t *)&sighup_handle))
+            uv_close((uv_handle_t *)&sighup_handle, on_signal_closed);
 #endif
 
-    // 7. Wait for signal handlers to close
-    printf("Waiting for signal handlers to close...\n");
-#ifdef _WIN32
-    int expected_signals = 3; // SIGINT, SIGBREAK, SIGHUP
-#else
-    int expected_signals = 2; // SIGINT, SIGTERM
-#endif
+        // 7. Wait for signal handlers to close
+        printf("Waiting for signal handlers to close...\n");
+        wait_iterations = 0;
+        max_wait = 100; // 5 seconds
 
-    wait_iterations = 0;
-    max_wait = 100; // 5 seconds
-
-    while (signal_handlers_closed < expected_signals && wait_iterations < max_wait)
-    {
-        uv_run(uv_default_loop(), UV_RUN_NOWAIT);
-        wait_iterations++;
-        if (wait_iterations % 20 == 0)
+        while (signal_handlers_closed < signal_handlers_initialized && wait_iterations < max_wait)
         {
-            printf("Waiting for signal handlers: %d/%d closed\n",
-                   signal_handlers_closed, expected_signals);
+            uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+            wait_iterations++;
+            if (wait_iterations % 20 == 0)
+            {
+                printf("Waiting for signal handlers: %d/%d closed\n",
+                       signal_handlers_closed, signal_handlers_initialized);
+            }
+            sleep_ms(50);
         }
-        sleep_ms(50);
+
+        // 8. Final cleanup
+        printf("Final handle cleanup...\n");
+
+        // Run event loop until no more active handles
+        while (uv_loop_alive(uv_default_loop()))
+        {
+            uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+            sleep_ms(10);
+        }
+
+        printf("=== GRACEFUL SHUTDOWN COMPLETED ===\n");
     }
-
-    // 8. Force close any remaining handles
-    printf("Final handle cleanup...\n");
-    uv_walk(uv_default_loop(), force_close_callback, NULL);
-
-    // 9. Run a few more cycles to process the closes
-    for (int i = 0; i < 50; i++)
+    else
     {
-        if (!uv_loop_alive(uv_default_loop()))
-            break;
-        uv_run(uv_default_loop(), UV_RUN_NOWAIT);
-        sleep_ms(10);
+        printf("Shutdown already in progress...\n");
     }
-
-    // 10. Stop the main loop to ensure clean exit
-    printf("Stopping main event loop\n");
-    uv_stop(uv_default_loop());
-
-    printf("=== GRACEFUL SHUTDOWN COMPLETED ===\n");
 }
 
 void signal_handler(uv_signal_t *handle, int signum)
@@ -472,6 +442,8 @@ void ecewo(unsigned short PORT)
     server_freed = 0;
     active_connections = 0;
     shutdown_requested = 0;
+    signal_handlers_closed = 0;
+    signal_handlers_initialized = 0;
 
     uv_tcp_init(loop, server);
 
@@ -500,58 +472,45 @@ void ecewo(unsigned short PORT)
     // Initialize signal handlers
     uv_signal_init(loop, &sigint_handle);
     uv_signal_start(&sigint_handle, signal_handler, SIGINT);
+    signal_handlers_initialized++;
 
 #ifndef _WIN32
     uv_signal_init(loop, &sigterm_handle);
     uv_signal_start(&sigterm_handle, signal_handler, SIGTERM);
+    signal_handlers_initialized++;
 #endif
 #ifdef _WIN32
     uv_signal_init(loop, &sigbreak_handle);
     uv_signal_init(loop, &sighup_handle);
     uv_signal_start(&sigbreak_handle, signal_handler, SIGBREAK);
     uv_signal_start(&sighup_handle, signal_handler, SIGHUP);
+    signal_handlers_initialized += 2;
 #endif
 
     printf("=== SERVER STARTED ===\n");
     printf("Server running at: http://localhost:%d\n", PORT);
     printf("Press Ctrl+C to shutdown\n");
+    printf("Signal handlers initialized: %d\n", signal_handlers_initialized);
 
     // Main event loop
     uv_run(loop, UV_RUN_DEFAULT);
 
     printf("UV_RUN_DEFAULT returned, main loop exited\n");
 
-    // Simple final cleanup
-    int iterations = 0;
-    int max_iterations = 200;
-    while (uv_loop_alive(loop) && iterations < max_iterations)
+    // Check if any handles are still active
+    if (uv_loop_alive(loop))
     {
-        uv_run(loop, UV_RUN_NOWAIT);
-        iterations++;
+        printf("Loop still has active handles, checking...\n");
+        uv_walk(loop, debug_walk_callback, NULL);
 
-        if (iterations % 50 == 0)
-        {
-            printf("Final cleanup progress: iteration %d/%d, loop alive: %s\n",
-                   iterations, max_iterations, uv_loop_alive(loop) ? "yes" : "no");
-        }
-
-        sleep_ms(100);
-    }
-
-    if (iterations >= max_iterations)
-    {
-        printf("Timeout reached in final cleanup, forcing handle closure...\n");
-
-        // Force close all remaining handles
+        // Force close remaining handles
         uv_walk(loop, force_close_callback, NULL);
 
-        // Run more cycles to process forced closes
-        for (int i = 0; i < 100; i++)
+        // Run a few more times to process closes
+        for (int i = 0; i < 10; i++)
         {
-            if (!uv_loop_alive(loop))
-                break;
             uv_run(loop, UV_RUN_NOWAIT);
-            sleep_ms(50);
+            sleep_ms(10);
         }
     }
 
@@ -560,32 +519,8 @@ void ecewo(unsigned short PORT)
     if (close_result != 0)
     {
         printf("Failed to close loop: %s\n", uv_strerror(close_result));
-
-        // Debug: Show what handles are still open
         printf("Checking for remaining handles...\n");
         uv_walk(loop, debug_walk_callback, NULL);
-
-        // Last resort: try to force close everything
-        printf("Attempting final force cleanup...\n");
-        uv_walk(loop, force_close_callback, NULL);
-
-        for (int i = 0; i < 100; i++)
-        {
-            if (!uv_loop_alive(loop))
-                break;
-            uv_run(loop, UV_RUN_NOWAIT);
-            sleep_ms(50);
-        }
-
-        close_result = uv_loop_close(loop);
-        if (close_result != 0)
-        {
-            printf("Still failed to close loop: %s\n", uv_strerror(close_result));
-        }
-        else
-        {
-            printf("Loop closed successfully after force cleanup\n");
-        }
     }
     else
     {
