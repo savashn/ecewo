@@ -27,6 +27,7 @@ So it’s really simple, but in a C kind of way.
 ### Out of The Box Features
 
 - Full asynchronous operations support
+- Cross-platform compatibility
 - JSON and CBOR support
 - Cookie management and optional session based authentication mechanism
 - Flexible middleware support (route-specific and global)
@@ -46,39 +47,39 @@ project(your_project VERSION 1.0.0 LANGUAGES C)
 
 include(FetchContent)
 
-# Fetch Ecewo from GitHub
 FetchContent_Declare(
     ecewo
     GIT_REPOSITORY https://github.com/savashn/ecewo.git
     GIT_TAG main
 )
 
-# Make Ecewo available
 FetchContent_MakeAvailable(ecewo)
 
-# Create the executable
 add_executable(server
     main.c
 )
 
-# Link Ecewo
 target_link_libraries(server PRIVATE ecewo)
 ```
 
 **main.c:**
 ```c
-#include "server.h"    // To start the server via ecewo();
-#include "ecewo.h"     // To use the main API
+#include "server.h"  // To start and end the server
+#include "ecewo.h"   // To use the main API
 
 void hello_world(Req *req, Res *res) {
     send_text(res, 200, "Hello, World!");
 }
 
+void destroy_app() {
+    reset_router();
+}
+
 int main() {
     init_router();
     get("/", hello_world);
+    shutdown_hook(destroy_app);
     ecewo(3000);
-    reset_router();
     return 0;
 }
 ```

@@ -32,10 +32,10 @@ static uv_signal_t sigterm_handle;
 static uv_signal_t sigbreak_handle;
 static uv_signal_t sighup_handle;
 #endif
-static volatile int shutdown_requested = 0;
 static volatile int server_freed = 0;
 static volatile int active_connections = 0;
 static volatile int signal_handlers_closed = 0;
+volatile int shutdown_requested = 0;
 
 static void (*app_shutdown_hook)(void) = NULL;
 
@@ -251,17 +251,25 @@ void walk_callback(uv_handle_t *handle, void *arg)
     }
     else if (handle->type == UV_TIMER)
     {
-        fprintf(stderr, "Closing remaining timer...\n");
+        uv_timer_stop((uv_timer_t *)handle);
         uv_close(handle, on_timer_closed);
-    }
-    else if (handle->type == UV_ASYNC)
-    {
-        fprintf(stderr, "Closing remaining async handle...\n");
-        uv_close(handle, NULL);
     }
     else if (handle->type == UV_POLL)
     {
-        fprintf(stderr, "Closing UV_POLL handle...\n");
+        uv_poll_stop((uv_poll_t *)handle);
+        uv_close(handle, NULL);
+    }
+    else if (handle->type == UV_ASYNC)
+    {
+        uv_close(handle, NULL);
+    }
+    else if (handle->type == UV_SIGNAL)
+    {
+        // Signal handles are managed separately - skip
+        return;
+    }
+    else
+    {
         uv_close(handle, NULL);
     }
 }
@@ -294,22 +302,29 @@ void graceful_shutdown()
 
     shutdown_requested = 1;
 
+    // Call application cleanup first (PQUV, DB, modules)
     if (app_shutdown_hook)
         app_shutdown_hook();
 
-    // First, close all client connections
+    // Process UV events after app cleanup to handle PQUV cleanup
+    for (int i = 0; i < 50; i++)
+    {
+        uv_run(uv_default_loop(), UV_RUN_NOWAIT);
+    }
+
+    // Close all client connections
     uv_walk(uv_default_loop(), walk_callback, NULL);
 
-    // Wait for connections to close with better timeout handling
+    // Wait for connections to close
     int wait_iterations = 0;
-    int max_wait = 200; // Increase timeout
+    int max_wait = 200;
 
     while (active_connections > 0 && wait_iterations < max_wait)
     {
         uv_run(uv_default_loop(), UV_RUN_NOWAIT);
         wait_iterations++;
 
-        if (wait_iterations % 40 == 0) // Less frequent logging
+        if (wait_iterations % 40 == 0)
         {
             printf("Waiting for %d connections to close... (iter %d)\n",
                    active_connections, wait_iterations);
@@ -317,7 +332,7 @@ void graceful_shutdown()
 
         if (active_connections > 0)
         {
-            sleep_ms(50); // Longer delay
+            sleep_ms(50);
         }
     }
 
@@ -326,7 +341,7 @@ void graceful_shutdown()
         printf("Warning: %d connections still active after timeout\n", active_connections);
     }
 
-    // Then close the server
+    // Close the server
     if (global_server && !uv_is_closing((uv_handle_t *)global_server))
     {
         uv_close((uv_handle_t *)global_server, on_server_closed);
