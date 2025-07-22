@@ -6,7 +6,7 @@
 
 <hr />
 
-### Minimalist and easy-to-use web framework for C — inspired by the simplicity of [Express.js](https://expressjs.com/).
+### Minimalist and easy-to-use web framework for C — inspired by [Express.js](https://expressjs.com/).
 
 So it’s really simple, but in a C kind of way.
 
@@ -16,27 +16,13 @@ So it’s really simple, but in a C kind of way.
 
 ### Table of Contents
 
+- [Quick Start](#quick-start)
 - [Out of The Box Features](#out-of-the-box-features)
 - [Requirements](#requirements)
-- [Quick Start](#quick-start)
 - [Benchmarks](#benchmarks)
 - [Documentation](#documentation)
 - [Example App](#example-app)
 - [License](#license)
-
-### Out of The Box Features
-
-- Full asynchronous operations support
-- Cross-platform compatibility
-- JSON and CBOR support
-- Cookie management and optional session based authentication mechanism
-- Flexible middleware support (route-specific and global)
-- Express.js-like routing mechanism
-
-### Requirements
-
-- A C compiler (GCC, Clang, or MSVC)
-- CMake version 3.14 or higher
 
 ### Quick Start
 
@@ -89,6 +75,20 @@ int main() {
 ```shell
 mkdir build && cd build && cmake .. && cmake --build .
 ```
+
+### Out of The Box Features
+
+- Full asynchronous operations support
+- Cross-platform compatibility
+- JSON and CBOR support
+- Cookie management and optional session based authentication mechanism
+- Flexible middleware support (route-specific and global)
+- Express.js-like routing mechanism
+
+### Requirements
+
+- A C compiler (GCC, Clang, or MSVC)
+- CMake version 3.14 or higher
 
 ### Benchmarks
 
