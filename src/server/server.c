@@ -19,7 +19,7 @@ typedef struct
     uv_tcp_t handle;
     uv_buf_t read_buf;
     char buffer[READ_BUF_SIZE];
-    volatile int closing; // Flag to track if client is being closed
+    int closing; // Flag to track if client is being closed
 } client_t;
 
 // Global variables for graceful shutdown
@@ -32,10 +32,11 @@ static uv_signal_t sigterm_handle;
 static uv_signal_t sigbreak_handle;
 static uv_signal_t sighup_handle;
 #endif
-static volatile int server_freed = 0;
-static volatile int active_connections = 0;
-static volatile int signal_handlers_closed = 0;
-volatile int shutdown_requested = 0;
+static int server_freed = 0;
+static int active_connections = 0;
+static int signal_handlers_closed = 0;
+static uv_timer_t shutdown_timer;
+int shutdown_requested = 0;
 
 static void (*app_shutdown_hook)(void) = NULL;
 
@@ -70,40 +71,39 @@ void on_client_closed(uv_handle_t *handle)
     client_t *client = (client_t *)handle->data;
     if (client)
     {
-        __sync_fetch_and_sub(&active_connections, 1);
+        active_connections--;
         handle->data = NULL; // Clear the pointer first
         free(client);
     }
 }
 
-// Safe client close function - improved version
+// Safe client close function
 void safe_close_client(client_t *client)
 {
     if (!client)
         return;
 
-    // Use atomic operation to prevent race conditions
-    if (__sync_bool_compare_and_swap(&client->closing, 0, 1))
+    if (client->closing)
+        return;
+
+    client->closing = 1;
+
+    // Stop reading first to prevent new data from being processed
+    int read_result = uv_read_stop((uv_stream_t *)&client->handle);
+    if (read_result != 0 && read_result != UV_EINVAL)
     {
-        // Only the first thread to set closing=1 will execute this block
+        fprintf(stderr, "Error stopping read: %s\n", uv_strerror(read_result));
+    }
 
-        // Stop reading first to prevent new data from being processed
-        int read_result = uv_read_stop((uv_stream_t *)&client->handle);
-        if (read_result != 0 && read_result != UV_EINVAL)
-        {
-            fprintf(stderr, "Error stopping read: %s\n", uv_strerror(read_result));
-        }
-
-        // Then close the handle if it's not already closing
-        if (!uv_is_closing((uv_handle_t *)&client->handle))
-        {
-            uv_close((uv_handle_t *)&client->handle, on_client_closed);
-        }
-        else
-        {
-            // If handle is already closing, we still need to decrement counter
-            __sync_fetch_and_sub(&active_connections, 1);
-        }
+    // Then close the handle if it's not already closing
+    if (!uv_is_closing((uv_handle_t *)&client->handle))
+    {
+        uv_close((uv_handle_t *)&client->handle, on_client_closed);
+    }
+    else
+    {
+        // If handle is already closing, we still need to decrement counter
+        active_connections--;
     }
 }
 
@@ -194,7 +194,7 @@ void on_new_connection(uv_stream_t *server_stream, int status)
         int read_result = uv_read_start((uv_stream_t *)&client->handle, alloc_buffer, on_read);
         if (read_result == 0)
         {
-            __sync_fetch_and_add(&active_connections, 1);
+            active_connections++;
         }
         else
         {
@@ -223,7 +223,8 @@ void on_server_closed(uv_handle_t *handle)
 // Called when a signal handler is closed
 void on_signal_closed(uv_handle_t *handle)
 {
-    __sync_fetch_and_add(&signal_handlers_closed, 1);
+    (void)handle;
+    signal_handlers_closed++;
 }
 
 // Timer close callback
@@ -307,7 +308,7 @@ void graceful_shutdown()
         app_shutdown_hook();
 
     // Process UV events after app cleanup to handle PQUV cleanup
-    for (int i = 0; i < 50; i++)
+    for (int i = 0; i < 10; i++)
     {
         uv_run(uv_default_loop(), UV_RUN_NOWAIT);
     }
@@ -321,10 +322,11 @@ void graceful_shutdown()
 
     while (active_connections > 0 && wait_iterations < max_wait)
     {
+        // Run the event loop to process close callbacks
         uv_run(uv_default_loop(), UV_RUN_NOWAIT);
         wait_iterations++;
 
-        if (wait_iterations % 40 == 0)
+        if (wait_iterations % 10 == 0)
         {
             printf("Waiting for %d connections to close... (iter %d)\n",
                    active_connections, wait_iterations);
