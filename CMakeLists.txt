@@ -60,6 +60,7 @@ if(NOT TARGET ecewo)
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/lib>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/server>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/utils>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/config>
         $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
         $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/_deps/libuv-src/include>
         $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/_deps/llhttp-src/include>
