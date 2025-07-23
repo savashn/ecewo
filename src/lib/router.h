@@ -1,9 +1,11 @@
 #ifndef ROUTER_H
 #define ROUTER_H
 
+#include <stdbool.h>
+#include <stddef.h>
+#include <string.h>
 #include "request.h"
 #include "uv.h"
-#include <stdbool.h>
 
 // Forward declarations
 typedef struct Req Req;

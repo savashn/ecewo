@@ -2,6 +2,7 @@
 #define REQUEST_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include "llhttp.h"
 #include "compat.h"
 

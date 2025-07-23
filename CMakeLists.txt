@@ -1,15 +1,12 @@
 cmake_minimum_required(VERSION 3.14)
-project(ecewo VERSION 0.31.2 LANGUAGES C)
-
-# Project options
-option(ECEWO_INSTALL "Install ecewo" ON)
+project(ecewo VERSION 0.31.3 LANGUAGES C)
 
 # Platform definitions
 if(WIN32)
     add_definitions(-DPLATFORM_WINDOWS)
 elseif(APPLE)
     add_definitions(-DPLATFORM_MACOS)
-elseif(UNIX)
+elseif(UNIX AND NOT APPLE)
     add_definitions(-DPLATFORM_LINUX)
 endif()
 
@@ -60,7 +57,6 @@ if(NOT TARGET ecewo)
     target_include_directories(ecewo PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/config>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/lib>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/server>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/utils>
@@ -75,14 +71,6 @@ if(NOT TARGET ecewo)
     target_include_directories(ecewo PRIVATE
         ${CMAKE_BINARY_DIR}/_deps/libuv-src/src
         ${CMAKE_BINARY_DIR}/_deps/llhttp-src/src
-    )
-
-    # Create configuration file
-    set(ECEWO_COPYRIGHT "2025 © Savas Sahin <savashn>")
-
-    configure_file(
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/config/config.h.in"
-        "${CMAKE_BINARY_DIR}/ecewo_config.h"
     )
 
     # Link libraries
@@ -110,12 +98,8 @@ if(NOT TARGET ecewo)
         EXPORT_NAME ecewo
     )
 
-    # Debug information
-    message(STATUS "Configuring ecewo version ${ecewo_VERSION}")
-    message(STATUS "Target platform: ${CMAKE_SYSTEM_NAME}")
-
-    # Install rules (only if this is the main project or ECEWO_INSTALL is ON)
-    if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME AND ECEWO_INSTALL)
+    # Install rules (only if this is the main project)
+    if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
         include(GNUInstallDirs)
         
         # Install the library
@@ -133,11 +117,6 @@ if(NOT TARGET ecewo)
             FILES_MATCHING PATTERN "*.h"
         )
         
-        # Install config header
-        install(FILES "${CMAKE_BINARY_DIR}/ecewo_config.h"
-            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ecewo
-        )
-        
         # Install llhttp headers (needed for public API)
         install(DIRECTORY ${llhttp_SOURCE_DIR}/include/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ecewo
@@ -152,4 +131,4 @@ if(NOT TARGET ecewo)
         )
     endif()
 
-endif() # NOT TARGET ecewo
+endif()
