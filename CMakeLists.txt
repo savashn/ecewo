@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(ecewo VERSION 0.31.4 LANGUAGES C)
+project(ecewo VERSION 0.32.0 LANGUAGES C)
 
 # Platform definitions
 if(WIN32)
@@ -37,7 +37,7 @@ if(NOT TARGET ecewo)
 
     # List of source files
     set(ECEWO_SRC_FILES
-        src/ecewo.c
+        src/server/ecewo.c
         src/server/server.c
         src/lib/request.c
         src/lib/router.c
