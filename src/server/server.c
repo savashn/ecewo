@@ -307,7 +307,7 @@ void graceful_shutdown()
     if (app_shutdown_hook)
         app_shutdown_hook();
 
-    // Process UV events after app cleanup to handle PQUV cleanup
+    // Process UV events after app cleanup to handle cleanup
     for (int i = 0; i < 10; i++)
     {
         uv_run(uv_default_loop(), UV_RUN_NOWAIT);

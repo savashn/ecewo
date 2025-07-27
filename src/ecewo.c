@@ -1,4 +1,5 @@
 #include "ecewo.h"
+#include "middleware.h"
 
 Router *routes = NULL;
 size_t route_count = 0;
@@ -22,6 +23,9 @@ void reset_router(void)
 {
     if (routes != NULL)
     {
+        // Clean up middleware information before freeing routes
+        reset_middleware();
+
         free(routes);
         routes = NULL;
     }

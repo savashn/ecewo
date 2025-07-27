@@ -189,21 +189,19 @@ void route_handler_with_middleware(Req *req, Res *res)
 }
 
 // Helper function to register route with middleware
-void register_route_with_middleware(const char *method, const char *path,
-                                    MiddlewareHandler *middleware, int middleware_count,
-                                    RequestHandler handler)
+void register_route(const char *method, const char *path, MiddlewareArray middleware, RequestHandler handler)
 {
+    if (!handler)
+    {
+        printf("Error: No handler provided for route: %s %s\n", method, path);
+        return;
+    }
+
     expand_routes();
 
     if (!method || !path)
     {
         printf("Error: NULL method or path provided\n");
-        return;
-    }
-
-    if (!handler)
-    {
-        printf("Error: NULL handler provided for route: %s %s\n", method, path);
         return;
     }
 
@@ -221,17 +219,17 @@ void register_route_with_middleware(const char *method, const char *path,
     middleware_info->handler = handler;
 
     // Allocate and copy middleware handlers if needed
-    if (middleware_count > 0 && middleware)
+    if (middleware.count > 0 && middleware.handlers)
     {
-        middleware_info->middleware = malloc(sizeof(MiddlewareHandler) * middleware_count);
+        middleware_info->middleware = malloc(sizeof(MiddlewareHandler) * middleware.count);
         if (!middleware_info->middleware)
         {
             printf("Memory allocation failed for middleware handlers\n");
             free(middleware_info);
             return;
         }
-        memcpy(middleware_info->middleware, middleware, sizeof(MiddlewareHandler) * middleware_count);
-        middleware_info->middleware_count = middleware_count;
+        memcpy(middleware_info->middleware, middleware.handlers, sizeof(MiddlewareHandler) * middleware.count);
+        middleware_info->middleware_count = middleware.count;
     }
 
     // Register route with the wrapper handler
@@ -258,17 +256,6 @@ void register_route_with_middleware(const char *method, const char *path,
     route_count++;
 }
 
-void register_route(const char *method, const char *path, MiddlewareArray middleware, RequestHandler handler)
-{
-    if (!handler)
-    {
-        printf("Error: No handler provided for route: %s %s\n", method, path);
-        return;
-    }
-
-    register_route_with_middleware(method, path, middleware.handlers, middleware.count, handler);
-}
-
 // Cleanup function to free all allocated resources
 void reset_middleware()
 {
@@ -293,4 +280,13 @@ void reset_middleware()
             routes[i].path = NULL;
         }
     }
+
+    // Free global middleware
+    if (global_middleware)
+    {
+        free(global_middleware);
+        global_middleware = NULL;
+    }
+    global_middleware_count = 0;
+    global_middleware_capacity = 0;
 }
