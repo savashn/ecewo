@@ -479,12 +479,26 @@ void parse_params(const char *path, const char *route_path, request_t *params)
     params->capacity = 0;
     params->items = NULL;
 
-    char path_copy[256];
-    char route_copy[256];
-    strncpy(path_copy, path, sizeof(path_copy) - 1);
-    path_copy[sizeof(path_copy) - 1] = '\0';
-    strncpy(route_copy, route_path, sizeof(route_copy) - 1);
-    route_copy[sizeof(route_copy) - 1] = '\0';
+    if (!path || !route_path)
+    {
+        return;
+    }
+
+    size_t path_len = strlen(path);
+    size_t route_len = strlen(route_path);
+
+    char *path_copy = malloc(path_len + 1);
+    char *route_copy = malloc(route_len + 1);
+
+    if (!path_copy || !route_copy)
+    {
+        free(path_copy);
+        free(route_copy);
+        return;
+    }
+
+    strcpy(path_copy, path);
+    strcpy(route_copy, route_path);
 
     // Count dynamic parameters first
     int param_count = 0;
@@ -502,7 +516,11 @@ void parse_params(const char *path, const char *route_path, request_t *params)
     }
 
     if (param_count == 0)
+    {
+        free(path_copy);
+        free(route_copy);
         return; // No parameters to parse
+    }
 
     // Allocate once for all parameters
     params->capacity = param_count;
@@ -511,6 +529,8 @@ void parse_params(const char *path, const char *route_path, request_t *params)
     {
         perror("malloc params");
         params->capacity = 0;
+        free(path_copy);
+        free(route_copy);
         return;
     }
 
@@ -520,31 +540,71 @@ void parse_params(const char *path, const char *route_path, request_t *params)
         params->items[i].value = NULL;
     }
 
-    // Now parse the actual parameters
-    char *path_segments[20];
-    char *route_segments[20];
+    // Count how many segments there are
     int path_segment_count = 0;
     int route_segment_count = 0;
 
+    char *temp_path = strdup(path_copy);
+    if (temp_path)
+    {
+        char *token = strtok(temp_path, "/");
+        while (token)
+        {
+            path_segment_count++;
+            token = strtok(NULL, "/");
+        }
+        free(temp_path);
+    }
+
+    temp_route = strdup(route_copy);
+    if (temp_route)
+    {
+        char *token = strtok(temp_route, "/");
+        while (token)
+        {
+            route_segment_count++;
+            token = strtok(NULL, "/");
+        }
+        free(temp_route);
+    }
+
+    char **path_segments = malloc(sizeof(char *) * path_segment_count);
+    char **route_segments = malloc(sizeof(char *) * route_segment_count);
+
+    if (!path_segments || !route_segments)
+    {
+        free(path_segments);
+        free(route_segments);
+        free(path_copy);
+        free(route_copy);
+        free(params->items);
+        params->items = NULL;
+        params->capacity = 0;
+        return;
+    }
+
+    // Parse path segments
+    int actual_path_count = 0;
     char *token = strtok(path_copy, "/");
-    while (token && path_segment_count < 20)
+    while (token && actual_path_count < path_segment_count)
     {
-        path_segments[path_segment_count++] = token;
+        path_segments[actual_path_count++] = strdup(token);
         token = strtok(NULL, "/");
     }
 
+    int actual_route_count = 0;
     token = strtok(route_copy, "/");
-    while (token && route_segment_count < 20)
+    while (token && actual_route_count < route_segment_count)
     {
-        route_segments[route_segment_count++] = token;
+        route_segments[actual_route_count++] = strdup(token);
         token = strtok(NULL, "/");
     }
 
-    int min_segments = path_segment_count < route_segment_count ? path_segment_count : route_segment_count;
+    int min_segments = actual_path_count < actual_route_count ? actual_path_count : actual_route_count;
 
     for (int i = 0; i < min_segments && params->count < params->capacity; i++)
     {
-        if (route_segments[i][0] == ':')
+        if (route_segments[i] && route_segments[i][0] == ':')
         {
             char *param_key = strdup(route_segments[i] + 1);
             char *param_value = strdup(path_segments[i]);
@@ -562,6 +622,23 @@ void parse_params(const char *path, const char *route_path, request_t *params)
             }
         }
     }
+
+    // Free path segments
+    for (int i = 0; i < actual_path_count; i++)
+    {
+        free(path_segments[i]);
+    }
+    free(path_segments);
+
+    // Free route segments
+    for (int i = 0; i < actual_route_count; i++)
+    {
+        free(route_segments[i]);
+    }
+    free(route_segments);
+
+    free(path_copy);
+    free(route_copy);
 }
 
 const char *get_req(const request_t *request, const char *key)

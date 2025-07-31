@@ -6,15 +6,15 @@
 
 <hr />
 
-### Minimalist and easy-to-use web framework for C — inspired by [Express.js](https://expressjs.com/).
+# Effective C Entity for Web Operations
 
-So it’s really simple, but in a C kind of way.
+Inspired by [Express.js](https://expressjs.com/). So it’s minimalist and really easy-to-use, but in a C kind of way.
 
 <hr />
 
 > **This is a hobby project that I'm developing to improve my programming skills. So it might not be production-ready yet, and it doesn't have to be. See [FAQ](https://ecewo.vercel.app/docs/faq).**
 
-### Table of Contents
+## Table of Contents
 
 - [Quick Start](#quick-start)
 - [Out of The Box Features](#out-of-the-box-features)
@@ -24,7 +24,7 @@ So it’s really simple, but in a C kind of way.
 - [Example App](#example-app)
 - [License](#license)
 
-### Quick Start
+## Quick Start
 
 **CMakeLists.txt:**
 ```cmake
@@ -64,6 +64,7 @@ void destroy_app() {
 int main() {
     init_router();
     get("/", hello_world);
+
     shutdown_hook(destroy_app);
     ecewo(3000);
     return 0;
@@ -76,7 +77,7 @@ int main() {
 mkdir build && cd build && cmake .. && cmake --build .
 ```
 
-### Out of The Box Features
+## Out of The Box Features
 
 - Full asynchronous operations support
 - Cross-platform compatibility
@@ -85,12 +86,12 @@ mkdir build && cd build && cmake .. && cmake --build .
 - Flexible middleware support (route-specific and global)
 - Express.js-like routing mechanism
 
-### Requirements
+## Requirements
 
 - A C compiler (GCC, Clang, or MSVC)
 - CMake version 3.14 or higher
 
-### Benchmarks
+## Benchmarks
 
 Here are 'Hello World' benchmark results for several frameworks compared to Ecewo. See the source code of the [benchmark test](https://github.com/savashn/ecewo-benchmarks).
 
@@ -103,14 +104,14 @@ Here are 'Hello World' benchmark results for several frameworks compared to Ecew
 | Fastify   | 490.55µs  | 525.5µs  | 5.99ms  | 896.2µs | 1.06ms   |
 | Express   | 1.11ms    | 1.05ms   | 5.98ms  | 2ms     | 2.36ms   |
 
-### Documentation
+## Documentation
 
 Refer to the [docs](https://ecewo.vercel.app) for usage.
 
-### Example App
+## Example App
 
 [Here](https://github.com/savashn/ecewo-example) is an example blog app built with Ecewo and PostgreSQL.
 
-### License
+## License
 
 Licensed under [MIT](./LICENSE).
