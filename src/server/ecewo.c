@@ -1,5 +1,7 @@
 #include "ecewo.h"
 #include "middleware.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 Router *routes = NULL;
 size_t route_count = 0;

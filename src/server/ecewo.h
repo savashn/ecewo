@@ -1,8 +1,6 @@
 #ifndef ECEWO_H
 #define ECEWO_H
 
-#include <stdio.h>
-#include <stdlib.h>
 #include "router.h"
 #include "middleware.h"
 #include "compat.h"

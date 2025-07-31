@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 #include <stddef.h>
 #include "ecewo.h"
 #include "uv.h"

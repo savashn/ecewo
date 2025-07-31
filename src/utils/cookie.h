@@ -1,7 +1,6 @@
 #ifndef COOKIE_H
 #define COOKIE_H
 
-#include "request.h"
 #include "router.h"
 #include <stdbool.h>
 
