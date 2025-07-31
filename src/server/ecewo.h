@@ -9,8 +9,6 @@ extern Router *routes;
 extern size_t route_count;
 extern size_t routes_capacity;
 
-void expand_routes(void);
-
 // GET
 #define GET_CHOOSER(_1, _2, _3, NAME, ...) NAME
 #define get(...) \
