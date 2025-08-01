@@ -57,6 +57,21 @@ static inline void put_with_mw(const char *p, MiddlewareArray mw, RequestHandler
     register_route("PUT", p, mw, h);
 }
 
+// PATCH
+#define PATCH_CHOOSER(_1, _2, _3, NAME, ...) NAME
+#define patch(...) \
+    PATCH_CHOOSER(__VA_ARGS__, patch_with_mw, patch_no_mw)(__VA_ARGS__)
+
+static inline void patch_no_mw(const char *p, RequestHandler h)
+{
+    register_route("PATCH", p, NO_MW, h);
+}
+
+static inline void patch_with_mw(const char *p, MiddlewareArray mw, RequestHandler h)
+{
+    register_route("PATCH", p, mw, h);
+}
+
 // DELETE
 #define DEL_CHOOSER(_1, _2, _3, NAME, ...) NAME
 #define del(...) \

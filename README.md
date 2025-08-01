@@ -6,13 +6,13 @@
 
 <hr />
 
-# Effective C Entity for Web Operations
+## Effective C Essence for Web Operations
 
-Inspired by [Express.js](https://expressjs.com/). So it’s minimalist and really easy-to-use, but in a C kind of way.
+Inspired by [Express.js](https://expressjs.com/) — it’s minimalist, unopinionated, and easy-to-use (in a C kind of way).
 
 <hr />
 
-> **This is a hobby project that I'm developing to improve my programming skills. So it might not be production-ready yet, and it doesn't have to be. See [FAQ](https://ecewo.vercel.app/docs/faq).**
+> **This is a hobby project that I'm developing to improve my programming skills. So it might not be production-ready, and it doesn't have to be.**
 
 ## Table of Contents
 
@@ -64,7 +64,6 @@ void destroy_app() {
 int main() {
     init_router();
     get("/", hello_world);
-
     shutdown_hook(destroy_app);
     ecewo(3000);
     return 0;

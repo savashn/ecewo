@@ -465,7 +465,7 @@ void ecewo(unsigned short PORT)
     uv_signal_start(&sighup_handle, signal_handler, SIGHUP);
 #endif
 
-    printf("Server is running at: http://localhost:%d\n", PORT);
+    printf("Server is running on http://localhost:%d\n", PORT);
 
     // Main event loop: runs until a signal stops it
     uv_run(loop, UV_RUN_DEFAULT);
@@ -516,5 +516,4 @@ void ecewo(unsigned short PORT)
     }
 
     global_server = NULL;
-    printf("Server shutdown completed successfully\n");
 }
