@@ -36,7 +36,7 @@ include(FetchContent)
 FetchContent_Declare(
     ecewo
     GIT_REPOSITORY https://github.com/savashn/ecewo.git
-    GIT_TAG main
+    GIT_TAG v1.0.0
 )
 
 FetchContent_MakeAvailable(ecewo)
@@ -94,14 +94,13 @@ mkdir build && cd build && cmake .. && cmake --build .
 
 Here are 'Hello World' benchmark results for several frameworks compared to Ecewo. See the source code of the [benchmark test](https://github.com/savashn/ecewo-benchmarks).
 
-| Framework | Average   | Median   | Max     | P90     | P95      |
-|-----------|-----------|----------|---------|---------|----------|
-| Ecewo     | 71.43µs   | 0s       | 4.97ms  | 503.4µs | 511.1µs  |
-| Axum      | 98.35µs   | 0s       | 3.52ms  | 508µs   | 526.9µs  |
-| Go        | 366.14µs  | 504.4µs  | 4.51ms  | 726µs   | 862.77µs |
-| Hono      | 364.72µs  | 504.9µs  | 4.5ms   | 755.3µs | 1ms      |
-| Fastify   | 490.55µs  | 525.5µs  | 5.99ms  | 896.2µs | 1.06ms   |
-| Express   | 1.11ms    | 1.05ms   | 5.98ms  | 2ms     | 2.36ms   |
+| Framework | Average   | Median   | Max     | P90      | P95     |
+|-----------|-----------|----------|---------|----------|---------|
+| Ecewo     | 166.24µs  | 0s       | 19.52ms | 545.29µs | 922µs   |
+| Axum      | 185.67µs  | 0s       | 35.9ms  | 549.79µs | 971.5µs |
+| Go        | 720.42µs  | 598.19µs | 22.15ms | 1.46ms   | 1.93ms  |
+| Hono      | 393.05µs  | 341.8µs  | 23.08ms | 1ms      | 1.12ms  |
+| Express   | 1.38ms    | 1.08ms   | 18.83ms | 2.83ms   | 3.7ms   |
 
 ## Documentation
 
