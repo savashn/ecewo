@@ -46,7 +46,7 @@ void shutdown_hook(void (*hook)(void))
 }
 
 // Allocation callback: returns the preallocated buffer for each connection.
-void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
+static void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
 {
     (void)suggested_size;
     client_t *client = (client_t *)handle->data;
@@ -63,7 +63,7 @@ void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
 }
 
 // Called when the connection is closed; frees the client struct.
-void on_client_closed(uv_handle_t *handle)
+static void on_client_closed(uv_handle_t *handle)
 {
     if (!handle)
         return;
@@ -78,7 +78,7 @@ void on_client_closed(uv_handle_t *handle)
 }
 
 // Safe client close function
-void safe_close_client(client_t *client)
+static void safe_close_client(client_t *client)
 {
     if (!client)
         return;
@@ -108,7 +108,7 @@ void safe_close_client(client_t *client)
 }
 
 // Called when data is read
-void on_read(uv_stream_t *client_stream, ssize_t nread, const uv_buf_t *buf)
+static void on_read(uv_stream_t *client_stream, ssize_t nread, const uv_buf_t *buf)
 {
     if (!client_stream || !client_stream->data)
         return;
@@ -148,7 +148,7 @@ void on_read(uv_stream_t *client_stream, ssize_t nread, const uv_buf_t *buf)
 }
 
 // Called when a new connection is accepted.
-void on_new_connection(uv_stream_t *server_stream, int status)
+static void on_new_connection(uv_stream_t *server_stream, int status)
 {
     if (status < 0)
     {
@@ -209,7 +209,7 @@ void on_new_connection(uv_stream_t *server_stream, int status)
 }
 
 // Called when the server handle is closed
-void on_server_closed(uv_handle_t *handle)
+static void on_server_closed(uv_handle_t *handle)
 {
     (void)handle;
     if (global_server && !server_freed)
@@ -221,21 +221,21 @@ void on_server_closed(uv_handle_t *handle)
 }
 
 // Called when a signal handler is closed
-void on_signal_closed(uv_handle_t *handle)
+static void on_signal_closed(uv_handle_t *handle)
 {
     (void)handle;
     signal_handlers_closed++;
 }
 
 // Timer close callback
-void on_timer_closed(uv_handle_t *handle)
+static void on_timer_closed(uv_handle_t *handle)
 {
     (void)handle;
     printf("Timer closed\n");
 }
 
 // Used to close all client connections
-void walk_callback(uv_handle_t *handle, void *arg)
+static void walk_callback(uv_handle_t *handle, void *arg)
 {
     (void)arg;
     if (uv_is_closing(handle))
@@ -296,7 +296,7 @@ void report_open_handles(uv_loop_t *loop)
 }
 
 // Graceful shutdown procedure
-void graceful_shutdown()
+static void graceful_shutdown(void)
 {
     if (shutdown_requested)
         return;
@@ -375,7 +375,7 @@ void graceful_shutdown()
 }
 
 // Signal callback: triggered when signals are received
-void signal_handler(uv_signal_t *handle, int signum)
+static void signal_handler(uv_signal_t *handle, int signum)
 {
     (void)handle;
     switch (signum)

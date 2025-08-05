@@ -32,7 +32,7 @@ void reset_cors(void)
     }
 }
 
-bool is_origin_allowed(const char *origin)
+static bool is_origin_allowed(const char *origin)
 {
     if (!g_cors_opts || !origin)
         return false;
