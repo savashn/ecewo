@@ -6,9 +6,9 @@
 
 <hr />
 
-## Effective C Essence for Web Operations
+## Express-C Effect for Web Operations
 
-Inspired by [Express.js](https://expressjs.com/) — it’s minimalist, unopinionated, and easy-to-use (in a C kind of way).
+Inspired by [Express.js](https://expressjs.com/). It’s minimalist, unopinionated, and easy-to-use (in a C kind of way).
 
 <hr />
 
@@ -44,7 +44,7 @@ include(FetchContent)
 FetchContent_Declare(
     ecewo
     GIT_REPOSITORY https://github.com/savashn/ecewo.git
-    GIT_TAG main # alternatively, use a version tag like v1.0.0
+    GIT_TAG main
 )
 
 FetchContent_MakeAvailable(ecewo)
@@ -66,12 +66,12 @@ void hello_world(Req *req, Res *res)
     send_text(res, 200, "Hello, World!");
 }
 
-void destroy_app()
+void destroy_app(void)
 {
     reset_router();
 }
 
-int main()
+int main(void)
 {
     init_router();
     get("/", hello_world);
@@ -98,7 +98,7 @@ mkdir build && cd build && cmake .. && cmake --build .
 
 ## Requirements
 
-- A C compiler (GCC, Clang, or MSVC)
+- A C compiler
 - CMake version 3.14 or higher
 
 ## Benchmarks

@@ -1,15 +1,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 #include "request.h"
 
-// Buffer growth strategy
+#define INITIAL_CAPACITY 16
+
 #define MIN_BUFFER_SIZE 64
 #define GROWTH_FACTOR 1.5
-#define MAX_SINGLE_ALLOCATION (10 * 1024 * 1024) // 10MB limit per allocation
-#define ABSOLUTE_MAX_REQUEST (50 * 1024 * 1024)  // 50MB absolute limit
+#define MAX_SINGLE_ALLOCATION (10 * 1024 * 1024)
+#define ABSOLUTE_MAX_REQUEST (50 * 1024 * 1024)
+#define MAX_HEADER_SIZE (8 * 1024)
+#define MAX_URL_LENGTH 2048
+#define MAX_METHOD_LENGTH 16
+#define MAX_HEADERS_COUNT 100
+#define MAX_QUERY_PARAMS 100
 
-// Calculate next buffer size with optimized growth
+// Calculate next buffer size
 static size_t calculate_next_size(size_t current, size_t needed)
 {
     if (needed > ABSOLUTE_MAX_REQUEST)
@@ -21,13 +28,17 @@ static size_t calculate_next_size(size_t current, size_t needed)
     if (needed <= current)
         return current;
 
-    size_t new_size = current;
-    if (new_size < MIN_BUFFER_SIZE)
-        new_size = MIN_BUFFER_SIZE;
+    size_t new_size = current < MIN_BUFFER_SIZE ? MIN_BUFFER_SIZE : current;
 
-    // Grow by factor until we have enough space
     while (new_size < needed)
     {
+        // Check for overflow before multiplication
+        if (new_size > SIZE_MAX / GROWTH_FACTOR)
+        {
+            new_size = needed + MIN_BUFFER_SIZE;
+            break;
+        }
+
         size_t next = (size_t)(new_size * GROWTH_FACTOR);
         if (next <= new_size)
         { // Overflow protection
@@ -43,13 +54,17 @@ static size_t calculate_next_size(size_t current, size_t needed)
         new_size = MAX_SINGLE_ALLOCATION;
     }
 
-    return new_size;
+    return new_size > ABSOLUTE_MAX_REQUEST ? ABSOLUTE_MAX_REQUEST : new_size;
 }
 
-// Buffer reallocation - only when absolutely necessary
-static int ensure_buffer_capacity(char **buffer, size_t *capacity, size_t current_length, size_t additional_needed)
+// Buffer reallocation
+static int ensure_buffer_capacity(char **buffer, size_t *capacity,
+                                  size_t current_length, size_t additional_needed)
 {
-    size_t total_needed = current_length + additional_needed + 1; // +1 for null terminator
+    if (!buffer || !capacity)
+        return -1;
+
+    size_t total_needed = current_length + additional_needed + 1;
 
     if (total_needed <= *capacity)
         return 0; // No reallocation needed
@@ -79,16 +94,24 @@ static int ensure_buffer_capacity(char **buffer, size_t *capacity, size_t curren
 // llhttp callback for URL
 static int on_url_cb(llhttp_t *parser, const char *at, size_t length)
 {
+    if (!parser || !parser->data || !at)
+        return 1;
+
     http_context_t *context = (http_context_t *)parser->data;
 
-    // Only reallocate if necessary
+    // Check URL length limit
+    if (context->url_length + length > MAX_URL_LENGTH)
+    {
+        fprintf(stderr, "URL too long: %zu bytes\n", context->url_length + length);
+        return 1;
+    }
+
     if (ensure_buffer_capacity(&context->url, &context->url_capacity,
                                context->url_length, length) != 0)
     {
         return 1;
     }
 
-    // Append URL data
     memcpy(context->url + context->url_length, at, length);
     context->url_length += length;
     context->url[context->url_length] = '\0';
@@ -99,19 +122,34 @@ static int on_url_cb(llhttp_t *parser, const char *at, size_t length)
 // llhttp callback for headers field
 static int on_header_field_cb(llhttp_t *parser, const char *at, size_t length)
 {
+    if (!parser || !parser->data || !at)
+        return 1;
+
     http_context_t *context = (http_context_t *)parser->data;
+
+    // Check header count limit
+    if (context->headers.count >= MAX_HEADERS_COUNT)
+    {
+        fprintf(stderr, "Too many headers: %d\n", context->headers.count);
+        return 1;
+    }
+
+    // Check header field size
+    if (length > MAX_HEADER_SIZE)
+    {
+        fprintf(stderr, "Header field too large: %zu bytes\n", length);
+        return 1;
+    }
 
     // Reset for new field
     context->header_field_length = 0;
 
-    // Only reallocate if necessary
-    if (ensure_buffer_capacity(&context->current_header_field, &context->header_field_capacity,
-                               0, length) != 0)
+    if (ensure_buffer_capacity(&context->current_header_field,
+                               &context->header_field_capacity, 0, length) != 0)
     {
         return 1;
     }
 
-    // Copy header field data
     memcpy(context->current_header_field, at, length);
     context->header_field_length = length;
     context->current_header_field[length] = '\0';
@@ -119,17 +157,24 @@ static int on_header_field_cb(llhttp_t *parser, const char *at, size_t length)
     return 0;
 }
 
-// Optimized array growth for headers
+// Array growth
 static int ensure_array_capacity(request_t *array)
 {
+    if (!array)
+        return -1;
+
     if (array->count < array->capacity)
-    {
-        return 0; // No growth needed
-    }
+        return 0;
 
-    int new_capacity = array->capacity == 0 ? INITIAL_CAPACITY : (int)(array->capacity * GROWTH_FACTOR);
+    // Check for overflow
+    if (array->capacity > INT_MAX / 2)
+        return -1;
 
-    request_item_t *new_items = realloc(array->items, sizeof(request_item_t) * new_capacity);
+    int new_capacity = array->capacity == 0 ? INITIAL_CAPACITY
+                                            : array->capacity * 2;
+
+    request_item_t *new_items = realloc(array->items,
+                                        sizeof(request_item_t) * new_capacity);
     if (!new_items)
     {
         perror("Array reallocation failed");
@@ -151,22 +196,35 @@ static int ensure_array_capacity(request_t *array)
 // llhttp callback for headers value
 static int on_header_value_cb(llhttp_t *parser, const char *at, size_t length)
 {
+    if (!parser || !parser->data || !at)
+        return 1;
+
     http_context_t *context = (http_context_t *)parser->data;
 
-    // Only grow array if necessary
-    if (ensure_array_capacity(&context->headers) != 0)
+    // Validate header field exists
+    if (!context->current_header_field || context->header_field_length == 0)
+        return 1;
+
+    // Check header value size
+    if (length > MAX_HEADER_SIZE)
     {
+        fprintf(stderr, "Header value too large: %zu bytes\n", length);
         return 1;
     }
 
-    // Copy header field and value
-    context->headers.items[context->headers.count].key = strdup(context->current_header_field);
+    if (ensure_array_capacity(&context->headers) != 0)
+        return 1;
+
+    context->headers.items[context->headers.count].key =
+        strdup(context->current_header_field);
+    if (!context->headers.items[context->headers.count].key)
+        return 1;
 
     char *value = malloc(length + 1);
     if (!value)
     {
-        perror("malloc header value");
         free(context->headers.items[context->headers.count].key);
+        context->headers.items[context->headers.count].key = NULL;
         return 1;
     }
 
@@ -176,8 +234,9 @@ static int on_header_value_cb(llhttp_t *parser, const char *at, size_t length)
     context->headers.items[context->headers.count].value = value;
     context->headers.count++;
 
-    // Special handling for Connection header for keep-alive detection
-    if (strcasecmp(context->current_header_field, "Connection") == 0)
+    // Handle Connection header for keep-alive
+    if (context->current_header_field &&
+        strcasecmp(context->current_header_field, "Connection") == 0)
     {
         if (length == 10 && strncasecmp(at, "keep-alive", 10) == 0)
         {
@@ -195,16 +254,25 @@ static int on_header_value_cb(llhttp_t *parser, const char *at, size_t length)
 // llhttp callback for method
 static int on_method_cb(llhttp_t *parser, const char *at, size_t length)
 {
+    if (!parser || !parser->data || !at)
+        return 1;
+
     http_context_t *context = (http_context_t *)parser->data;
 
-    // Only reallocate if necessary
+    // Limit method length
+    if (context->method_length + length > MAX_METHOD_LENGTH)
+    {
+        fprintf(stderr, "Method too long: %zu bytes\n",
+                context->method_length + length);
+        return 1;
+    }
+
     if (ensure_buffer_capacity(&context->method, &context->method_capacity,
                                context->method_length, length) != 0)
     {
         return 1;
     }
 
-    // Append method data
     memcpy(context->method + context->method_length, at, length);
     context->method_length += length;
     context->method[context->method_length] = '\0';
@@ -215,22 +283,23 @@ static int on_method_cb(llhttp_t *parser, const char *at, size_t length)
 // llhttp callback for body
 static int on_body_cb(llhttp_t *parser, const char *at, size_t length)
 {
+    if (!parser || !parser->data || !at)
+        return 1;
+
     http_context_t *context = (http_context_t *)parser->data;
 
-    // Only reallocate if necessary
     int result = ensure_buffer_capacity(&context->body, &context->body_capacity,
                                         context->body_length, length);
 
     if (result == -2)
     {
-        return HPE_USER;
+        return HPE_USER; // Payload too large
     }
     else if (result != 0)
     {
         return 1;
     }
 
-    // Copy body data
     memcpy(context->body + context->body_length, at, length);
     context->body_length += length;
     context->body[context->body_length] = '\0';
@@ -241,20 +310,16 @@ static int on_body_cb(llhttp_t *parser, const char *at, size_t length)
 // Callback for HTTP version detection
 static int on_version_cb(llhttp_t *parser)
 {
+    if (!parser || !parser->data)
+        return 1;
+
     http_context_t *context = (http_context_t *)parser->data;
 
     context->http_major = parser->http_major;
     context->http_minor = parser->http_minor;
 
     // Set default keep-alive based on HTTP version
-    if (parser->http_major == 1 && parser->http_minor == 1)
-    {
-        context->keep_alive = 1; // HTTP/1.1 default is keep-alive
-    }
-    else
-    {
-        context->keep_alive = 0; // HTTP/1.0 default is close
-    }
+    context->keep_alive = (parser->http_major == 1 && parser->http_minor >= 1) ? 1 : 0;
 
     return 0;
 }
@@ -262,9 +327,7 @@ static int on_version_cb(llhttp_t *parser)
 static void free_req(request_t *request)
 {
     if (!request || !request->items)
-    {
         return;
-    }
 
     for (int i = 0; i < request->count; i++)
     {
@@ -278,12 +341,16 @@ static void free_req(request_t *request)
     request->capacity = 0;
 }
 
-// Initialization with pre-allocated reasonable sizes
+// Initialize HTTP context
 void http_context_init(http_context_t *context)
 {
+    if (!context)
+        return;
+
+    memset(context, 0, sizeof(http_context_t));
+
     // Initialize llhttp parser
     llhttp_settings_init(&context->settings);
-    llhttp_init(&context->parser, HTTP_REQUEST, &context->settings);
 
     // Set up callbacks
     context->settings.on_url = on_url_cb;
@@ -293,89 +360,37 @@ void http_context_init(http_context_t *context)
     context->settings.on_body = on_body_cb;
     context->settings.on_headers_complete = on_version_cb;
 
+    llhttp_init(&context->parser, HTTP_REQUEST, &context->settings);
+
     context->parser.data = context;
 
-    // Initialize buffers with reasonable starting sizes
-    context->url_capacity = 256; // Most URLs are under 256 chars
-    context->url = malloc(context->url_capacity);
+    // Initialize buffers
+    context->url_capacity = 256;
+    context->url = calloc(context->url_capacity, 1);
     context->url_length = 0;
-    if (context->url)
-    {
-        context->url[0] = '\0';
-    }
-    else
-    {
-        perror("malloc url");
-        context->url_capacity = 0;
-    }
 
-    context->method_capacity = 16; // HTTP methods are short
-    context->method = malloc(context->method_capacity);
+    context->method_capacity = 16;
+    context->method = calloc(context->method_capacity, 1);
     context->method_length = 0;
-    if (context->method)
-    {
-        context->method[0] = '\0';
-    }
-    else
-    {
-        perror("malloc method");
-        context->method_capacity = 0;
-    }
 
-    context->header_field_capacity = 64; // Most header names are short
-    context->current_header_field = malloc(context->header_field_capacity);
+    context->header_field_capacity = 64;
+    context->current_header_field = calloc(context->header_field_capacity, 1);
     context->header_field_length = 0;
-    if (context->current_header_field)
-    {
-        context->current_header_field[0] = '\0';
-    }
-    else
-    {
-        perror("malloc header field");
-        context->header_field_capacity = 0;
-    }
 
-    context->body_capacity = 512; // Start with reasonable body size
-    context->body = malloc(context->body_capacity);
+    context->body_capacity = 512;
+    context->body = calloc(context->body_capacity, 1);
     context->body_length = 0;
-    if (context->body)
-    {
-        context->body[0] = '\0';
-    }
-    else
-    {
-        perror("malloc body");
-        context->body_capacity = 0;
-    }
 
-    // Initialize request structures
+    // Initialize arrays
     context->headers.count = 0;
-    context->headers.capacity = 8; // Most requests have few headers
-    context->headers.items = malloc(sizeof(request_item_t) * context->headers.capacity);
-    if (context->headers.items)
-    {
-        for (int i = 0; i < context->headers.capacity; i++)
-        {
-            context->headers.items[i].key = NULL;
-            context->headers.items[i].value = NULL;
-        }
-    }
-    else
-    {
-        perror("malloc headers");
-        context->headers.capacity = 0;
-    }
+    context->headers.capacity = 16;
+    context->headers.items = calloc(context->headers.capacity,
+                                    sizeof(request_item_t));
 
-    // Initialize other structures as empty (will allocate when needed)
-    context->query_params.count = 0;
-    context->query_params.capacity = 0;
-    context->query_params.items = NULL;
+    // Other fields start empty
+    memset(&context->query_params, 0, sizeof(request_t));
+    memset(&context->url_params, 0, sizeof(request_t));
 
-    context->url_params.count = 0;
-    context->url_params.capacity = 0;
-    context->url_params.items = NULL;
-
-    // Set default values
     context->keep_alive = 0;
     context->http_major = 1;
     context->http_minor = 0;
@@ -384,6 +399,9 @@ void http_context_init(http_context_t *context)
 // Function to clean up HTTP context
 void http_context_free(http_context_t *context)
 {
+    if (!context)
+        return;
+
     free(context->url);
     free(context->method);
     free(context->current_header_field);
@@ -393,24 +411,27 @@ void http_context_free(http_context_t *context)
     free_req(&context->query_params);
     free_req(&context->url_params);
 
-    // Reset pointers to NULL for safety
-    context->url = NULL;
-    context->method = NULL;
-    context->current_header_field = NULL;
-    context->body = NULL;
+    memset(context, 0, sizeof(http_context_t));
 }
 
-// Query parsing with lazy allocation
 void parse_query(const char *query_string, request_t *query)
 {
-    query->count = 0;
-    query->capacity = 0;
-    query->items = NULL;
+    if (!query)
+        return;
+
+    memset(query, 0, sizeof(request_t));
 
     if (!query_string || strlen(query_string) == 0)
         return;
 
-    // Count parameters first to allocate once
+    size_t query_len = strlen(query_string);
+    if (query_len > MAX_URL_LENGTH)
+    {
+        fprintf(stderr, "Query string too long: %zu bytes\n", query_len);
+        return;
+    }
+
+    // Count parameters
     int param_count = 1;
     for (const char *p = query_string; *p; p++)
     {
@@ -418,27 +439,24 @@ void parse_query(const char *query_string, request_t *query)
             param_count++;
     }
 
+    // Limit parameters
+    if (param_count > MAX_QUERY_PARAMS)
+    {
+        fprintf(stderr, "Too many query parameters: %d\n", param_count);
+        param_count = MAX_QUERY_PARAMS;
+    }
+
     query->capacity = param_count;
-    query->items = malloc(sizeof(request_item_t) * query->capacity);
+    query->items = calloc(query->capacity, sizeof(request_item_t));
     if (!query->items)
     {
-        perror("malloc query items");
         query->capacity = 0;
         return;
     }
 
-    // Initialize all items
-    for (int i = 0; i < query->capacity; i++)
-    {
-        query->items[i].key = NULL;
-        query->items[i].value = NULL;
-    }
-
-    size_t query_len = strlen(query_string);
     char *buffer = malloc(query_len + 1);
     if (!buffer)
     {
-        perror("malloc query buffer");
         free(query->items);
         query->items = NULL;
         query->capacity = 0;
@@ -457,14 +475,16 @@ void parse_query(const char *query_string, request_t *query)
             query->items[query->count].key = strdup(pair);
             query->items[query->count].value = strdup(eq + 1);
 
-            if (!query->items[query->count].key || !query->items[query->count].value)
+            if (query->items[query->count].key &&
+                query->items[query->count].value)
             {
-                printf("Memory allocation failed for query item\n");
+                query->count++;
+            }
+            else
+            {
                 free(query->items[query->count].key);
                 free(query->items[query->count].value);
-                continue;
             }
-            query->count++;
         }
         pair = strtok(NULL, "&");
     }
@@ -475,185 +495,119 @@ void parse_query(const char *query_string, request_t *query)
 // Parameter parsing
 void parse_params(const char *path, const char *route_path, request_t *params)
 {
-    params->count = 0;
-    params->capacity = 0;
-    params->items = NULL;
+    if (!params)
+        return;
+
+    memset(params, 0, sizeof(request_t));
 
     if (!path || !route_path)
-    {
         return;
-    }
 
     size_t path_len = strlen(path);
     size_t route_len = strlen(route_path);
 
-    char *path_copy = malloc(path_len + 1);
-    char *route_copy = malloc(route_len + 1);
-
-    if (!path_copy || !route_copy)
+    if (path_len > MAX_URL_LENGTH || route_len > MAX_URL_LENGTH)
     {
-        free(path_copy);
-        free(route_copy);
+        fprintf(stderr, "Path too long\n");
         return;
     }
 
-    strcpy(path_copy, path);
-    strcpy(route_copy, route_path);
-
-    // Count dynamic parameters first
     int param_count = 0;
-    char *temp_route = strdup(route_copy);
-    if (temp_route)
+    const char *route_ptr = route_path;
+
+    while (*route_ptr)
     {
-        char *token = strtok(temp_route, "/");
-        while (token)
+        if (*route_ptr == ':')
         {
-            if (token[0] == ':')
-                param_count++;
-            token = strtok(NULL, "/");
+            route_ptr++;
+            while (*route_ptr && *route_ptr != '/')
+                route_ptr++;
+            param_count++;
         }
-        free(temp_route);
+        else
+        {
+            route_ptr++;
+        }
     }
 
     if (param_count == 0)
-    {
-        free(path_copy);
-        free(route_copy);
-        return; // No parameters to parse
-    }
+        return;
 
-    // Allocate once for all parameters
     params->capacity = param_count;
-    params->items = malloc(sizeof(request_item_t) * params->capacity);
+    params->items = calloc(params->capacity, sizeof(request_item_t));
     if (!params->items)
     {
-        perror("malloc params");
-        params->capacity = 0;
-        free(path_copy);
-        free(route_copy);
-        return;
-    }
-
-    for (int i = 0; i < params->capacity; i++)
-    {
-        params->items[i].key = NULL;
-        params->items[i].value = NULL;
-    }
-
-    // Count how many segments there are
-    int path_segment_count = 0;
-    int route_segment_count = 0;
-
-    char *temp_path = strdup(path_copy);
-    if (temp_path)
-    {
-        char *token = strtok(temp_path, "/");
-        while (token)
-        {
-            path_segment_count++;
-            token = strtok(NULL, "/");
-        }
-        free(temp_path);
-    }
-
-    temp_route = strdup(route_copy);
-    if (temp_route)
-    {
-        char *token = strtok(temp_route, "/");
-        while (token)
-        {
-            route_segment_count++;
-            token = strtok(NULL, "/");
-        }
-        free(temp_route);
-    }
-
-    char **path_segments = malloc(sizeof(char *) * path_segment_count);
-    char **route_segments = malloc(sizeof(char *) * route_segment_count);
-
-    if (!path_segments || !route_segments)
-    {
-        free(path_segments);
-        free(route_segments);
-        free(path_copy);
-        free(route_copy);
-        free(params->items);
-        params->items = NULL;
         params->capacity = 0;
         return;
     }
 
-    // Parse path segments
-    int actual_path_count = 0;
-    char *token = strtok(path_copy, "/");
-    while (token && actual_path_count < path_segment_count)
-    {
-        path_segments[actual_path_count++] = strdup(token);
-        token = strtok(NULL, "/");
-    }
+    const char *path_start = path;
+    const char *route_start = route_path;
 
-    int actual_route_count = 0;
-    token = strtok(route_copy, "/");
-    while (token && actual_route_count < route_segment_count)
+    while (*path_start && *route_start && params->count < params->capacity)
     {
-        route_segments[actual_route_count++] = strdup(token);
-        token = strtok(NULL, "/");
-    }
+        while (*path_start == '/')
+            path_start++;
+        while (*route_start == '/')
+            route_start++;
 
-    int min_segments = actual_path_count < actual_route_count ? actual_path_count : actual_route_count;
+        if (!*path_start || !*route_start)
+            break;
 
-    for (int i = 0; i < min_segments && params->count < params->capacity; i++)
-    {
-        if (route_segments[i] && route_segments[i][0] == ':')
+        const char *route_end = route_start;
+        while (*route_end && *route_end != '/')
+            route_end++;
+
+        const char *path_end = path_start;
+        while (*path_end && *path_end != '/')
+            path_end++;
+
+        if (*route_start == ':')
         {
-            char *param_key = strdup(route_segments[i] + 1);
-            char *param_value = strdup(path_segments[i]);
+            size_t key_len = route_end - route_start - 1;
+            size_t value_len = path_end - path_start;
 
-            if (param_key && param_value)
+            if (key_len > 0 && value_len > 0)
             {
-                params->items[params->count].key = param_key;
-                params->items[params->count].value = param_value;
-                params->count++;
-            }
-            else
-            {
-                free(param_key);
-                free(param_value);
+                char *key = malloc(key_len + 1);
+                char *value = malloc(value_len + 1);
+
+                if (key && value)
+                {
+                    memcpy(key, route_start + 1, key_len);
+                    key[key_len] = '\0';
+
+                    memcpy(value, path_start, value_len);
+                    value[value_len] = '\0';
+
+                    params->items[params->count].key = key;
+                    params->items[params->count].value = value;
+                    params->count++;
+                }
+                else
+                {
+                    free(key);
+                    free(value);
+                    break;
+                }
             }
         }
-    }
 
-    // Free path segments
-    for (int i = 0; i < actual_path_count; i++)
-    {
-        free(path_segments[i]);
+        path_start = path_end;
+        route_start = route_end;
     }
-    free(path_segments);
-
-    // Free route segments
-    for (int i = 0; i < actual_route_count; i++)
-    {
-        free(route_segments[i]);
-    }
-    free(route_segments);
-
-    free(path_copy);
-    free(route_copy);
 }
 
+// Get value by key
 const char *get_req(const request_t *request, const char *key)
 {
     if (!request || !request->items || !key)
-    {
         return NULL;
-    }
 
     for (int i = 0; i < request->count; i++)
     {
         if (request->items[i].key && strcmp(request->items[i].key, key) == 0)
-        {
             return request->items[i].value;
-        }
     }
     return NULL;
 }

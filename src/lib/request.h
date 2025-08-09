@@ -6,8 +6,6 @@
 #include "llhttp.h"
 #include "compat.h"
 
-#define INITIAL_CAPACITY 16
-
 typedef struct
 {
     char *key;
@@ -53,7 +51,7 @@ typedef struct
     int http_major; // Major HTTP version
     int http_minor; // Minor HTTP version
 
-    // Temporary header parsing - also dynamic
+    // Temporary header parsing
     char *current_header_field;   // Dynamic current header field buffer
     size_t header_field_length;   // Current header field length
     size_t header_field_capacity; // Header field buffer capacity
