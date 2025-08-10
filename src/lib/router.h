@@ -7,6 +7,9 @@
 #include "request.h"
 #include "uv.h"
 
+typedef struct route_match route_match_t;
+typedef struct route_trie route_trie_t;
+
 // HTTP Status Codes
 typedef enum
 {

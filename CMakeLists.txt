@@ -42,6 +42,7 @@ if(NOT TARGET ecewo)
         src/lib/request.c
         src/lib/router.c
         src/lib/middleware.c
+        src/lib/route_trie.c
         src/utils/cors.c
         src/utils/async.c
         src/utils/cookie.c

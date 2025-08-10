@@ -5,6 +5,7 @@
 #include "uv.h"
 #include "llhttp.h"
 #include "cors.h"
+#include "route_trie.h"
 
 // Called when write operation is completed
 static void write_completion_cb(uv_write_t *req, int status)
@@ -99,6 +100,35 @@ static void send_error(uv_tcp_t *client_socket, int error_code)
         free(response);
         free(write_req);
     }
+}
+
+static int extract_path_and_query(char *url_buf, char **path, char **query)
+{
+    if (!url_buf || !path || !query)
+        return -1;
+
+    // URL buffer already null-terminated by llhttp parser.
+    // Example: "/users/1234?active=true"
+
+    char *qmark = strchr(url_buf, '?');
+    if (qmark)
+    {
+        *qmark = '\0';
+        *path = url_buf;
+        *query = qmark + 1;
+    }
+    else
+    {
+        *path = url_buf;
+        *query = "";
+    }
+
+    // If path is empty, treat it as root
+    if ((*path)[0] == '\0')
+    {
+        *path = "/";
+    }
+    return 0;
 }
 
 static int extract_url_params(const route_match_t *match, request_t *url_params)
