@@ -18,6 +18,13 @@ struct Chain
     RequestHandler route_handler; // The final route handler
 };
 
+typedef struct MiddlewareInfo
+{
+    MiddlewareHandler *middleware;
+    int middleware_count;
+    RequestHandler handler;
+} MiddlewareInfo;
+
 typedef struct
 {
     MiddlewareHandler *handlers;
@@ -36,6 +43,7 @@ typedef struct
 // Global middleware array
 extern MiddlewareHandler *global_middleware;
 extern int global_middleware_count;
+
 // Function to add global middleware
 void hook(MiddlewareHandler middleware_handler);
 
@@ -47,5 +55,7 @@ void register_route(const char *method, const char *path,
                     RequestHandler handler);
 
 void reset_middleware(void);
+
+void free_middleware_info(MiddlewareInfo *info);
 
 #endif

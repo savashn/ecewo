@@ -50,15 +50,10 @@ static void trie_node_free(trie_node_t *node)
         {
             if (node->middleware_ctx[i])
             {
-                // Free Middleware context
                 MiddlewareInfo *middleware_info = (MiddlewareInfo *)node->middleware_ctx[i];
                 if (middleware_info)
                 {
-                    if (middleware_info->middleware)
-                    {
-                        free(middleware_info->middleware);
-                    }
-                    free(middleware_info);
+                    free_middleware_info(middleware_info);
                 }
             }
         }
