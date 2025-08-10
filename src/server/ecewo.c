@@ -3,34 +3,27 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-Router *routes = NULL;
-size_t route_count = 0;
-size_t routes_capacity = 0;
+route_trie_t *global_route_trie = NULL;
 
 // Initialize router with default capacity
 void init_router(void)
 {
-    routes_capacity = 10; // Start with space for 10 routes
-    routes = (Router *)malloc(routes_capacity * sizeof(Router));
-    if (routes == NULL)
+    global_route_trie = route_trie_create();
+    if (!global_route_trie)
     {
-        fprintf(stderr, "Error: Failed to allocate memory for routes\n");
+        fprintf(stderr, "Error: Failed to create route trie\n");
         exit(EXIT_FAILURE);
     }
-    route_count = 0;
 }
 
-// Cleanup function to free memory
 void reset_router(void)
 {
-    if (routes != NULL)
+    if (global_route_trie)
     {
-        // Clean up middleware information before freeing routes
-        reset_middleware();
-
-        free(routes);
-        routes = NULL;
+        // Middleware contexts will be cleaned up in route_trie_free
+        route_trie_free(global_route_trie);
+        global_route_trie = NULL;
     }
-    route_count = 0;
-    routes_capacity = 0;
+
+    reset_middleware();
 }

@@ -26,14 +26,6 @@ Inspired by [Express.js](https://expressjs.com/). It’s minimalist, unopinionat
 
 ## Quick Start
 
-### Using [Ecewo-CLI:](https://github.com/savashn/ecewo-cli)
-
-```
-ecewo create
-```
-
-### Manually:
-
 **CMakeLists.txt:**
 ```cmake
 cmake_minimum_required(VERSION 3.14)

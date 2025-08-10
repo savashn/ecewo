@@ -101,89 +101,51 @@ static void send_error(uv_tcp_t *client_socket, int error_code)
     }
 }
 
-// Matches a path with a dynamic parameter route using pointers, no copy
-// Segments starting with ":param" in route_path are treated as parameters
-bool matcher(const char *path, const char *route_path)
+static int extract_url_params(const route_match_t *match, request_t *url_params)
 {
-    if (!path || !route_path)
-        return false;
-
-    const char *p = path;
-    const char *r = route_path;
-
-    while (*p || *r)
-    {
-        if (*p == '\0' && *r == '\0')
-            return true;
-
-        if (*p == '\0' || *r == '\0')
-            return false;
-
-        // Segment beginning: '/'
-        if (*r == '/')
-        {
-            if (*p != '/')
-                return false;
-            r++;
-            p++;
-            continue;
-        }
-
-        // Segment comparison
-        // If the route segment starts with ':', skip the segment in the path
-        if (*r == ':')
-        {
-            // Skip to end of segment in route
-            while (*r && *r != '/')
-                r++;
-            // Skip to end of segment in path
-            while (*p && *p != '/')
-                p++;
-        }
-        else
-        {
-            // Static segment: compare character by character
-            if (*p != *r)
-                return false;
-            p++;
-            r++;
-        }
-
-        // Loop continues at end of each segment ('/' or end of string)
-    }
-
-    // Match if both reached end
-    return (*p == '\0' && *r == '\0');
-}
-
-// Replaces '?' with '\0' in context.url
-// and returns pointers to path and query
-static int extract_path_and_query(char *url_buf, char **path, char **query)
-{
-    if (!url_buf || !path || !query)
+    if (!match || !url_params)
         return -1;
 
-    // URL buffer already null-terminated by llhttp parser.
-    // Example: "/users/1234?active=true"
+    if (url_params->capacity == 0)
+    {
+        url_params->capacity = match->param_count > 0 ? match->param_count : 1;
+        url_params->items = malloc(sizeof(request_item_t) * url_params->capacity);
+        if (!url_params->items)
+        {
+            url_params->capacity = 0;
+            return -1;
+        }
 
-    char *qmark = strchr(url_buf, '?');
-    if (qmark)
-    {
-        *qmark = '\0';
-        *path = url_buf;
-        *query = qmark + 1;
-    }
-    else
-    {
-        *path = url_buf;
-        *query = "";
+        for (int i = 0; i < url_params->capacity; i++)
+        {
+            url_params->items[i].key = NULL;
+            url_params->items[i].value = NULL;
+        }
     }
 
-    // If path is empty, treat it as root
-    if ((*path)[0] == '\0')
+    for (int i = 0; i < match->param_count && url_params->count < url_params->capacity; i++)
     {
-        *path = "/";
+        char *key = malloc(match->params[i].key.len + 1);
+        char *value = malloc(match->params[i].value.len + 1);
+
+        if (!key || !value)
+        {
+            free(key);
+            free(value);
+            return -1;
+        }
+
+        memcpy(key, match->params[i].key.data, match->params[i].key.len);
+        key[match->params[i].key.len] = '\0';
+
+        memcpy(value, match->params[i].value.data, match->params[i].value.len);
+        value[match->params[i].value.len] = '\0';
+
+        url_params->items[url_params->count].key = key;
+        url_params->items[url_params->count].value = value;
+        url_params->count++;
     }
+
     return 0;
 }
 
@@ -653,11 +615,8 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
         return 1;
     }
 
-    // Check if socket is still valid
     if (uv_is_closing((uv_handle_t *)client_socket))
-    {
         return 1;
-    }
 
     http_context_t *ctx = create_http_context();
     Req *req = create_req(client_socket);
@@ -722,9 +681,8 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
         return should_close;
     }
 
-    // Find matching route
-    bool route_found = false;
-    if (!routes || route_count == 0)
+    // Route matching
+    if (!global_route_trie || !ctx->method)
     {
         cors_add_headers(ctx, res);
         const char *not_found_msg = "404 Not Found";
@@ -736,27 +694,20 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
         return should_close;
     }
 
-    // Method NULL check
-    if (!ctx->method)
+    route_match_t match;
+    if (route_trie_match(global_route_trie, ctx->method, path, &match))
     {
-        send_error(client_socket, 400);
-        destroy_http_context(ctx);
-        destroy_req(req);
-        destroy_res(res);
-        return 1;
-    }
-
-    for (size_t i = 0; i < route_count; i++)
-    {
-        if (!ctx->method || !routes[i].method || strcasecmp(ctx->method, routes[i].method) != 0)
-            continue;
-        if (!matcher(path, routes[i].path))
-            continue;
-
-        route_found = true;
-
-        // Parse URL parameters
-        parse_params(path, routes[i].path, &ctx->url_params);
+        if (match.param_count > 0)
+        {
+            if (extract_url_params(&match, &ctx->url_params) != 0)
+            {
+                send_error(client_socket, 500);
+                destroy_http_context(ctx);
+                destroy_req(req);
+                destroy_res(res);
+                return 1;
+            }
+        }
 
         // Populate request from context
         if (populate_req_from_context(req, ctx, path) != 0)
@@ -768,8 +719,7 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
             return 1;
         }
 
-        // Handler NULL check
-        if (!routes[i].handler)
+        if (!match.handler)
         {
             send_error(client_socket, 500);
             destroy_http_context(ctx);
@@ -778,9 +728,9 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
             return 1;
         }
 
-        // Add CORS headers and call handler
+        // Execute handler (middleware-wrapped)
         cors_add_headers(ctx, res);
-        routes[i].handler(req, res);
+        match.handler(req, res);
 
         int should_close = !res->keep_alive;
         destroy_http_context(ctx);
@@ -789,20 +739,15 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
         return should_close;
     }
 
-    // Handle 404
-    if (!route_found)
-    {
-        cors_add_headers(ctx, res);
-        reply(res, 404, "text/plain", "404 Not Found", strlen("404 Not Found"));
-        int should_close = !res->keep_alive;
-        destroy_http_context(ctx);
-        destroy_req(req);
-        destroy_res(res);
-        return should_close;
-    }
-
-    // Should never reach here; either route matched or 404 sent
-    return 1;
+    // 404 Not Found
+    cors_add_headers(ctx, res);
+    const char *not_found_msg = "404 Not Found";
+    reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
+    int should_close = !res->keep_alive;
+    destroy_http_context(ctx);
+    destroy_req(req);
+    destroy_res(res);
+    return should_close;
 }
 
 // Adds a header

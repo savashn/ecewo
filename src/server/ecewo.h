@@ -4,10 +4,9 @@
 #include "router.h"
 #include "middleware.h"
 #include "compat.h"
+#include "route_trie.h"
 
-extern Router *routes;
-extern size_t route_count;
-extern size_t routes_capacity;
+extern route_trie_t *global_route_trie;
 
 // GET
 #define GET_CHOOSER(_1, _2, _3, NAME, ...) NAME

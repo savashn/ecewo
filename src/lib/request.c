@@ -414,6 +414,7 @@ void http_context_free(http_context_t *context)
     memset(context, 0, sizeof(http_context_t));
 }
 
+// Query parsing
 void parse_query(const char *query_string, request_t *query)
 {
     if (!query)
@@ -490,112 +491,6 @@ void parse_query(const char *query_string, request_t *query)
     }
 
     free(buffer);
-}
-
-// Parameter parsing
-void parse_params(const char *path, const char *route_path, request_t *params)
-{
-    if (!params)
-        return;
-
-    memset(params, 0, sizeof(request_t));
-
-    if (!path || !route_path)
-        return;
-
-    size_t path_len = strlen(path);
-    size_t route_len = strlen(route_path);
-
-    if (path_len > MAX_URL_LENGTH || route_len > MAX_URL_LENGTH)
-    {
-        fprintf(stderr, "Path too long\n");
-        return;
-    }
-
-    int param_count = 0;
-    const char *route_ptr = route_path;
-
-    while (*route_ptr)
-    {
-        if (*route_ptr == ':')
-        {
-            route_ptr++;
-            while (*route_ptr && *route_ptr != '/')
-                route_ptr++;
-            param_count++;
-        }
-        else
-        {
-            route_ptr++;
-        }
-    }
-
-    if (param_count == 0)
-        return;
-
-    params->capacity = param_count;
-    params->items = calloc(params->capacity, sizeof(request_item_t));
-    if (!params->items)
-    {
-        params->capacity = 0;
-        return;
-    }
-
-    const char *path_start = path;
-    const char *route_start = route_path;
-
-    while (*path_start && *route_start && params->count < params->capacity)
-    {
-        while (*path_start == '/')
-            path_start++;
-        while (*route_start == '/')
-            route_start++;
-
-        if (!*path_start || !*route_start)
-            break;
-
-        const char *route_end = route_start;
-        while (*route_end && *route_end != '/')
-            route_end++;
-
-        const char *path_end = path_start;
-        while (*path_end && *path_end != '/')
-            path_end++;
-
-        if (*route_start == ':')
-        {
-            size_t key_len = route_end - route_start - 1;
-            size_t value_len = path_end - path_start;
-
-            if (key_len > 0 && value_len > 0)
-            {
-                char *key = malloc(key_len + 1);
-                char *value = malloc(value_len + 1);
-
-                if (key && value)
-                {
-                    memcpy(key, route_start + 1, key_len);
-                    key[key_len] = '\0';
-
-                    memcpy(value, path_start, value_len);
-                    value[value_len] = '\0';
-
-                    params->items[params->count].key = key;
-                    params->items[params->count].value = value;
-                    params->count++;
-                }
-                else
-                {
-                    free(key);
-                    free(value);
-                    break;
-                }
-            }
-        }
-
-        path_start = path_end;
-        route_start = route_end;
-    }
 }
 
 // Get value by key

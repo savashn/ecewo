@@ -102,32 +102,30 @@ static void route_handler_with_middleware(Req *req, Res *res)
         return;
     }
 
-    // Find the matching route in the routes array
-    const char *path = req->path ? req->path : "";
-    const char *method = req->method ? req->method : "";
-    MiddlewareInfo *middleware_info = NULL;
-
-    for (size_t i = 0; i < route_count; i++)
+    route_match_t match;
+    if (!global_route_trie || !req->method || !req->path)
     {
-        if (routes[i].method && routes[i].path &&
-            strcmp(routes[i].method, method) == 0 &&
-            matcher(path, routes[i].path))
-        {
-            middleware_info = (MiddlewareInfo *)routes[i].middleware_ctx;
-            break;
-        }
-    }
-
-    if (!middleware_info)
-    {
-        printf("Error: No middleware info found for route %s %s\n", method, path);
+        printf("Error: Missing route trie or request info\n");
         return;
     }
 
-    // Calculate total middleware count (global + route-specific)
+    if (!route_trie_match(global_route_trie, req->method, req->path, &match))
+    {
+        printf("Error: Route not found in trie for %s %s\n", req->method, req->path);
+        return;
+    }
+
+    MiddlewareInfo *middleware_info = (MiddlewareInfo *)match.middleware_ctx;
+    if (!middleware_info)
+    {
+        printf("Error: No middleware info found for route %s %s\n", req->method, req->path);
+        return;
+    }
+
+    // Calculate total middleware count
     int total_middleware_count = global_middleware_count + middleware_info->middleware_count;
 
-    // If no middleware, just call the handler directly
+    // If no middleware, call handler directly
     if (total_middleware_count == 0)
     {
         if (middleware_info->handler)
@@ -137,12 +135,11 @@ static void route_handler_with_middleware(Req *req, Res *res)
         return;
     }
 
-    // Allocate memory for the combined middleware handlers
+    // Allocate memory for combined middleware handlers
     MiddlewareHandler *combined_handlers = malloc(sizeof(MiddlewareHandler) * total_middleware_count);
     if (!combined_handlers)
     {
         printf("Memory allocation failed for middleware handlers\n");
-        // If memory allocation fails, call the route handler directly
         if (middleware_info->handler)
         {
             middleware_info->handler(req, res);
@@ -167,18 +164,12 @@ static void route_handler_with_middleware(Req *req, Res *res)
         .current = 0,
         .route_handler = middleware_info->handler};
 
-    // Start the middleware chain execution
+    // Start middleware chain execution
     int result = next(&chain, req, res);
 
-    // Free the combined handlers
     free(combined_handlers);
 
-    // Return value meanings:
-    // -1: Error (e.g., NULL pointer)
-    //  0: Middleware chain stopped (e.g., auth failed) - NORMAL CASE
-    //  1: Chain completed successfully and handler was called
-
-    // Only call the handler directly if an actual error occurred (-1)
+    // Error handling
     if (result == -1)
     {
         printf("ERROR: Middleware chain failed, calling handler directly as fallback\n");
@@ -232,11 +223,15 @@ void register_route(const char *method, const char *path, MiddlewareArray middle
         return;
     }
 
-    expand_routes();
-
     if (!method || !path)
     {
         printf("Error: NULL method or path provided\n");
+        return;
+    }
+
+    if (!global_route_trie)
+    {
+        printf("Error: Route trie not initialized\n");
         return;
     }
 
@@ -248,12 +243,11 @@ void register_route(const char *method, const char *path, MiddlewareArray middle
         return;
     }
 
-    // Initialize middleware info structure
     middleware_info->middleware = NULL;
     middleware_info->middleware_count = 0;
     middleware_info->handler = handler;
 
-    // Allocate and copy middleware handlers if needed
+    // Copy middleware handlers if needed
     if (middleware.count > 0 && middleware.handlers)
     {
         middleware_info->middleware = malloc(sizeof(MiddlewareHandler) * middleware.count);
@@ -267,56 +261,19 @@ void register_route(const char *method, const char *path, MiddlewareArray middle
         middleware_info->middleware_count = middleware.count;
     }
 
-    // Register route with the wrapper handler
-    routes[route_count].method = strdup(method); // Make a copy to avoid dangling pointers
-    if (!routes[route_count].method)
+    // SADECE route trie'ye ekle - eski array kullanma!
+    int result = route_trie_add(global_route_trie, method, path,
+                                route_handler_with_middleware, middleware_info);
+    if (result != 0)
     {
-        printf("Memory allocation failed for route method\n");
+        printf("Failed to add route to trie: %s %s\n", method, path);
         free_middleware_info(middleware_info);
         return;
     }
-
-    routes[route_count].path = strdup(path); // Make a copy to avoid dangling pointers
-    if (!routes[route_count].path)
-    {
-        printf("Memory allocation failed for route path\n");
-        free((void *)routes[route_count].method);
-        free_middleware_info(middleware_info);
-        return;
-    }
-
-    routes[route_count].handler = route_handler_with_middleware;
-    routes[route_count].middleware_ctx = middleware_info; // Store middleware context
-
-    route_count++;
 }
 
-// Cleanup function to free all allocated resources
 void reset_middleware(void)
 {
-    for (size_t i = 0; i < route_count; i++)
-    {
-        if (routes[i].middleware_ctx)
-        {
-            free_middleware_info((MiddlewareInfo *)routes[i].middleware_ctx);
-            routes[i].middleware_ctx = NULL;
-        }
-
-        // Free duplicated strings
-        if (routes[i].method)
-        {
-            free((void *)routes[i].method);
-            routes[i].method = NULL;
-        }
-
-        if (routes[i].path)
-        {
-            free((void *)routes[i].path);
-            routes[i].path = NULL;
-        }
-    }
-
-    // Free global middleware
     if (global_middleware)
     {
         free(global_middleware);

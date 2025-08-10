@@ -66,9 +66,6 @@ void http_context_free(http_context_t *context);
 // Parse the query string into request_t structure
 void parse_query(const char *query_string, request_t *query);
 
-// Parse path parameters based on route pattern
-void parse_params(const char *path, const char *route_path, request_t *params);
-
 // Get value by key from request_t structure
 const char *get_req(const request_t *request, const char *key);
 

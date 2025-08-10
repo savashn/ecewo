@@ -146,7 +146,6 @@ typedef struct
     void *middleware_ctx;
 } Router;
 
-bool matcher(const char *path, const char *route_path);
 int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len);
 Req *copy_req(const Req *original);
 Res *copy_res(const Res *original);
