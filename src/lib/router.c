@@ -711,15 +711,16 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     // Route matching
     if (!global_route_trie || !ctx->method)
     {
+        printf("ERROR: Missing route trie (%p) or method (%s)\n",
                global_route_trie, ctx->method ? ctx->method : "NULL");
-               cors_add_headers(ctx, res);
-               const char *not_found_msg = "404 Not Found";
-               reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
-               int should_close = !res->keep_alive;
-               destroy_http_context(ctx);
-               destroy_req(req);
-               destroy_res(res);
-               return should_close;
+        cors_add_headers(ctx, res);
+        const char *not_found_msg = "404 Not Found";
+        reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
+        int should_close = !res->keep_alive;
+        destroy_http_context(ctx);
+        destroy_req(req);
+        destroy_res(res);
+        return should_close;
     }
 
     route_match_t match;
