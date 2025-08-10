@@ -247,16 +247,16 @@ int route_trie_add(route_trie_t *trie, const char *method, const char *path,
 }
 
 // Match helper function
-static bool trie_match_recursive(trie_node_t *node, const char *path,
-                                 route_match_t *match, int depth)
+static trie_node_t *trie_match_recursive(trie_node_t *node, const char *path,
+                                         route_match_t *match, int depth)
 {
     if (!node || depth > 100)
-        return false; // Depth limit for safety
+        return NULL; // Depth limit for safety
 
     // Base case: reached end of path
     if (*path == '\0')
     {
-        return node->is_end;
+        return node->is_end ? node : NULL; // Return the node if it's an endpoint
     }
 
     // Skip leading slash
@@ -288,17 +288,16 @@ static bool trie_match_recursive(trie_node_t *node, const char *path,
         if (*segment_end == '\0')
         {
             if (current->is_end)
-                return true;
+                return current;
         }
         else
         {
             unsigned char sep = (unsigned char)'/';
             if (current->children[sep])
             {
-                if (trie_match_recursive(current->children[sep], segment_end, match, depth + 1))
-                {
-                    return true;
-                }
+                trie_node_t *result = trie_match_recursive(current->children[sep], segment_end, match, depth + 1);
+                if (result)
+                    return result;
             }
         }
     }
@@ -320,17 +319,16 @@ static bool trie_match_recursive(trie_node_t *node, const char *path,
         if (*segment_end == '\0')
         {
             if (node->param_child->is_end)
-                return true;
+                return node->param_child;
         }
         else
         {
             unsigned char sep = (unsigned char)'/';
             if (node->param_child->children[sep])
             {
-                if (trie_match_recursive(node->param_child->children[sep], segment_end, match, depth + 1))
-                {
-                    return true;
-                }
+                trie_node_t *result = trie_match_recursive(node->param_child->children[sep], segment_end, match, depth + 1);
+                if (result)
+                    return result;
             }
         }
 
@@ -342,12 +340,12 @@ static bool trie_match_recursive(trie_node_t *node, const char *path,
     }
 
     // Try wildcard match (matches everything)
-    if (node->wildcard_child)
+    if (node->wildcard_child && node->wildcard_child->is_end)
     {
-        return node->wildcard_child->is_end;
+        return node->wildcard_child;
     }
 
-    return false;
+    return NULL;
 }
 
 // Find a matching route
@@ -370,7 +368,7 @@ bool route_trie_match(route_trie_t *trie, const char *method, const char *path,
     match->param_count = 0;
 
     // Start matching from root
-    bool found = false;
+    trie_node_t *matched_node = NULL;
     const char *p = path;
 
     // Skip leading slash
@@ -382,9 +380,7 @@ bool route_trie_match(route_trie_t *trie, const char *method, const char *path,
     {
         if (trie->root->is_end)
         {
-            match->handler = trie->root->handlers[method_idx];
-            match->middleware_ctx = trie->root->middleware_ctx[method_idx];
-            found = (match->handler != NULL);
+            matched_node = trie->root;
         }
     }
     else
@@ -399,24 +395,20 @@ bool route_trie_match(route_trie_t *trie, const char *method, const char *path,
             node = node->children[sep];
         }
 
-        if (trie_match_recursive(node, p, match, 0))
-        {
-            // Find the end node and get handler
-            trie_node_t *current = trie->root;
-            const char *path_ptr = path;
+        matched_node = trie_match_recursive(node, p, match, 0);
+    }
 
-            if (*path_ptr == '/')
-                path_ptr++;
-
-            // Navigate to the end node following the matched path
-            // (This is simplified - in production you'd track the node during matching)
-            // For now, we'll assume the handler was set during recursive match
-            found = true;
-        }
+    // If we found a matching node, extract handler and middleware
+    if (matched_node && matched_node->handlers[method_idx])
+    {
+        match->handler = matched_node->handlers[method_idx];
+        match->middleware_ctx = matched_node->middleware_ctx[method_idx];
+        uv_rwlock_rdunlock(&trie->lock);
+        return true;
     }
 
     uv_rwlock_rdunlock(&trie->lock);
-    return found;
+    return false;
 }
 
 // Free the route trie
