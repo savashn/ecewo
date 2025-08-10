@@ -637,22 +637,16 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
 // Called when a request is received
 int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len)
 {
-    printf("DEBUG: Router called with %zu bytes\n", request_len);
-
     // Early validation
     if (!client_socket || !request_data || request_len == 0)
     {
-        printf("DEBUG: Early validation failed\n");
         if (client_socket)
             send_error(client_socket, 400);
         return 1;
     }
 
     if (uv_is_closing((uv_handle_t *)client_socket))
-    {
-        printf("DEBUG: Socket is closing\n");
         return 1;
-    }
 
     http_context_t *ctx = create_http_context();
     Req *req = create_req(client_socket);
@@ -660,7 +654,6 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
 
     if (!ctx || !req || !res)
     {
-        printf("DEBUG: Failed to create context/req/res\n");
         destroy_http_context(ctx);
         destroy_req(req);
         destroy_res(res);
@@ -672,7 +665,6 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     enum llhttp_errno err = llhttp_execute(&ctx->parser, request_data, request_len);
     if (err != HPE_OK)
     {
-        printf("DEBUG: HTTP parsing error: %s\n", llhttp_errno_name(err));
         send_error(client_socket, 400);
         destroy_http_context(ctx);
         destroy_req(req);
@@ -685,7 +677,6 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     char *query = NULL;
     if (extract_path_and_query(ctx->url, &path, &query) != 0)
     {
-        printf("DEBUG: Failed to extract path and query from URL: %s\n", ctx->url ? ctx->url : "NULL");
         send_error(client_socket, 500);
         destroy_http_context(ctx);
         destroy_req(req);
@@ -695,16 +686,12 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
 
     if (!path)
     {
-        printf("DEBUG: Path is NULL after extraction\n");
         send_error(client_socket, 400);
         destroy_http_context(ctx);
         destroy_req(req);
         destroy_res(res);
         return 1;
     }
-
-    printf("DEBUG: Extracted path: '%s', query: '%s'\n", path, query ? query : "");
-    printf("DEBUG: Method: '%s'\n", ctx->method ? ctx->method : "NULL");
 
     // Parse query parameters
     parse_query(query, &ctx->query_params);
@@ -713,7 +700,6 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     // Handle CORS preflight
     if (cors_handle_preflight(ctx, res))
     {
-        printf("DEBUG: CORS preflight handled\n");
         reply(res, res->status, res->content_type, res->body, res->body_len);
         int should_close = !res->keep_alive;
         destroy_http_context(ctx);
@@ -725,62 +711,35 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     // Route matching
     if (!global_route_trie || !ctx->method)
     {
-        printf("DEBUG: Missing route trie (%p) or method (%s)\n",
                global_route_trie, ctx->method ? ctx->method : "NULL");
-        cors_add_headers(ctx, res);
-        const char *not_found_msg = "404 Not Found";
-        reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
-        int should_close = !res->keep_alive;
-        destroy_http_context(ctx);
-        destroy_req(req);
-        destroy_res(res);
-        return should_close;
+               cors_add_headers(ctx, res);
+               const char *not_found_msg = "404 Not Found";
+               reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
+               int should_close = !res->keep_alive;
+               destroy_http_context(ctx);
+               destroy_req(req);
+               destroy_res(res);
+               return should_close;
     }
-
-    printf("DEBUG: Attempting route match for %s %s\n", ctx->method, path);
 
     route_match_t match;
     if (route_trie_match(global_route_trie, ctx->method, path, &match))
     {
-        printf("DEBUG: Route matched! Handler: %p, Params: %d\n",
-               match.handler, match.param_count);
-
-        // Log parameters
-        for (int i = 0; i < match.param_count; i++)
-        {
-            printf("DEBUG: Param[%d]: key='%.*s', value='%.*s'\n",
-                   i,
-                   (int)match.params[i].key.len, match.params[i].key.data,
-                   (int)match.params[i].value.len, match.params[i].value.data);
-        }
-
         if (match.param_count > 0)
         {
-            printf("DEBUG: Extracting %d URL parameters\n", match.param_count);
             if (extract_url_params(&match, &ctx->url_params) != 0)
             {
-                printf("DEBUG: ERROR: Failed to extract URL parameters\n");
                 send_error(client_socket, 500);
                 destroy_http_context(ctx);
                 destroy_req(req);
                 destroy_res(res);
                 return 1;
             }
-
-            // Log extracted parameters
-            printf("DEBUG: Extracted %d parameters:\n", ctx->url_params.count);
-            for (int i = 0; i < ctx->url_params.count; i++)
-            {
-                printf("DEBUG: url_params[%d]: '%s' = '%s'\n",
-                       i, ctx->url_params.items[i].key, ctx->url_params.items[i].value);
-            }
         }
 
         // Populate request from context
-        printf("DEBUG: Populating request from context\n");
         if (populate_req_from_context(req, ctx, path) != 0)
         {
-            printf("DEBUG: ERROR: Failed to populate request from context\n");
             send_error(client_socket, 500);
             destroy_http_context(ctx);
             destroy_req(req);
@@ -790,7 +749,6 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
 
         if (!match.handler)
         {
-            printf("DEBUG: ERROR: Handler is NULL\n");
             send_error(client_socket, 500);
             destroy_http_context(ctx);
             destroy_req(req);
@@ -798,22 +756,8 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
             return 1;
         }
 
-        // Log final request state
-        printf("DEBUG: Final request state:\n");
-        printf("DEBUG: req->method: '%s'\n", req->method ? req->method : "NULL");
-        printf("DEBUG: req->path: '%s'\n", req->path ? req->path : "NULL");
-        printf("DEBUG: req->params.count: %d\n", req->params.count);
-        for (int i = 0; i < req->params.count; i++)
-        {
-            printf("DEBUG: req->params[%d]: '%s' = '%s'\n",
-                   i, req->params.items[i].key, req->params.items[i].value);
-        }
-
-        // Execute handler (middleware-wrapped)
-        printf("DEBUG: Calling handler...\n");
         cors_add_headers(ctx, res);
         match.handler(req, res);
-        printf("DEBUG: Handler returned\n");
 
         int should_close = !res->keep_alive;
         destroy_http_context(ctx);
@@ -823,7 +767,6 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     }
 
     // 404 Not Found
-    printf("DEBUG: No route match found for %s %s\n", ctx->method, path);
     cors_add_headers(ctx, res);
     const char *not_found_msg = "404 Not Found";
     reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));

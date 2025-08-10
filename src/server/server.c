@@ -35,7 +35,6 @@ static uv_signal_t sighup_handle;
 static int server_freed = 0;
 static int active_connections = 0;
 static int signal_handlers_closed = 0;
-static uv_timer_t shutdown_timer;
 int shutdown_requested = 0;
 
 static void (*app_shutdown_hook)(void) = NULL;
@@ -287,7 +286,7 @@ static void count_handles(uv_handle_t *h, void *arg)
 }
 
 // DEBUG
-void report_open_handles(uv_loop_t *loop)
+static void report_open_handles(uv_loop_t *loop)
 {
     int count = 0;
     uv_walk(loop, count_handles, &count);

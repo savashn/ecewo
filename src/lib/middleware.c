@@ -89,17 +89,11 @@ void free_middleware_info(MiddlewareInfo *info)
 // Route handler wrapper function that executes the middleware chain
 static void route_handler_with_middleware(Req *req, Res *res)
 {
-    printf("DEBUG: route_handler_with_middleware called\n");
-
     if (!req || !res)
     {
         printf("ERROR: NULL request or response\n");
         return;
     }
-
-    printf("DEBUG: req->method: '%s', req->path: '%s'\n",
-           req->method ? req->method : "NULL",
-           req->path ? req->path : "NULL");
 
     route_match_t match;
     if (!global_route_trie || !req->method || !req->path)
@@ -111,15 +105,11 @@ static void route_handler_with_middleware(Req *req, Res *res)
         return;
     }
 
-    printf("DEBUG: Attempting trie match for %s %s\n", req->method, req->path);
-
     if (!route_trie_match(global_route_trie, req->method, req->path, &match))
     {
         printf("ERROR: Route not found in trie for %s %s\n", req->method, req->path);
         return;
     }
-
-    printf("DEBUG: Trie match successful, middleware_ctx: %p\n", match.middleware_ctx);
 
     MiddlewareInfo *middleware_info = (MiddlewareInfo *)match.middleware_ctx;
     if (!middleware_info)
@@ -128,25 +118,16 @@ static void route_handler_with_middleware(Req *req, Res *res)
         return;
     }
 
-    printf("DEBUG: MiddlewareInfo found, handler: %p, middleware_count: %d\n",
-           middleware_info->handler, middleware_info->middleware_count);
-
     int total_middleware_count = global_middleware_count + middleware_info->middleware_count;
-    printf("DEBUG: Total middleware count: %d (global: %d + route: %d)\n",
-           total_middleware_count, global_middleware_count, middleware_info->middleware_count);
 
     if (total_middleware_count == 0)
     {
-        printf("DEBUG: No middleware, calling handler directly\n");
         if (middleware_info->handler)
         {
             middleware_info->handler(req, res);
         }
         return;
     }
-
-    // ... middleware execution code ...
-    printf("DEBUG: Executing middleware chain...\n");
 
     // Allocate memory for combined middleware handlers
     MiddlewareHandler *combined_handlers = malloc(sizeof(MiddlewareHandler) * total_middleware_count);
