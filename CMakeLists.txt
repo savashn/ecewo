@@ -15,8 +15,8 @@ include(FetchContent)
 # Fetch libuv from the GitHub repository
 FetchContent_Declare(
   libuv
-  GIT_REPOSITORY https://github.com/libuv/libuv.git
-  GIT_TAG v1.51.0
+  GIT_REPOSITORY https://github.com/savashn/libuv.git
+  GIT_TAG win-compiler-warnings
 )
 
 # Make libuv available to the project
