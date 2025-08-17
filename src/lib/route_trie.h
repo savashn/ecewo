@@ -38,6 +38,11 @@ typedef struct {
 } route_trie_t;
 
 typedef struct {
+    const char *data;
+    size_t len;
+} string_view_t;
+
+typedef struct {
     string_view_t key;
     string_view_t value;
 } param_match_t;

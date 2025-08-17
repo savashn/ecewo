@@ -6,6 +6,7 @@
 #include "compat.h"
 #include "middleware.h"
 
+// Splits a path into segments (/users/123/posts -> ["users", "123", "posts"])
 int tokenize_path(const char *path, tokenized_path_t *result) {
     if (!path || !result) return -1;
     

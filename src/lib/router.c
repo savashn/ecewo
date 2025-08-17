@@ -102,13 +102,12 @@ static void send_error(uv_tcp_t *client_socket, int error_code)
     }
 }
 
+// Separates URL into path and query string components
+// Example: /users/123?active=true -> path="/users/123", query="active=true"
 static int extract_path_and_query(char *url_buf, char **path, char **query)
 {
     if (!url_buf || !path || !query)
         return -1;
-
-    // URL buffer already null-terminated by llhttp parser.
-    // Example: "/users/1234?active=true"
 
     char *qmark = strchr(url_buf, '?');
     if (qmark)
@@ -131,6 +130,8 @@ static int extract_path_and_query(char *url_buf, char **path, char **query)
     return 0;
 }
 
+// Extracts URL parameters from a previously matched route
+// Example: From route /users/:id matched with /users/123, extracts parameter id=123
 static int extract_url_params(const route_match_t *match, request_t *url_params)
 {
     if (!match || !url_params)
