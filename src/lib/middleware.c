@@ -95,7 +95,6 @@ static void route_handler_with_middleware(Req *req, Res *res)
         return;
     }
 
-    route_match_t match;
     if (!global_route_trie || !req->method || !req->path)
     {
         printf("ERROR: Missing route trie (%p) or request info (method:'%s', path:'%s')\n",
@@ -105,11 +104,25 @@ static void route_handler_with_middleware(Req *req, Res *res)
         return;
     }
 
-    if (!route_trie_match(global_route_trie, req->method, req->path, &match))
+    // Tokenize the path first
+    tokenized_path_t tokenized_path;
+    if (tokenize_path(req->path, &tokenized_path) != 0)
     {
-        printf("ERROR: Route not found in trie for %s %s\n", req->method, req->path);
+        printf("ERROR: Failed to tokenize path: %s\n", req->path);
         return;
     }
+
+    // Use tokenized path in route matching
+    route_match_t match;
+    if (!route_trie_match(global_route_trie, req->method, &tokenized_path, &match))
+    {
+        printf("ERROR: Route not found in trie for %s %s\n", req->method, req->path);
+        free_tokenized_path(&tokenized_path);
+        return;
+    }
+
+    // Clean up tokenized path
+    free_tokenized_path(&tokenized_path);
 
     MiddlewareInfo *middleware_info = (MiddlewareInfo *)match.middleware_ctx;
     if (!middleware_info)
