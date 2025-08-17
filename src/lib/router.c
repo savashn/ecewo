@@ -638,8 +638,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
 int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len)
 {
     // Early validation
-    if (!client_socket || !request_data || request_len == 0)
-    {
+    if (!client_socket || !request_data || request_len == 0) {
         if (client_socket)
             send_error(client_socket, 400);
         return 1;
@@ -648,49 +647,49 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     if (uv_is_closing((uv_handle_t *)client_socket))
         return 1;
 
-    http_context_t *ctx = create_http_context();
-    Req *req = create_req(client_socket);
-    Res *res = create_res(client_socket);
+    // Initialize all resources
+    http_context_t *ctx = NULL;
+    Req *req = NULL;
+    Res *res = NULL;
+    tokenized_path_t tokenized_path = {0};
+    int error_code = 0;
+    int should_close = 1;
+    bool send_error_response = false;
+    bool send_404_response = false;
+    bool tokenized_path_initialized = false;
 
-    if (!ctx || !req || !res)
-    {
-        destroy_http_context(ctx);
-        destroy_req(req);
-        destroy_res(res);
-        send_error(client_socket, 500);
-        return 1;
+    // Create resources
+    ctx = create_http_context();
+    req = create_req(client_socket);
+    res = create_res(client_socket);
+
+    if (!ctx || !req || !res) {
+        error_code = 500;
+        send_error_response = true;
+        goto cleanup;
     }
 
     // Parse HTTP request
     enum llhttp_errno err = llhttp_execute(&ctx->parser, request_data, request_len);
-    if (err != HPE_OK)
-    {
-        send_error(client_socket, 400);
-        destroy_http_context(ctx);
-        destroy_req(req);
-        destroy_res(res);
-        return 1;
+    if (err != HPE_OK) {
+        error_code = 400;
+        send_error_response = true;
+        goto cleanup;
     }
 
     // Extract path and query
     char *path = NULL;
     char *query = NULL;
-    if (extract_path_and_query(ctx->url, &path, &query) != 0)
-    {
-        send_error(client_socket, 500);
-        destroy_http_context(ctx);
-        destroy_req(req);
-        destroy_res(res);
-        return 1;
+    if (extract_path_and_query(ctx->url, &path, &query) != 0) {
+        error_code = 500;
+        send_error_response = true;
+        goto cleanup;
     }
 
-    if (!path)
-    {
-        send_error(client_socket, 400);
-        destroy_http_context(ctx);
-        destroy_req(req);
-        destroy_res(res);
-        return 1;
+    if (!path) {
+        error_code = 400;
+        send_error_response = true;
+        goto cleanup;
     }
 
     // Parse query parameters
@@ -698,83 +697,109 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     res->keep_alive = ctx->keep_alive;
 
     // Handle CORS preflight
-    if (cors_handle_preflight(ctx, res))
-    {
+    if (cors_handle_preflight(ctx, res)) {
         reply(res, res->status, res->content_type, res->body, res->body_len);
-        int should_close = !res->keep_alive;
-        destroy_http_context(ctx);
-        destroy_req(req);
-        destroy_res(res);
-        return should_close;
+        should_close = !res->keep_alive;
+        goto cleanup;
     }
 
-    // Route matching
-    if (!global_route_trie || !ctx->method)
-    {
+    // Route matching validation
+    if (!global_route_trie || !ctx->method) {
         printf("ERROR: Missing route trie (%p) or method (%s)\n",
                global_route_trie, ctx->method ? ctx->method : "NULL");
         cors_add_headers(ctx, res);
-        const char *not_found_msg = "404 Not Found";
-        reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
-        int should_close = !res->keep_alive;
-        destroy_http_context(ctx);
-        destroy_req(req);
-        destroy_res(res);
-        return should_close;
+        send_404_response = true;
+        goto cleanup;
     }
 
+    // Tokenize path
+    if (tokenize_path(path, &tokenized_path) != 0) {
+        error_code = 500;
+        send_error_response = true;
+        goto cleanup;
+    }
+    tokenized_path_initialized = true;
+
+    // Route matching
     route_match_t match;
-    if (route_trie_match(global_route_trie, ctx->method, path, &match))
-    {
-        if (match.param_count > 0)
-        {
-            if (extract_url_params(&match, &ctx->url_params) != 0)
-            {
-                send_error(client_socket, 500);
-                destroy_http_context(ctx);
-                destroy_req(req);
-                destroy_res(res);
-                return 1;
+    if (!route_trie_match(global_route_trie, ctx->method, &tokenized_path, &match)) {
+        // Route not found - 404
+        cors_add_headers(ctx, res);
+        send_404_response = true;
+        goto cleanup;
+    }
+
+    // Extract URL parameters
+    if (match.param_count > 0) {
+        ctx->url_params.capacity = match.param_count;
+        ctx->url_params.items = malloc(sizeof(request_item_t) * match.param_count);
+        
+        if (ctx->url_params.items) {
+            for (int i = 0; i < match.param_count; i++) {
+                char *key = malloc(match.params[i].key.len + 1);
+                char *value = malloc(match.params[i].value.len + 1);
+                
+                if (key && value) {
+                    memcpy(key, match.params[i].key.data, match.params[i].key.len);
+                    key[match.params[i].key.len] = '\0';
+                    
+                    memcpy(value, match.params[i].value.data, match.params[i].value.len);
+                    value[match.params[i].value.len] = '\0';
+                    
+                    ctx->url_params.items[ctx->url_params.count].key = key;
+                    ctx->url_params.items[ctx->url_params.count].value = value;
+                    ctx->url_params.count++;
+                } else {
+                    free(key);
+                    free(value);
+                    error_code = 500;
+                    send_error_response = true;
+                    goto cleanup;
+                }
             }
         }
-
-        // Populate request from context
-        if (populate_req_from_context(req, ctx, path) != 0)
-        {
-            send_error(client_socket, 500);
-            destroy_http_context(ctx);
-            destroy_req(req);
-            destroy_res(res);
-            return 1;
-        }
-
-        if (!match.handler)
-        {
-            send_error(client_socket, 500);
-            destroy_http_context(ctx);
-            destroy_req(req);
-            destroy_res(res);
-            return 1;
-        }
-
-        cors_add_headers(ctx, res);
-        match.handler(req, res);
-
-        int should_close = !res->keep_alive;
-        destroy_http_context(ctx);
-        destroy_req(req);
-        destroy_res(res);
-        return should_close;
     }
-
-    // 404 Not Found
+    
+    // Populate request
+    if (populate_req_from_context(req, ctx, path) != 0) {
+        error_code = 500;
+        send_error_response = true;
+        goto cleanup;
+    }
+    
+    if (!match.handler) {
+        error_code = 500;
+        send_error_response = true;
+        goto cleanup;
+    }
+    
+    // Success path - call handler
     cors_add_headers(ctx, res);
-    const char *not_found_msg = "404 Not Found";
-    reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
-    int should_close = !res->keep_alive;
-    destroy_http_context(ctx);
-    destroy_req(req);
-    destroy_res(res);
+    match.handler(req, res);
+    should_close = !res->keep_alive;
+
+cleanup:
+    // Cleanup in reverse order of allocation
+    
+    // Send error responses if needed
+    if (send_error_response && error_code > 0) {
+        send_error(client_socket, error_code);
+    } else if (send_404_response) {
+        const char *not_found_msg = "404 Not Found";
+        reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
+        should_close = !res->keep_alive;
+    }
+    
+    // Free tokenized path if it was initialized
+    if (tokenized_path_initialized) {
+        free_tokenized_path(&tokenized_path);
+    }
+    
+    // Destroy resources
+    if (ctx) destroy_http_context(ctx);
+    if (req) destroy_req(req);
+    if (res) destroy_res(res);
+    
     return should_close;
 }
 

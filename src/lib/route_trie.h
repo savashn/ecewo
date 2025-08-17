@@ -5,7 +5,21 @@
 #include <stdbool.h>
 #include "router.h"
 
-// Trie node for efficient route matching
+// Path segment structure for pre-tokenized paths
+typedef struct {
+    const char *start;
+    size_t len;
+    bool is_param;     // true if this segment is :param
+    bool is_wildcard;  // true if this segment is *
+} path_segment_t;
+
+// Tokenized path to avoid re-parsing
+typedef struct {
+    path_segment_t *segments;
+    int count;
+    int capacity;
+} tokenized_path_t;
+
 typedef struct trie_node
 {
     struct trie_node *children[128];  // ASCII characters
@@ -17,7 +31,24 @@ typedef struct trie_node
     void *middleware_ctx[8];          // Middleware context for each method
 } trie_node_t;
 
-// HTTP method enum for indexing
+typedef struct {
+    trie_node_t *root;
+    size_t route_count;
+    uv_rwlock_t lock;
+} route_trie_t;
+
+typedef struct {
+    string_view_t key;
+    string_view_t value;
+} param_match_t;
+
+typedef struct {
+    RequestHandler handler;
+    void *middleware_ctx;
+    param_match_t params[32];
+    int param_count;
+} route_match_t;
+
 typedef enum
 {
     METHOD_GET = 0,
@@ -30,49 +61,21 @@ typedef enum
     METHOD_UNKNOWN = 7
 } http_method_t;
 
-// Route trie structure
-typedef struct
-{
-    trie_node_t *root;
-    size_t route_count;
-    uv_rwlock_t lock; // Read-write lock for thread safety
-} route_trie_t;
+// Path tokenization functions
+int tokenize_path(const char *path, tokenized_path_t *result);
+void free_tokenized_path(tokenized_path_t *path);
 
-// String view for zero-copy operations
-typedef struct
-{
-    const char *data;
-    size_t len;
-} string_view_t;
+// Now takes tokenized path instead of raw string
+bool route_trie_match(route_trie_t *trie, 
+                                const char *method,
+                                const tokenized_path_t *tokenized_path,
+                                route_match_t *match);
 
-// Match result with extracted parameters
-typedef struct
-{
-    RequestHandler handler;
-    void *middleware_ctx;
-    struct
-    {
-        string_view_t key;
-        string_view_t value;
-    } params[32]; // Max 32 parameters
-    int param_count;
-} route_match_t;
-
-// Initialize route trie
+// Existing functions remain same
 route_trie_t *route_trie_create(void);
-
-// Add a route to the trie
 int route_trie_add(route_trie_t *trie, const char *method, const char *path,
                    RequestHandler handler, void *middleware_ctx);
-
-// Find a matching route
-bool route_trie_match(route_trie_t *trie, const char *method, const char *path,
-                      route_match_t *match);
-
-// Free the trie
 void route_trie_free(route_trie_t *trie);
-
-// Get method index from string
 http_method_t get_method_index(const char *method);
 
 #endif

@@ -6,6 +6,200 @@
 #include "compat.h"
 #include "middleware.h"
 
+int tokenize_path(const char *path, tokenized_path_t *result) {
+    if (!path || !result) return -1;
+    
+    // Initialize result
+    memset(result, 0, sizeof(tokenized_path_t));
+    
+    // Skip leading slash
+    if (*path == '/') path++;
+    
+    // Handle root path
+    if (*path == '\0') return 0;
+    
+    // Count segments first
+    int segment_count = 0;
+    const char *p = path;
+    while (*p) {
+        if (*p != '/') {
+            segment_count++;
+            // Skip to next '/' or end
+            while (*p && *p != '/') p++;
+        } else {
+            p++;
+        }
+    }
+    
+    if (segment_count == 0) return 0;
+    
+    // Allocate segments
+    result->capacity = segment_count;
+    result->segments = malloc(sizeof(path_segment_t) * segment_count);
+    if (!result->segments) return -1;
+    
+    // Parse segments
+    p = path;
+    result->count = 0;
+    
+    while (*p && result->count < result->capacity) {
+        // Skip slashes
+        while (*p == '/') p++;
+        if (!*p) break;
+        
+        const char *start = p;
+        
+        // Find end of segment
+        while (*p && *p != '/') p++;
+        
+        size_t len = p - start;
+        if (len == 0) continue;
+        
+        // Analyze segment type
+        path_segment_t *seg = &result->segments[result->count];
+        seg->start = start;
+        seg->len = len;
+        seg->is_param = (start[0] == ':');
+        seg->is_wildcard = (start[0] == '*');
+        
+        result->count++;
+    }
+    
+    return 0;
+}
+
+void free_tokenized_path(tokenized_path_t *path) {
+    if (path && path->segments) {
+        free(path->segments);
+        memset(path, 0, sizeof(tokenized_path_t));
+    }
+}
+
+static trie_node_t *match_segments(trie_node_t *node,
+                                             const tokenized_path_t *path,
+                                             int segment_idx,
+                                             route_match_t *match,
+                                             int depth) {
+    if (!node || depth > 100) return NULL;
+    
+    // All segments processed
+    if (segment_idx >= path->count) {
+        return node->is_end ? node : NULL;
+    }
+    
+    const path_segment_t *segment = &path->segments[segment_idx];
+    
+    // Try exact match first (only for non-param segments)
+    if (!segment->is_param && !segment->is_wildcard) {
+        trie_node_t *current = node;
+        
+        // Match character by character
+        for (size_t i = 0; i < segment->len && current; i++) {
+            unsigned char c = (unsigned char)segment->start[i];
+            current = current->children[c];
+        }
+        
+        // If exact match succeeded
+        if (current) {
+            if (segment_idx + 1 >= path->count) {
+                // Last segment
+                if (current->is_end) return current;
+            } else {
+                // More segments - need slash separator
+                unsigned char sep = '/';
+                if (current->children[sep]) {
+                    trie_node_t *result = match_segments(
+                        current->children[sep], path, segment_idx + 1, match, depth + 1);
+                    if (result) return result;
+                }
+            }
+        }
+    }
+    
+    // Try parameter match
+    if (node->param_child) {
+        // Store parameter value
+        if (match && match->param_count < 32) {
+            match->params[match->param_count].key.data = node->param_child->param_name;
+            match->params[match->param_count].key.len = strlen(node->param_child->param_name);
+            match->params[match->param_count].value.data = segment->start;
+            match->params[match->param_count].value.len = segment->len;
+            match->param_count++;
+        }
+        
+        // Continue matching
+        if (segment_idx + 1 >= path->count) {
+            if (node->param_child->is_end) return node->param_child;
+        } else {
+            unsigned char sep = '/';
+            if (node->param_child->children[sep]) {
+                trie_node_t *result = match_segments(
+                    node->param_child->children[sep], path, segment_idx + 1, match, depth + 1);
+                if (result) return result;
+            }
+        }
+        
+        // Backtrack parameter
+        if (match && match->param_count > 0) {
+            match->param_count--;
+        }
+    }
+    
+    // Try wildcard match
+    if (node->wildcard_child && node->wildcard_child->is_end) {
+        return node->wildcard_child;
+    }
+    
+    return NULL;
+}
+
+// Find a matching route
+bool route_trie_match(route_trie_t *trie,
+                      const char *method,
+                      const tokenized_path_t *tokenized_path,
+                      route_match_t *match) {
+    if (!trie || !method || !tokenized_path || !match) return false;
+    
+    http_method_t method_idx = get_method_index(method);
+    if (method_idx == METHOD_UNKNOWN) return false;
+    
+    uv_rwlock_rdlock(&trie->lock);
+    
+    // Initialize match result
+    match->handler = NULL;
+    match->middleware_ctx = NULL;
+    match->param_count = 0;
+    
+    trie_node_t *matched_node = NULL;
+    
+    // Handle root path
+    if (tokenized_path->count == 0) {
+        if (trie->root->is_end) {
+            matched_node = trie->root;
+        }
+    } else {
+        // Start from root/slash
+        trie_node_t *start_node = trie->root;
+        unsigned char sep = '/';
+        if (start_node->children[sep]) {
+            start_node = start_node->children[sep];
+        }
+        
+        matched_node = match_segments(start_node, tokenized_path, 0, match, 0);
+    }
+    
+    // Extract handler if found
+    if (matched_node && matched_node->handlers[method_idx]) {
+        match->handler = matched_node->handlers[method_idx];
+        match->middleware_ctx = matched_node->middleware_ctx[method_idx];
+        uv_rwlock_rdunlock(&trie->lock);
+        return true;
+    }
+    
+    uv_rwlock_rdunlock(&trie->lock);
+    return false;
+}
+
 // Create a new trie node
 static trie_node_t *trie_node_create(void)
 {
@@ -244,171 +438,6 @@ int route_trie_add(route_trie_t *trie, const char *method, const char *path,
 
     uv_rwlock_wrunlock(&trie->lock);
     return 0;
-}
-
-// Match helper function
-static trie_node_t *trie_match_recursive(trie_node_t *node, const char *path,
-                                         route_match_t *match, int depth)
-{
-    if (!node || depth > 100)
-        return NULL; // Depth limit for safety
-
-    // Base case: reached end of path
-    if (*path == '\0')
-    {
-        return node->is_end ? node : NULL; // Return the node if it's an endpoint
-    }
-
-    // Skip leading slash
-    if (*path == '/')
-        path++;
-
-    // Try exact match first
-    const char *segment_end = path;
-    while (*segment_end && *segment_end != '/')
-        segment_end++;
-
-    // Try exact character matching
-    trie_node_t *current = node;
-    const char *p = path;
-
-    while (p < segment_end)
-    {
-        unsigned char c = (unsigned char)*p;
-        if (!current->children[c])
-            break;
-        current = current->children[c];
-        p++;
-    }
-
-    // If exact match succeeded for this segment
-    if (p == segment_end)
-    {
-        // Handle segment separator or end
-        if (*segment_end == '\0')
-        {
-            if (current->is_end)
-                return current;
-        }
-        else
-        {
-            unsigned char sep = (unsigned char)'/';
-            if (current->children[sep])
-            {
-                trie_node_t *result = trie_match_recursive(current->children[sep], segment_end, match, depth + 1);
-                if (result)
-                    return result;
-            }
-        }
-    }
-
-    // Try parameter match
-    if (node->param_child)
-    {
-        // Store parameter value
-        if (match && match->param_count < 32)
-        {
-            match->params[match->param_count].key.data = node->param_child->param_name;
-            match->params[match->param_count].key.len = strlen(node->param_child->param_name);
-            match->params[match->param_count].value.data = path;
-            match->params[match->param_count].value.len = segment_end - path;
-            match->param_count++;
-        }
-
-        // Continue matching after this segment
-        if (*segment_end == '\0')
-        {
-            if (node->param_child->is_end)
-                return node->param_child;
-        }
-        else
-        {
-            unsigned char sep = (unsigned char)'/';
-            if (node->param_child->children[sep])
-            {
-                trie_node_t *result = trie_match_recursive(node->param_child->children[sep], segment_end, match, depth + 1);
-                if (result)
-                    return result;
-            }
-        }
-
-        // Backtrack parameter
-        if (match && match->param_count > 0)
-        {
-            match->param_count--;
-        }
-    }
-
-    // Try wildcard match (matches everything)
-    if (node->wildcard_child && node->wildcard_child->is_end)
-    {
-        return node->wildcard_child;
-    }
-
-    return NULL;
-}
-
-// Find a matching route
-bool route_trie_match(route_trie_t *trie, const char *method, const char *path,
-                      route_match_t *match)
-{
-    if (!trie || !method || !path || !match)
-        return false;
-
-    http_method_t method_idx = get_method_index(method);
-    if (method_idx == METHOD_UNKNOWN)
-        return false;
-
-    // Read lock for thread safety
-    uv_rwlock_rdlock(&trie->lock);
-
-    // Initialize match result
-    match->handler = NULL;
-    match->middleware_ctx = NULL;
-    match->param_count = 0;
-
-    // Start matching from root
-    trie_node_t *matched_node = NULL;
-    const char *p = path;
-
-    // Skip leading slash
-    if (*p == '/')
-        p++;
-
-    // Handle root path specially
-    if (*p == '\0')
-    {
-        if (trie->root->is_end)
-        {
-            matched_node = trie->root;
-        }
-    }
-    else
-    {
-        // Recursive matching
-        trie_node_t *node = trie->root;
-
-        // If root has a child for '/', start from there
-        unsigned char sep = (unsigned char)'/';
-        if (node->children[sep])
-        {
-            node = node->children[sep];
-        }
-
-        matched_node = trie_match_recursive(node, p, match, 0);
-    }
-
-    // If we found a matching node, extract handler and middleware
-    if (matched_node && matched_node->handlers[method_idx])
-    {
-        match->handler = matched_node->handlers[method_idx];
-        match->middleware_ctx = matched_node->middleware_ctx[method_idx];
-        uv_rwlock_rdunlock(&trie->lock);
-        return true;
-    }
-
-    uv_rwlock_rdunlock(&trie->lock);
-    return false;
 }
 
 // Free the route trie
