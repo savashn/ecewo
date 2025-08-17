@@ -3,6 +3,7 @@
 #include <string.h>
 #include <signal.h>
 #ifdef _WIN32
+#include <winsock2.h>
 #include <windows.h>
 #define sleep_ms(ms) Sleep(ms)
 #else
