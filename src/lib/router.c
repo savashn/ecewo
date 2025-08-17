@@ -731,34 +731,10 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     }
 
     // Extract URL parameters
-    if (match.param_count > 0) {
-        ctx->url_params.capacity = match.param_count;
-        ctx->url_params.items = malloc(sizeof(request_item_t) * match.param_count);
-        
-        if (ctx->url_params.items) {
-            for (int i = 0; i < match.param_count; i++) {
-                char *key = malloc(match.params[i].key.len + 1);
-                char *value = malloc(match.params[i].value.len + 1);
-                
-                if (key && value) {
-                    memcpy(key, match.params[i].key.data, match.params[i].key.len);
-                    key[match.params[i].key.len] = '\0';
-                    
-                    memcpy(value, match.params[i].value.data, match.params[i].value.len);
-                    value[match.params[i].value.len] = '\0';
-                    
-                    ctx->url_params.items[ctx->url_params.count].key = key;
-                    ctx->url_params.items[ctx->url_params.count].value = value;
-                    ctx->url_params.count++;
-                } else {
-                    free(key);
-                    free(value);
-                    error_code = 500;
-                    send_error_response = true;
-                    goto cleanup;
-                }
-            }
-        }
+    if (extract_url_params(&match, &ctx->url_params) != 0) {
+        error_code = 500;
+        send_error_response = true;
+        goto cleanup;
     }
     
     // Populate request
