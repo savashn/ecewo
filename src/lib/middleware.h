@@ -58,4 +58,7 @@ void reset_middleware(void);
 
 void free_middleware_info(MiddlewareInfo *info);
 
+// The main function that runs middleware chain
+void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_info);
+
 #endif

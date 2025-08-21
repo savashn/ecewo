@@ -87,53 +87,18 @@ void free_middleware_info(MiddlewareInfo *info)
     }
 }
 
-// Route handler wrapper function that executes the middleware chain
-static void route_handler_with_middleware(Req *req, Res *res)
+// Function that runs the middleware chain
+void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_info)
 {
-    if (!req || !res)
+    if (!req || !res || !middleware_info)
     {
-        printf("ERROR: NULL request or response\n");
-        return;
-    }
-
-    if (!global_route_trie || !req->method || !req->path)
-    {
-        printf("ERROR: Missing route trie (%p) or request info (method:'%s', path:'%s')\n",
-               global_route_trie,
-               req->method ? req->method : "NULL",
-               req->path ? req->path : "NULL");
-        return;
-    }
-
-    // Tokenize the path first
-    tokenized_path_t tokenized_path;
-    if (tokenize_path(req->path, &tokenized_path) != 0)
-    {
-        printf("ERROR: Failed to tokenize path: %s\n", req->path);
-        return;
-    }
-
-    // Use tokenized path in route matching
-    route_match_t match;
-    if (!route_trie_match(global_route_trie, req->method, &tokenized_path, &match))
-    {
-        printf("ERROR: Route not found in trie for %s %s\n", req->method, req->path);
-        free_tokenized_path(&tokenized_path);
-        return;
-    }
-
-    // Clean up tokenized path
-    free_tokenized_path(&tokenized_path);
-
-    MiddlewareInfo *middleware_info = (MiddlewareInfo *)match.middleware_ctx;
-    if (!middleware_info)
-    {
-        printf("ERROR: No middleware info found for route %s %s\n", req->method, req->path);
+        printf("ERROR: NULL request, response, or middleware info\n");
         return;
     }
 
     int total_middleware_count = global_middleware_count + middleware_info->middleware_count;
 
+    // If there is no middleware, call the handler directly
     if (total_middleware_count == 0)
     {
         if (middleware_info->handler)
@@ -242,8 +207,7 @@ void register_route(const char *method, const char *path, MiddlewareArray middle
         middleware_info->middleware_count = middleware.count;
     }
 
-    int result = route_trie_add(global_route_trie, method, path,
-                                route_handler_with_middleware, middleware_info);
+    int result = route_trie_add(global_route_trie, method, path, handler, middleware_info);
     if (result != 0)
     {
         printf("Failed to add route to trie: %s %s\n", method, path);

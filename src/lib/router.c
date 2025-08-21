@@ -6,6 +6,7 @@
 #include "llhttp.h"
 #include "cors.h"
 #include "route_trie.h"
+#include "middleware.h"
 
 // Called when write operation is completed
 static void write_completion_cb(uv_write_t *req, int status)
@@ -804,7 +805,17 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     
     // Success path - call handler
     cors_add_headers(ctx, res);
-    match.handler(req, res);
+    
+    // Calls chain if there is a middleware
+    // otherwise, calls the handler directly
+    if (match.middleware_ctx) {
+        MiddlewareInfo *middleware_info = (MiddlewareInfo *)match.middleware_ctx;
+        execute_middleware_chain(req, res, middleware_info);
+    } else {
+        // No middleware, call handler directly
+        match.handler(req, res);
+    }
+    
     should_close = !res->keep_alive;
     goto cleanup;
 
