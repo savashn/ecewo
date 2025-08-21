@@ -2,9 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include "arena.h"
 #include "request.h"
-
-#define INITIAL_CAPACITY 16
 
 #define MIN_BUFFER_SIZE 64
 #define GROWTH_FACTOR 1.5
@@ -16,7 +15,7 @@
 #define MAX_HEADERS_COUNT 100
 #define MAX_QUERY_PARAMS 100
 
-// Calculate next buffer size
+// Calculate next buffer size for arena allocation
 static size_t calculate_next_size(size_t current, size_t needed)
 {
     if (needed > ABSOLUTE_MAX_REQUEST)
@@ -58,10 +57,10 @@ static size_t calculate_next_size(size_t current, size_t needed)
 }
 
 // Buffer reallocation
-static int ensure_buffer_capacity(char **buffer, size_t *capacity,
+static int ensure_buffer_capacity(Arena *arena, char **buffer, size_t *capacity,
                                   size_t current_length, size_t additional_needed)
 {
-    if (!buffer || !capacity)
+    if (!arena || !buffer || !capacity)
         return -1;
 
     size_t total_needed = current_length + additional_needed + 1;
@@ -79,10 +78,10 @@ static int ensure_buffer_capacity(char **buffer, size_t *capacity,
     if (new_capacity == 0)
         return -2;
 
-    char *new_buffer = realloc(*buffer, new_capacity);
+    char *new_buffer = arena_realloc(arena, *buffer, *capacity, new_capacity);
     if (!new_buffer)
     {
-        perror("Buffer reallocation failed");
+        fprintf(stderr, "Arena buffer reallocation failed\n");
         return -1;
     }
 
@@ -106,13 +105,13 @@ static int on_url_cb(llhttp_t *parser, const char *at, size_t length)
         return 1;
     }
 
-    if (ensure_buffer_capacity(&context->url, &context->url_capacity,
+    if (ensure_buffer_capacity(context->arena, &context->url, &context->url_capacity,
                                context->url_length, length) != 0)
     {
         return 1;
     }
 
-    memcpy(context->url + context->url_length, at, length);
+    arena_memcpy(context->url + context->url_length, at, length);
     context->url_length += length;
     context->url[context->url_length] = '\0';
 
@@ -144,13 +143,13 @@ static int on_header_field_cb(llhttp_t *parser, const char *at, size_t length)
     // Reset for new field
     context->header_field_length = 0;
 
-    if (ensure_buffer_capacity(&context->current_header_field,
+    if (ensure_buffer_capacity(context->arena, &context->current_header_field,
                                &context->header_field_capacity, 0, length) != 0)
     {
         return 1;
     }
 
-    memcpy(context->current_header_field, at, length);
+    arena_memcpy(context->current_header_field, at, length);
     context->header_field_length = length;
     context->current_header_field[length] = '\0';
 
@@ -158,9 +157,9 @@ static int on_header_field_cb(llhttp_t *parser, const char *at, size_t length)
 }
 
 // Array growth
-static int ensure_array_capacity(request_t *array)
+static int ensure_array_capacity(Arena *arena, request_t *array)
 {
-    if (!array)
+    if (!arena || !array)
         return -1;
 
     if (array->count < array->capacity)
@@ -170,14 +169,14 @@ static int ensure_array_capacity(request_t *array)
     if (array->capacity > INT_MAX / 2)
         return -1;
 
-    int new_capacity = array->capacity == 0 ? INITIAL_CAPACITY
-                                            : array->capacity * 2;
+    int new_capacity = array->capacity == 0 ? 16 : array->capacity * 2;
 
-    request_item_t *new_items = realloc(array->items,
-                                        sizeof(request_item_t) * new_capacity);
+    request_item_t *new_items = arena_realloc(arena, array->items,
+                                              array->capacity * sizeof(request_item_t),
+                                              new_capacity * sizeof(request_item_t));
     if (!new_items)
     {
-        perror("Array reallocation failed");
+        fprintf(stderr, "Arena array reallocation failed\n");
         return -1;
     }
 
@@ -212,23 +211,21 @@ static int on_header_value_cb(llhttp_t *parser, const char *at, size_t length)
         return 1;
     }
 
-    if (ensure_array_capacity(&context->headers) != 0)
+    if (ensure_array_capacity(context->arena, &context->headers) != 0)
         return 1;
 
     context->headers.items[context->headers.count].key =
-        strdup(context->current_header_field);
+        arena_strdup(context->arena, context->current_header_field);
     if (!context->headers.items[context->headers.count].key)
         return 1;
 
-    char *value = malloc(length + 1);
+    char *value = arena_alloc(context->arena, length + 1);
     if (!value)
     {
-        free(context->headers.items[context->headers.count].key);
-        context->headers.items[context->headers.count].key = NULL;
         return 1;
     }
 
-    memcpy(value, at, length);
+    arena_memcpy(value, at, length);
     value[length] = '\0';
 
     context->headers.items[context->headers.count].value = value;
@@ -267,13 +264,13 @@ static int on_method_cb(llhttp_t *parser, const char *at, size_t length)
         return 1;
     }
 
-    if (ensure_buffer_capacity(&context->method, &context->method_capacity,
+    if (ensure_buffer_capacity(context->arena, &context->method, &context->method_capacity,
                                context->method_length, length) != 0)
     {
         return 1;
     }
 
-    memcpy(context->method + context->method_length, at, length);
+    arena_memcpy(context->method + context->method_length, at, length);
     context->method_length += length;
     context->method[context->method_length] = '\0';
 
@@ -288,7 +285,7 @@ static int on_body_cb(llhttp_t *parser, const char *at, size_t length)
 
     http_context_t *context = (http_context_t *)parser->data;
 
-    int result = ensure_buffer_capacity(&context->body, &context->body_capacity,
+    int result = ensure_buffer_capacity(context->arena, &context->body, &context->body_capacity,
                                         context->body_length, length);
 
     if (result == -2)
@@ -300,7 +297,7 @@ static int on_body_cb(llhttp_t *parser, const char *at, size_t length)
         return 1;
     }
 
-    memcpy(context->body + context->body_length, at, length);
+    arena_memcpy(context->body + context->body_length, at, length);
     context->body_length += length;
     context->body[context->body_length] = '\0';
 
@@ -324,30 +321,14 @@ static int on_version_cb(llhttp_t *parser)
     return 0;
 }
 
-static void free_req(request_t *request)
-{
-    if (!request || !request->items)
-        return;
-
-    for (int i = 0; i < request->count; i++)
-    {
-        free(request->items[i].key);
-        free(request->items[i].value);
-    }
-
-    free(request->items);
-    request->items = NULL;
-    request->count = 0;
-    request->capacity = 0;
-}
-
 // Initialize HTTP context
-void http_context_init(http_context_t *context)
+void http_context_init(http_context_t *context, Arena *arena)
 {
-    if (!context)
+    if (!context || !arena)
         return;
 
     memset(context, 0, sizeof(http_context_t));
+    context->arena = arena;
 
     // Initialize llhttp parser
     llhttp_settings_init(&context->settings);
@@ -366,26 +347,45 @@ void http_context_init(http_context_t *context)
 
     // Initialize buffers
     context->url_capacity = 256;
-    context->url = calloc(context->url_capacity, 1);
+    context->url = arena_alloc(arena, context->url_capacity);
+    if (context->url)
+    {
+        memset(context->url, 0, context->url_capacity);
+    }
     context->url_length = 0;
 
     context->method_capacity = 16;
-    context->method = calloc(context->method_capacity, 1);
+    context->method = arena_alloc(arena, context->method_capacity);
+    if (context->method)
+    {
+        memset(context->method, 0, context->method_capacity);
+    }
     context->method_length = 0;
 
     context->header_field_capacity = 64;
-    context->current_header_field = calloc(context->header_field_capacity, 1);
+    context->current_header_field = arena_alloc(arena, context->header_field_capacity);
+    if (context->current_header_field)
+    {
+        memset(context->current_header_field, 0, context->header_field_capacity);
+    }
     context->header_field_length = 0;
 
     context->body_capacity = 512;
-    context->body = calloc(context->body_capacity, 1);
+    context->body = arena_alloc(arena, context->body_capacity);
+    if (context->body)
+    {
+        memset(context->body, 0, context->body_capacity);
+    }
     context->body_length = 0;
 
     // Initialize arrays
     context->headers.count = 0;
     context->headers.capacity = 16;
-    context->headers.items = calloc(context->headers.capacity,
-                                    sizeof(request_item_t));
+    context->headers.items = arena_alloc(arena, context->headers.capacity * sizeof(request_item_t));
+    if (context->headers.items)
+    {
+        memset(context->headers.items, 0, context->headers.capacity * sizeof(request_item_t));
+    }
 
     // Other fields start empty
     memset(&context->query_params, 0, sizeof(request_t));
@@ -396,28 +396,38 @@ void http_context_init(http_context_t *context)
     context->http_minor = 0;
 }
 
-// Function to clean up HTTP context
+// Function to clean up HTTP context (arena-aware - just clears pointers)
 void http_context_free(http_context_t *context)
 {
     if (!context)
         return;
 
-    free(context->url);
-    free(context->method);
-    free(context->current_header_field);
-    free(context->body);
+    // Clear pointers - arena handles the memory
+    context->arena = NULL;
+    context->url = NULL;
+    context->method = NULL;
+    context->current_header_field = NULL;
+    context->body = NULL;
 
-    free_req(&context->headers);
-    free_req(&context->query_params);
-    free_req(&context->url_params);
+    context->headers.items = NULL;
+    context->headers.count = 0;
+    context->headers.capacity = 0;
+
+    context->query_params.items = NULL;
+    context->query_params.count = 0;
+    context->query_params.capacity = 0;
+
+    context->url_params.items = NULL;
+    context->url_params.count = 0;
+    context->url_params.capacity = 0;
 
     memset(context, 0, sizeof(http_context_t));
 }
 
 // Query parsing
-void parse_query(const char *query_string, request_t *query)
+void parse_query(Arena *arena, const char *query_string, request_t *query)
 {
-    if (!query)
+    if (!arena || !query)
         return;
 
     memset(query, 0, sizeof(request_t));
@@ -448,23 +458,30 @@ void parse_query(const char *query_string, request_t *query)
     }
 
     query->capacity = param_count;
-    query->items = calloc(query->capacity, sizeof(request_item_t));
+    query->items = arena_alloc(arena, query->capacity * sizeof(request_item_t));
     if (!query->items)
     {
         query->capacity = 0;
         return;
     }
 
-    char *buffer = malloc(query_len + 1);
+    // Initialize items
+    for (int i = 0; i < query->capacity; i++)
+    {
+        query->items[i].key = NULL;
+        query->items[i].value = NULL;
+    }
+
+    char *buffer = arena_alloc(arena, query_len + 1);
     if (!buffer)
     {
-        free(query->items);
         query->items = NULL;
         query->capacity = 0;
         return;
     }
 
-    strcpy(buffer, query_string);
+    arena_memcpy(buffer, query_string, query_len);
+    buffer[query_len] = '\0';
 
     char *pair = strtok(buffer, "&");
     while (pair && query->count < query->capacity)
@@ -473,24 +490,17 @@ void parse_query(const char *query_string, request_t *query)
         if (eq)
         {
             *eq = '\0';
-            query->items[query->count].key = strdup(pair);
-            query->items[query->count].value = strdup(eq + 1);
+            query->items[query->count].key = arena_strdup(arena, pair);
+            query->items[query->count].value = arena_strdup(arena, eq + 1);
 
             if (query->items[query->count].key &&
                 query->items[query->count].value)
             {
                 query->count++;
             }
-            else
-            {
-                free(query->items[query->count].key);
-                free(query->items[query->count].value);
-            }
         }
         pair = strtok(NULL, "&");
     }
-
-    free(buffer);
 }
 
 // Get value by key

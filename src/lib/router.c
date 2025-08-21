@@ -20,7 +20,7 @@ static void write_completion_cb(uv_write_t *req, int status)
     {
         if (write_req->data)
         {
-            free(write_req->data);
+            free(write_req->data);  // Using malloc/free for libuv-managed data
             write_req->data = NULL;
         }
 
@@ -29,17 +29,15 @@ static void write_completion_cb(uv_write_t *req, int status)
     }
 }
 
-// Sends error responses (400 or 500)
+// Sends error responses (400 or 500) - uses malloc for libuv
 static void send_error(uv_tcp_t *client_socket, int error_code)
 {
     if (!client_socket)
         return;
 
-    // Handle status check
     if (uv_is_closing((uv_handle_t *)client_socket))
         return;
 
-    // Stream status check
     if (!uv_is_readable((uv_stream_t *)client_socket) ||
         !uv_is_writable((uv_stream_t *)client_socket))
         return;
@@ -104,43 +102,48 @@ static void send_error(uv_tcp_t *client_socket, int error_code)
 
 // Separates URL into path and query string components
 // Example: /users/123?active=true -> path="/users/123", query="active=true"
-static int extract_path_and_query(char *url_buf, char **path, char **query)
+static int extract_path_and_query(Arena *arena, char *url_buf, char **path, char **query)
 {
-    if (!url_buf || !path || !query)
+    if (!arena || !url_buf || !path || !query)
         return -1;
 
     char *qmark = strchr(url_buf, '?');
     if (qmark)
     {
         *qmark = '\0';
-        *path = url_buf;
-        *query = qmark + 1;
+        *path = arena_strdup(arena, url_buf);
+        *query = arena_strdup(arena, qmark + 1);
     }
     else
     {
-        *path = url_buf;
-        *query = "";
+        *path = arena_strdup(arena, url_buf);
+        *query = arena_strdup(arena, "");
     }
+
+    if (!*path || !*query)
+        return -1;
 
     // If path is empty, treat it as root
     if ((*path)[0] == '\0')
     {
-        *path = "/";
+        *path = arena_strdup(arena, "/");
+        if (!*path)
+            return -1;
     }
     return 0;
 }
 
 // Extracts URL parameters from a previously matched route
 // Example: From route /users/:id matched with /users/123, extracts parameter id=123
-static int extract_url_params(const route_match_t *match, request_t *url_params)
+static int extract_url_params(Arena *arena, const route_match_t *match, request_t *url_params)
 {
-    if (!match || !url_params)
+    if (!arena || !match || !url_params)
         return -1;
 
     if (url_params->capacity == 0)
     {
         url_params->capacity = match->param_count > 0 ? match->param_count : 1;
-        url_params->items = malloc(sizeof(request_item_t) * url_params->capacity);
+        url_params->items = arena_alloc(arena, sizeof(request_item_t) * url_params->capacity);
         if (!url_params->items)
         {
             url_params->capacity = 0;
@@ -156,20 +159,18 @@ static int extract_url_params(const route_match_t *match, request_t *url_params)
 
     for (int i = 0; i < match->param_count && url_params->count < url_params->capacity; i++)
     {
-        char *key = malloc(match->params[i].key.len + 1);
-        char *value = malloc(match->params[i].value.len + 1);
+        char *key = arena_alloc(arena, match->params[i].key.len + 1);
+        char *value = arena_alloc(arena, match->params[i].value.len + 1);
 
         if (!key || !value)
         {
-            free(key);
-            free(value);
             return -1;
         }
 
-        memcpy(key, match->params[i].key.data, match->params[i].key.len);
+        arena_memcpy(key, match->params[i].key.data, match->params[i].key.len);
         key[match->params[i].key.len] = '\0';
 
-        memcpy(value, match->params[i].value.data, match->params[i].value.len);
+        arena_memcpy(value, match->params[i].value.data, match->params[i].value.len);
         value[match->params[i].value.len] = '\0';
 
         url_params->items[url_params->count].key = key;
@@ -180,6 +181,7 @@ static int extract_url_params(const route_match_t *match, request_t *url_params)
     return 0;
 }
 
+// Context clearing
 // Run at the begining of set_context and destroy_req
 static void req_clear_context(Req *req)
 {
@@ -194,6 +196,7 @@ static void req_clear_context(Req *req)
     req->context.data = NULL;
     req->context.size = 0;
     req->context.cleanup = NULL;
+    req->context.arena = NULL;
 }
 
 // Context management functions
@@ -208,6 +211,7 @@ void set_context(Req *req, void *data, size_t size, void (*cleanup)(void *))
     req->context.data = data;
     req->context.size = size;
     req->context.cleanup = cleanup;
+    req->context.arena = req->arena;
 }
 
 void *get_context(Req *req)
@@ -217,14 +221,18 @@ void *get_context(Req *req)
     return req->context.data;
 }
 
-// Create and initialize Req on heap
-static Req *create_req(uv_tcp_t *client_socket)
+// Create and initialize Req
+static Req *create_req(Arena *arena, uv_tcp_t *client_socket)
 {
-    Req *req = malloc(sizeof(Req));
+    if (!arena)
+        return NULL;
+
+    Req *req = arena_alloc(arena, sizeof(Req));
     if (!req)
         return NULL;
 
     memset(req, 0, sizeof(Req));
+    req->arena = arena;
     req->client_socket = client_socket;
     req->method = NULL;
     req->path = NULL;
@@ -240,21 +248,26 @@ static Req *create_req(uv_tcp_t *client_socket)
     req->context.data = NULL;
     req->context.size = 0;
     req->context.cleanup = NULL;
+    req->context.arena = arena;
 
     return req;
 }
 
-// Create and initialize Res on heap
-static Res *create_res(uv_tcp_t *client_socket)
+// Create and initialize Res
+static Res *create_res(Arena *arena, uv_tcp_t *client_socket)
 {
-    Res *res = malloc(sizeof(Res));
+    if (!arena)
+        return NULL;
+
+    Res *res = arena_alloc(arena, sizeof(Res));
     if (!res)
         return NULL;
 
     memset(res, 0, sizeof(Res));
+    res->arena = arena;
     res->client_socket = client_socket;
     res->status = 200;
-    res->content_type = "text/plain";
+    res->content_type = arena_strdup(arena, "text/plain");
     res->body = NULL;
     res->body_len = 0;
     res->keep_alive = 1;
@@ -265,31 +278,24 @@ static Res *create_res(uv_tcp_t *client_socket)
     return res;
 }
 
-// Create and initialize http_context_t on heap
-static http_context_t *create_http_context(void)
+// Create and initialize http_context_t
+static http_context_t *create_http_context(Arena *arena)
 {
-    http_context_t *context = malloc(sizeof(http_context_t));
+    if (!arena)
+        return NULL;
+
+    http_context_t *context = arena_alloc(arena, sizeof(http_context_t));
     if (!context)
         return NULL;
 
-    http_context_init(context);
+    http_context_init(context, arena);
     return context;
-}
-
-// Destroy http_context_t
-static void destroy_http_context(http_context_t *context)
-{
-    if (!context)
-        return;
-
-    http_context_free(context);
-    free(context);
 }
 
 // Cleanup function for request_t
 static void cleanup_request_t(request_t *req_data)
 {
-    if (!req_data || !req_data->items)
+    if (!req_data)
         return;
 
     for (int i = 0; i < req_data->count; i++)
@@ -304,80 +310,129 @@ static void cleanup_request_t(request_t *req_data)
     req_data->capacity = 0;
 }
 
-// Deep copy function for request_t
-static request_t copy_request_t(const request_t *original)
+static request_t copy_request_t(Arena *arena, const request_t *original)
 {
     request_t copy;
     memset(&copy, 0, sizeof(request_t));
 
     if (!original || original->count == 0)
-    {
         return copy;
-    }
 
-    // Allocate items array
-    copy.capacity = original->capacity;
-    copy.count = original->count;
-    copy.items = malloc(copy.capacity * sizeof(request_item_t));
-
-    if (!copy.items)
+    if (arena)
     {
-        // Allocation failed, return empty
-        copy.capacity = 0;
-        copy.count = 0;
-        return copy;
-    }
+        // Allocate items array in arena
+        copy.capacity = original->capacity;
+        copy.count = original->count;
+        copy.items = arena_alloc(arena, copy.capacity * sizeof(request_item_t));
 
-    // Copy each item
-    for (int i = 0; i < original->count; i++)
-    {
-        // Copy key
-        if (original->items[i].key)
+        if (!copy.items)
         {
-            copy.items[i].key = strdup(original->items[i].key);
-            if (!copy.items[i].key)
+            copy.capacity = 0;
+            copy.count = 0;
+            return copy;
+        }
+
+        // Copy each item using arena
+        for (int i = 0; i < original->count; i++)
+        {
+            if (original->items[i].key)
             {
-                // Cleanup on failure
-                for (int j = 0; j < i; j++)
+                copy.items[i].key = arena_strdup(arena, original->items[i].key);
+                if (!copy.items[i].key)
                 {
-                    free(copy.items[j].key);
-                    free(copy.items[j].value);
+                    // Arena allocation failed - clear and return
+                    memset(&copy, 0, sizeof(request_t));
+                    return copy;
                 }
-                free(copy.items);
-                memset(&copy, 0, sizeof(request_t));
-                return copy;
+            }
+            else
+            {
+                copy.items[i].key = NULL;
+            }
+
+            if (original->items[i].value)
+            {
+                copy.items[i].value = arena_strdup(arena, original->items[i].value);
+                if (!copy.items[i].value)
+                {
+                    // Arena allocation failed - clear and return
+                    memset(&copy, 0, sizeof(request_t));
+                    return copy;
+                }
+            }
+            else
+            {
+                copy.items[i].value = NULL;
             }
         }
-        else
+
+        return copy;
+    } else
+    {
+        // Allocate items array
+        copy.capacity = original->capacity;
+        copy.count = original->count;
+        copy.items = malloc(copy.capacity * sizeof(request_item_t));
+
+        if (!copy.items)
         {
-            copy.items[i].key = NULL;
+            // Allocation failed, return empty
+            copy.capacity = 0;
+            copy.count = 0;
+            return copy;
         }
 
-        // Copy value
-        if (original->items[i].value)
+        // Copy each item
+        for (int i = 0; i < original->count; i++)
         {
-            copy.items[i].value = strdup(original->items[i].value);
-            if (!copy.items[i].value)
+            // Copy key
+            if (original->items[i].key)
             {
-                // Cleanup on failure
-                free(copy.items[i].key);
-                for (int j = 0; j < i; j++)
+                copy.items[i].key = strdup(original->items[i].key);
+                if (!copy.items[i].key)
                 {
-                    free(copy.items[j].key);
-                    free(copy.items[j].value);
+                    // Cleanup on failure
+                    for (int j = 0; j < i; j++)
+                    {
+                        free(copy.items[j].key);
+                        free(copy.items[j].value);
+                    }
+                    free(copy.items);
+                    memset(&copy, 0, sizeof(request_t));
+                    return copy;
                 }
-                free(copy.items);
-                memset(&copy, 0, sizeof(request_t));
-                return copy;
+            }
+            else
+            {
+                copy.items[i].key = NULL;
+            }
+
+            // Copy value
+            if (original->items[i].value)
+            {
+                copy.items[i].value = strdup(original->items[i].value);
+                if (!copy.items[i].value)
+                {
+                    // Cleanup on failure
+                    free(copy.items[i].key);
+                    for (int j = 0; j < i; j++)
+                    {
+                        free(copy.items[j].key);
+                        free(copy.items[j].value);
+                    }
+                    free(copy.items);
+                    memset(&copy, 0, sizeof(request_t));
+                    return copy;
+                }
+            }
+            else
+            {
+                copy.items[i].value = NULL;
             }
         }
-        else
-        {
-            copy.items[i].value = NULL;
-        }
-    }
 
-    return copy;
+        return copy;
+    }
 }
 
 // Destroy Req
@@ -437,12 +492,18 @@ void destroy_res(Res *res)
     free(res);
 }
 
+// Arena-aware request population
 static int populate_req_from_context(Req *req, http_context_t *context, const char *path)
 {
+    if (!req || !req->arena || !context)
+        return -1;
+
+    Arena *arena = req->arena;
+
     // Copy method
     if (context->method)
     {
-        req->method = strdup(context->method);
+        req->method = arena_strdup(arena, context->method);
         if (!req->method)
             return -1;
     }
@@ -450,7 +511,7 @@ static int populate_req_from_context(Req *req, http_context_t *context, const ch
     // Copy path
     if (path)
     {
-        req->path = strdup(path);
+        req->path = arena_strdup(arena, path);
         if (!req->path)
             return -1;
     }
@@ -458,44 +519,40 @@ static int populate_req_from_context(Req *req, http_context_t *context, const ch
     // Copy body
     if (context->body && context->body_length > 0)
     {
-        req->body = malloc(context->body_length + 1);
+        req->body = arena_alloc(arena, context->body_length + 1);
         if (!req->body)
             return -1;
-        memcpy(req->body, context->body, context->body_length);
+        arena_memcpy(req->body, context->body, context->body_length);
         req->body[context->body_length] = '\0';
         req->body_len = context->body_length;
     }
 
-    req->headers = copy_request_t(&context->headers);
-    req->query = copy_request_t(&context->query_params);
-    req->params = copy_request_t(&context->url_params);
+    req->headers = copy_request_t(arena, &context->headers);
+    req->query = copy_request_t(arena, &context->query_params);
+    req->params = copy_request_t(arena, &context->url_params);
 
     return 0;
 }
 
-// Composes and sends the response (headers + body)
+// Composes and sends the response (headers + body) using malloc for libuv data
 void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len)
 {
-    // Comprehensive validation
     if (!res || !res->client_socket)
     {
         return;
     }
 
-    // Check if handle is valid and not closing
     if (uv_is_closing((uv_handle_t *)res->client_socket))
     {
         return;
     }
 
-    // Check if the handle is still readable/writable
     if (!uv_is_readable((uv_stream_t *)res->client_socket) ||
         !uv_is_writable((uv_stream_t *)res->client_socket))
     {
         return;
     }
 
-    // Validate parameters
     if (!content_type)
         content_type = "text/plain";
     if (!body)
@@ -511,7 +568,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         }
     }
 
-    // Allocate and fill entire header string
+    // Allocate and fill entire header string using malloc for libuv
     char *all_headers = malloc(headers_size + 1);
     if (!all_headers)
     {
@@ -540,7 +597,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     }
     all_headers[pos] = '\0';
 
-    // Calculate response size more safely
+    // Calculate response size
     int base_header_len = snprintf(
         NULL, 0,
         "HTTP/1.1 %d\r\n"
@@ -564,6 +621,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
 
     size_t total_len = (size_t)base_header_len + body_len;
 
+    // Use malloc for libuv-managed response
     char *response = malloc(total_len + 1);
     if (!response)
     {
@@ -630,15 +688,11 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         free(write_req);
         return;
     }
-
-    // Success
-    // The write_completion_cb will do the cleanup
 }
 
-// Called when a request is received
+// Main router function
 int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len)
 {
-    // Early validation
     if (!client_socket || !request_data || request_len == 0) {
         if (client_socket)
             send_error(client_socket, 400);
@@ -648,6 +702,9 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     if (uv_is_closing((uv_handle_t *)client_socket))
         return 1;
 
+    // Create request arena
+    Arena arena = {0};
+    
     // Initialize all resources
     http_context_t *ctx = NULL;
     Req *req = NULL;
@@ -657,12 +714,11 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     int should_close = 1;
     bool send_error_response = false;
     bool send_404_response = false;
-    bool tokenized_path_initialized = false;
 
     // Create resources
-    ctx = create_http_context();
-    req = create_req(client_socket);
-    res = create_res(client_socket);
+    ctx = create_http_context(&arena);
+    req = create_req(&arena, client_socket);
+    res = create_res(&arena, client_socket);
 
     if (!ctx || !req || !res) {
         error_code = 500;
@@ -681,7 +737,7 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     // Extract path and query
     char *path = NULL;
     char *query = NULL;
-    if (extract_path_and_query(ctx->url, &path, &query) != 0) {
+    if (extract_path_and_query(&arena, ctx->url, &path, &query) != 0) {
         error_code = 500;
         send_error_response = true;
         goto cleanup;
@@ -694,7 +750,7 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     }
 
     // Parse query parameters
-    parse_query(query, &ctx->query_params);
+    parse_query(&arena, query, &ctx->query_params);
     res->keep_alive = ctx->keep_alive;
 
     // Handle CORS preflight
@@ -714,30 +770,26 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     }
 
     // Tokenize path
-    if (tokenize_path(path, &tokenized_path) != 0) {
+    if (tokenize_path(&arena, path, &tokenized_path) != 0) {
         error_code = 500;
         send_error_response = true;
         goto cleanup;
     }
-    tokenized_path_initialized = true;
 
     // Route matching
     route_match_t match;
     if (!route_trie_match(global_route_trie, ctx->method, &tokenized_path, &match)) {
-        // Route not found - 404
         cors_add_headers(ctx, res);
         send_404_response = true;
         goto cleanup;
     }
 
-    // Extract URL parameters
-    if (extract_url_params(&match, &ctx->url_params) != 0) {
+    if (extract_url_params(&arena, &match, &ctx->url_params) != 0) {
         error_code = 500;
         send_error_response = true;
         goto cleanup;
     }
     
-    // Populate request
     if (populate_req_from_context(req, ctx, path) != 0) {
         error_code = 500;
         send_error_response = true;
@@ -754,10 +806,9 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     cors_add_headers(ctx, res);
     match.handler(req, res);
     should_close = !res->keep_alive;
+    goto cleanup;
 
 cleanup:
-    // Cleanup in reverse order of allocation
-    
     // Send error responses if needed
     if (send_error_response && error_code > 0) {
         send_error(client_socket, error_code);
@@ -767,15 +818,8 @@ cleanup:
         should_close = !res->keep_alive;
     }
     
-    // Free tokenized path if it was initialized
-    if (tokenized_path_initialized) {
-        free_tokenized_path(&tokenized_path);
-    }
-    
-    // Destroy resources
-    if (ctx) destroy_http_context(ctx);
-    if (req) destroy_req(req);
-    if (res) destroy_res(res);
+    // Free the entire arena (handles all request/response memory)
+    arena_free(&arena);
     
     return should_close;
 }
@@ -783,24 +827,26 @@ cleanup:
 // Adds a header
 void set_header(Res *res, const char *name, const char *value)
 {
-    if (!name || !value)
+    if (!res || !res->arena || !name || !value)
         return;
+
     if (res->header_count >= res->header_capacity)
     {
         int new_cap = res->header_capacity ? res->header_capacity * 2 : 8;
-        http_header_t *tmp = realloc(res->headers, new_cap * sizeof(http_header_t));
+        http_header_t *tmp = arena_realloc(res->arena, res->headers,
+                                           res->header_capacity * sizeof(http_header_t),
+                                           new_cap * sizeof(http_header_t));
         if (!tmp)
             return;
         res->headers = tmp;
         res->header_capacity = new_cap;
     }
-    res->headers[res->header_count].name = strdup(name);
-    res->headers[res->header_count].value = strdup(value);
+
+    res->headers[res->header_count].name = arena_strdup(res->arena, name);
+    res->headers[res->header_count].value = arena_strdup(res->arena, value);
+    
     if (!res->headers[res->header_count].name || !res->headers[res->header_count].value)
     {
-        // In case of failure, do not attempt to use the incomplete entry
-        free(res->headers[res->header_count].name);
-        free(res->headers[res->header_count].value);
         return;
     }
     res->header_count++;
@@ -940,16 +986,86 @@ Req *copy_req(const Req *original)
     }
 
     // Deep copy headers, query, params
-    // You'll need to implement copy_request_t based on your request_t structure
-    copy->headers = copy_request_t(&original->headers);
-    copy->query = copy_request_t(&original->query);
-    copy->params = copy_request_t(&original->params);
+    copy->headers = copy_request_t(NULL, &original->headers);
+    copy->query = copy_request_t(NULL, &original->query);
+    copy->params = copy_request_t(NULL, &original->params);
 
     // Initialize context (don't copy original context, start fresh)
     memset(&copy->context, 0, sizeof(copy->context));
     copy->context.data = NULL;
     copy->context.size = 0;
     copy->context.cleanup = NULL;
+
+    return copy;
+}
+
+Req *arena_copy_req(Arena *target_arena, const Req *original)
+{
+    if (!original || !target_arena)
+        return NULL;
+
+    // Allocate on target arena
+    Req *copy = arena_alloc(target_arena, sizeof(Req));
+    if (!copy) return NULL;
+
+    // Copy primitive fields
+    copy->arena = target_arena;
+    copy->client_socket = original->client_socket;
+    copy->body_len = original->body_len;
+
+    // Deep copy strings using target arena
+    if (original->method)
+        copy->method = arena_strdup(target_arena, original->method);
+    
+    if (original->path)
+        copy->path = arena_strdup(target_arena, original->path);
+    
+    if (original->body && original->body_len > 0) {
+        copy->body = arena_alloc(target_arena, original->body_len + 1);
+        memcpy(copy->body, original->body, original->body_len);
+        copy->body[original->body_len] = '\0';
+    }
+    
+    // Deep copy request_t structures using target arena
+    copy->headers = copy_request_t(target_arena, &original->headers);
+    copy->query = copy_request_t(target_arena, &original->query);
+    copy->params = copy_request_t(target_arena, &original->params);
+    
+    // Initialize context
+    memset(&copy->context, 0, sizeof(copy->context));
+    copy->context.arena = target_arena;
+    
+    return copy;
+}
+
+Res *arena_copy_res(Arena *target_arena, const Res *original)
+{
+    if (!original || !target_arena)
+        return NULL;
+
+    // Allocate on target arena
+    Res *copy = arena_alloc(target_arena, sizeof(Res));
+    if (!copy) return NULL;
+
+    // Copy primitive fields
+    *copy = *original;
+    copy->arena = target_arena;
+
+    if (original->content_type)
+        copy->content_type = arena_strdup(target_arena, original->content_type);
+
+    // Copy headers array in target arena
+    if (original->header_capacity > 0) {
+        copy->headers = arena_alloc(target_arena, 
+                                   original->header_capacity * sizeof(http_header_t));
+        
+        for (int i = 0; i < original->header_count; ++i) {
+            if (original->headers[i].name)
+                copy->headers[i].name = arena_strdup(target_arena, original->headers[i].name);
+            if (original->headers[i].value)
+                copy->headers[i].value = arena_strdup(target_arena, original->headers[i].value);
+        }
+    }
 
     return copy;
 }

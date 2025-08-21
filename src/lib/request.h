@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include "llhttp.h"
 #include "compat.h"
+#include "arena.h"
 
 typedef struct
 {
@@ -22,6 +23,7 @@ typedef struct
 // HTTP parsing context structure to hold state during parsing
 typedef struct
 {
+    Arena *arena;               // Arena for this context's memory
     llhttp_t parser;            // llhttp parser instance
     llhttp_settings_t settings; // llhttp parser settings
 
@@ -58,13 +60,13 @@ typedef struct
 } http_context_t;
 
 // Function to initialize the http context
-void http_context_init(http_context_t *context);
+void http_context_init(http_context_t *context, Arena *arena);
 
 // Function to cleanup the http context
 void http_context_free(http_context_t *context);
 
 // Parse the query string into request_t structure
-void parse_query(const char *query_string, request_t *query);
+void parse_query(Arena *arena, const char *query_string, request_t *query);
 
 // Get value by key from request_t structure
 const char *get_req(const request_t *request, const char *key);

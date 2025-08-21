@@ -7,7 +7,7 @@
 #include "middleware.h"
 
 // Splits a path into segments (/users/123/posts -> ["users", "123", "posts"])
-int tokenize_path(const char *path, tokenized_path_t *result) {
+int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result) {
     if (!path || !result) return -1;
     
     // Initialize result
@@ -36,7 +36,7 @@ int tokenize_path(const char *path, tokenized_path_t *result) {
     
     // Allocate segments
     result->capacity = segment_count;
-    result->segments = malloc(sizeof(path_segment_t) * segment_count);
+    result->segments = arena_alloc(arena, sizeof(path_segment_t) * segment_count);
     if (!result->segments) return -1;
     
     // Parse segments
@@ -67,13 +67,6 @@ int tokenize_path(const char *path, tokenized_path_t *result) {
     }
     
     return 0;
-}
-
-void free_tokenized_path(tokenized_path_t *path) {
-    if (path && path->segments) {
-        free(path->segments);
-        memset(path, 0, sizeof(tokenized_path_t));
-    }
 }
 
 static trie_node_t *match_segments(trie_node_t *node,

@@ -6,6 +6,11 @@
 #include <string.h>
 #include "request.h"
 #include "uv.h"
+#include "arena.h"
+
+#define ecewo_alloc(req, size) arena_alloc((req)->arena, (size))
+#define ecewo_strdup(req, str) arena_strdup((req)->arena, (str))
+#define ecewo_sprintf(req, fmt, ...) arena_sprintf((req)->arena, (fmt), ##__VA_ARGS__)
 
 // HTTP Status Codes
 typedef enum
@@ -83,17 +88,19 @@ typedef enum
     NETWORK_AUTHENTICATION_REQUIRED = 511
 } http_status_t;
 
-// Context structure for middleware data
+// Arena-aware context structure for middleware data
 typedef struct
 {
     void *data;
     size_t size;
     void (*cleanup)(void *data);
+    Arena *arena;  // Arena this context belongs to
 } req_context_t;
 
-// Request structure
+// Arena-aware Request structure
 typedef struct Req
 {
+    Arena *arena;           // Arena for this request's memory
     uv_tcp_t *client_socket;
     char *method;
     char *path;
@@ -112,26 +119,27 @@ typedef struct
     char *value;
 } http_header_t;
 
-// Response structure
+// Arena-aware Response structure
 typedef struct Res
 {
+    Arena *arena;           // Arena for this response's memory
     uv_tcp_t *client_socket;
     int status;
-    char *content_type; // Static string, not owned
-    void *body;         // Not owned by Res
+    char *content_type;     // Arena allocated string
+    void *body;             // Arena allocated if owned by Res
     size_t body_len;
     int keep_alive;
-    http_header_t *headers; // Heap allocated array
+    http_header_t *headers; // Arena allocated array
     int header_count;
     int header_capacity;
 } Res;
 
-// Write request structure
+// Write request structure (managed by libuv)
 typedef struct
 {
     uv_write_t req;
     uv_buf_t buf;
-    char *data; // Heap allocated
+    char *data; // Heap allocated (managed by libuv callbacks)
 } write_req_t;
 
 // Route handler function type
@@ -146,6 +154,7 @@ typedef struct
     void *middleware_ctx;
 } Router;
 
+// Function declarations
 int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len);
 Req *copy_req(const Req *original);
 Res *copy_res(const Res *original);

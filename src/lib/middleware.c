@@ -4,8 +4,9 @@
 #include "ecewo.h"
 #include "middleware.h"
 #include "route_trie.h"
+#include "arena.h"
 
-// Global middleware
+// Global middleware (uses malloc since it's long-lived)
 MiddlewareHandler *global_middleware = NULL;
 int global_middleware_count = 0;
 int global_middleware_capacity = 0;
@@ -143,10 +144,11 @@ static void route_handler_with_middleware(Req *req, Res *res)
     }
 
     // Allocate memory for combined middleware handlers
-    MiddlewareHandler *combined_handlers = malloc(sizeof(MiddlewareHandler) * total_middleware_count);
+    MiddlewareHandler *combined_handlers = arena_alloc(req->arena, 
+                                                       sizeof(MiddlewareHandler) * total_middleware_count);
     if (!combined_handlers)
     {
-        printf("Memory allocation failed for middleware handlers\n");
+        printf("Arena allocation failed for middleware handlers\n");
         if (middleware_info->handler)
         {
             middleware_info->handler(req, res);
@@ -155,26 +157,34 @@ static void route_handler_with_middleware(Req *req, Res *res)
     }
 
     // Copy global middleware handlers first
-    memcpy(combined_handlers, global_middleware, sizeof(MiddlewareHandler) * global_middleware_count);
+    arena_memcpy(combined_handlers, global_middleware, sizeof(MiddlewareHandler) * global_middleware_count);
 
     // Copy route-specific middleware handlers
     if (middleware_info->middleware_count > 0 && middleware_info->middleware)
     {
-        memcpy(combined_handlers + global_middleware_count, middleware_info->middleware,
-               sizeof(MiddlewareHandler) * middleware_info->middleware_count);
+        arena_memcpy(combined_handlers + global_middleware_count, middleware_info->middleware,
+                     sizeof(MiddlewareHandler) * middleware_info->middleware_count);
     }
 
-    // Create middleware chain context
-    Chain chain = {
-        .handlers = combined_handlers,
-        .count = total_middleware_count,
-        .current = 0,
-        .route_handler = middleware_info->handler};
+    // Create middleware chain context (allocated in request arena)
+    Chain *chain = arena_alloc(req->arena, sizeof(Chain));
+    if (!chain)
+    {
+        printf("Arena allocation failed for middleware chain\n");
+        if (middleware_info->handler)
+        {
+            middleware_info->handler(req, res);
+        }
+        return;
+    }
+
+    chain->handlers = combined_handlers;
+    chain->count = total_middleware_count;
+    chain->current = 0;
+    chain->route_handler = middleware_info->handler;
 
     // Start middleware chain execution
-    int result = next(&chain, req, res);
-
-    free(combined_handlers);
+    int result = next(chain, req, res);
 
     // Error handling
     if (result == -1)
@@ -187,7 +197,7 @@ static void route_handler_with_middleware(Req *req, Res *res)
     }
 }
 
-// Helper function to register route with middleware
+// Helper function to register route with middleware (uses malloc for long-lived data)
 void register_route(const char *method, const char *path, MiddlewareArray middleware, RequestHandler handler)
 {
     if (!handler)

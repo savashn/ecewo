@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(ecewo VERSION 1.1.0 LANGUAGES C)
+project(ecewo VERSION 1.2.0 LANGUAGES C)
 
 # Platform definitions
 if(WIN32)
@@ -46,6 +46,7 @@ if(NOT TARGET ecewo)
         src/utils/cors.c
         src/utils/async.c
         src/utils/cookie.c
+        vendors/arena.c
     )
 
     # Make source files relative to CMAKE_CURRENT_SOURCE_DIR
@@ -57,6 +58,7 @@ if(NOT TARGET ecewo)
     # Include directories
     target_include_directories(ecewo PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vendors>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/lib>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/server>

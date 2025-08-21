@@ -67,8 +67,7 @@ typedef enum
 } http_method_t;
 
 // Path tokenization functions
-int tokenize_path(const char *path, tokenized_path_t *result);
-void free_tokenized_path(tokenized_path_t *path);
+int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result);
 
 // Now takes tokenized path instead of raw string
 bool route_trie_match(route_trie_t *trie, 

@@ -28,14 +28,18 @@ struct async_t
 
 static void _async_work_cb(uv_work_t *req);
 static void _async_after_work_cb(uv_work_t *req, int status);
+
+// Task result functions
 void ok(async_t *task);
 void fail(async_t *task, const char *error_msg);
 
+// Task creation
 int task(
     void *context,
     async_work_fn_t work_fn,
     async_response_handler_t handler);
 
+// Task chaining
 void then(
     void *context,
     int success,
