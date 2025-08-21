@@ -12,10 +12,6 @@
 #define ecewo_strdup(req, str) arena_strdup((req)->arena, (str))
 #define ecewo_sprintf(req, fmt, ...) arena_sprintf((req)->arena, (fmt), ##__VA_ARGS__)
 
-// Forward declaration from middleware.ch
-typedef struct MiddlewareInfo MiddlewareInfo;
-void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_info);
-
 // HTTP Status Codes
 typedef enum
 {
@@ -157,6 +153,10 @@ typedef struct
     RequestHandler handler;
     void *middleware_ctx;
 } Router;
+
+// Forward declaration from middleware.ch
+typedef struct MiddlewareInfo MiddlewareInfo;
+void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_info);
 
 // Function declarations
 int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len);
