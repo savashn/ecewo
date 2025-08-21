@@ -156,6 +156,8 @@ typedef struct
 
 // Function declarations
 int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len);
+Req *arena_copy_req(Arena *target_arena, const Req *original);
+Res *arena_copy_res(Arena *target_arena, const Res *original);
 Req *copy_req(const Req *original);
 Res *copy_res(const Res *original);
 void destroy_req(Req *req);
