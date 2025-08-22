@@ -838,7 +838,7 @@ cleanup:
 // Adds a header
 void set_header(Res *res, const char *name, const char *value)
 {
-    if (!res || !res->arena || !name || !value)
+    if (!res || !name || !value)
     {
         fprintf(stderr, "Error: Invalid argument(s) to set_header\n");
         return;
@@ -847,9 +847,21 @@ void set_header(Res *res, const char *name, const char *value)
     if (res->header_count >= res->header_capacity)
     {
         int new_cap = res->header_capacity ? res->header_capacity * 2 : 8;
-        http_header_t *tmp = arena_realloc(res->arena, res->headers,
-                                           res->header_capacity * sizeof(http_header_t),
-                                           new_cap * sizeof(http_header_t));
+        http_header_t *tmp;
+
+        if (res->arena)
+        {
+            // Arena-based allocation
+            tmp = arena_realloc(res->arena, res->headers,
+                               res->header_capacity * sizeof(http_header_t),
+                               new_cap * sizeof(http_header_t));
+        }
+        else
+        {
+            // Malloc-based allocation
+            tmp = realloc(res->headers, new_cap * sizeof(http_header_t));
+        }
+
         if (!tmp)
         {
             fprintf(stderr, "Error: Failed to realloc headers array\n");
@@ -860,14 +872,30 @@ void set_header(Res *res, const char *name, const char *value)
         res->header_capacity = new_cap;
     }
 
-    res->headers[res->header_count].name = arena_strdup(res->arena, name);
-    res->headers[res->header_count].value = arena_strdup(res->arena, value);
+    if (res->arena)
+    {
+        // Arena-based string allocation
+        res->headers[res->header_count].name = arena_strdup(res->arena, name);
+        res->headers[res->header_count].value = arena_strdup(res->arena, value);
+    }
+    else
+    {
+        // Malloc-based string allocation
+        res->headers[res->header_count].name = strdup(name);
+        res->headers[res->header_count].value = strdup(value);
+    }
     
     if (!res->headers[res->header_count].name || !res->headers[res->header_count].value)
     {
         fprintf(stderr, "Error: Failed to allocate memory for header strings\n");
+        // Cleanup on failure
+        if (!res->arena) {
+            free(res->headers[res->header_count].name);
+            free(res->headers[res->header_count].value);
+        }
         return;
     }
+    
     res->header_count++;
 }
 
@@ -883,6 +911,7 @@ Res *copy_res(const Res *original)
 
     // Copy primitive fields
     *copy = *original;
+    copy->arena = NULL;
     copy->body = original->body; // pointer only, not deep copied
     copy->content_type = original->content_type;
 
@@ -948,6 +977,7 @@ Req *copy_req(const Req *original)
         return NULL;
 
     // Copy primitive fields
+    copy->arena = NULL;
     copy->client_socket = original->client_socket;
     copy->body_len = original->body_len;
 
