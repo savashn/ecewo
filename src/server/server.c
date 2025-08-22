@@ -407,18 +407,12 @@ static void signal_handler(uv_signal_t *handle, int signum)
 void ecewo(unsigned short PORT)
 {
     uv_loop_t *loop = uv_default_loop();
-    uv_tcp_t *server = malloc(sizeof(*server));
+    uv_tcp_t *server = calloc(1, sizeof(*server));
     if (!server)
     {
         fprintf(stderr, "Failed to allocate server\n");
         exit(1);
     }
-
-    // Initialize variables
-    server_freed = 0;
-    signal_handlers_closed = 0;
-    active_connections = 0;
-    shutdown_requested = 0;
 
     uv_tcp_init(loop, server);
 

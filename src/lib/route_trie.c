@@ -283,7 +283,7 @@ http_method_t get_method_index(const char *method)
 // Create a new route trie
 route_trie_t *route_trie_create(void)
 {
-    route_trie_t *trie = malloc(sizeof(route_trie_t));
+    route_trie_t *trie = calloc(1, sizeof(route_trie_t));
     if (!trie)
         return NULL;
 
@@ -293,8 +293,6 @@ route_trie_t *route_trie_create(void)
         free(trie);
         return NULL;
     }
-
-    trie->route_count = 0;
 
     // Initialize read-write lock for thread safety
     if (uv_rwlock_init(&trie->lock) != 0)

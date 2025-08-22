@@ -839,7 +839,10 @@ cleanup:
 void set_header(Res *res, const char *name, const char *value)
 {
     if (!res || !res->arena || !name || !value)
+    {
+        fprintf(stderr, "Error: Invalid argument(s) to set_header\n");
         return;
+    }
 
     if (res->header_count >= res->header_capacity)
     {
@@ -848,7 +851,11 @@ void set_header(Res *res, const char *name, const char *value)
                                            res->header_capacity * sizeof(http_header_t),
                                            new_cap * sizeof(http_header_t));
         if (!tmp)
+        {
+            fprintf(stderr, "Error: Failed to realloc headers array\n");
             return;
+        }
+
         res->headers = tmp;
         res->header_capacity = new_cap;
     }
@@ -858,6 +865,7 @@ void set_header(Res *res, const char *name, const char *value)
     
     if (!res->headers[res->header_count].name || !res->headers[res->header_count].value)
     {
+        fprintf(stderr, "Error: Failed to allocate memory for header strings\n");
         return;
     }
     res->header_count++;

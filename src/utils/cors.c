@@ -129,40 +129,68 @@ void cors_add_headers(const http_context_t *ctx, Res *res)
 
 void init_cors(cors_t *opts)
 {
-    cors_t *custom_cors = malloc(sizeof(cors_t));
+    cors_t *custom_cors = calloc(1, sizeof(cors_t));
     if (!custom_cors)
     {
         fprintf(stderr, "Failed to allocate memory for CORS options\n");
         return;
     }
 
-    const char *def_methods = "GET, POST, PUT, DELETE, OPTIONS";
-    const char *def_headers = "Content-Type";
-    const char *def_credentials = "true";
-    const char *def_max_age = "3600";
+    static const char *def_methods = "GET, POST, PUT, DELETE, OPTIONS";
+    static const char *def_headers = "Content-Type";
+    static const char *def_credentials = "true";
+    static const char *def_max_age = "3600";
 
-    custom_cors->origin = opts->origin
-                              ? safe_strdup(opts->origin)
-                              : NULL;
+    if (opts && opts->origin)
+    {
+        custom_cors->origin = safe_strdup(opts->origin);
+        if (!custom_cors->origin)
+            goto error_cleanup;
+        
+        // Check for wildcard
+        custom_cors->allow_all_origins = (strcmp(opts->origin, "*") == 0);
+    }
 
-    custom_cors->methods = opts->methods
-                               ? safe_strdup(opts->methods)
-                               : safe_strdup(def_methods);
+    // Methods
+    const char *methods_src = (opts && opts->methods) ? opts->methods : def_methods;
+    custom_cors->methods = safe_strdup(methods_src);
+    if (!custom_cors->methods)
+        goto error_cleanup;
 
-    custom_cors->headers = opts->headers
-                               ? safe_strdup(opts->headers)
-                               : safe_strdup(def_headers);
+    // Headers  
+    const char *headers_src = (opts && opts->headers) ? opts->headers : def_headers;
+    custom_cors->headers = safe_strdup(headers_src);
+    if (!custom_cors->headers)
+        goto error_cleanup;
 
-    custom_cors->credentials = opts->credentials
-                                   ? safe_strdup(opts->credentials)
-                                   : safe_strdup(def_credentials);
+    // Credentials
+    const char *credentials_src = (opts && opts->credentials) ? opts->credentials : def_credentials;
+    custom_cors->credentials = safe_strdup(credentials_src);
+    if (!custom_cors->credentials)
+        goto error_cleanup;
 
-    custom_cors->max_age = opts->max_age
-                               ? safe_strdup(opts->max_age)
-                               : safe_strdup(def_max_age);
+    // Max age
+    const char *max_age_src = (opts && opts->max_age) ? opts->max_age : def_max_age;
+    custom_cors->max_age = safe_strdup(max_age_src);
+    if (!custom_cors->max_age)
+        goto error_cleanup;
 
-    custom_cors->enabled = opts->enabled ? opts->enabled : true;
-    custom_cors->allow_all_origins = (opts->origin && strcmp(opts->origin, "*") == 0);
+    // Enabled flag - default true
+    custom_cors->enabled = (opts && opts->enabled != 0) ? opts->enabled : true;
 
     cors_register(custom_cors);
+    return;
+
+error_cleanup:
+    // Partial cleanup on allocation failure
+    if (custom_cors)
+    {
+        free(custom_cors->origin);
+        free(custom_cors->methods);
+        free(custom_cors->headers);
+        free(custom_cors->credentials);
+        free(custom_cors->max_age);
+        free(custom_cors);
+    }
+    fprintf(stderr, "Failed to allocate CORS strings\n");
 }

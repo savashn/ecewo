@@ -183,15 +183,13 @@ void register_route(const char *method, const char *path, MiddlewareArray middle
         return;
     }
 
-    MiddlewareInfo *middleware_info = malloc(sizeof(MiddlewareInfo));
+    MiddlewareInfo *middleware_info = calloc(1, sizeof(MiddlewareInfo));
     if (!middleware_info)
     {
         printf("Memory allocation failed for middleware info\n");
         return;
     }
 
-    middleware_info->middleware = NULL;
-    middleware_info->middleware_count = 0;
     middleware_info->handler = handler;
 
     if (middleware.count > 0 && middleware.handlers)
