@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stddef.h>
+#include <time.h>
 #include "ecewo.h"
 #include "uv.h"
 #include "llhttp.h"
@@ -559,6 +560,12 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     if (!body)
         body_len = 0;
 
+    // Get current date in HTTP format
+    time_t now = time(NULL);
+    struct tm *gmt = gmtime(&now);
+    char date_str[64];
+    strftime(date_str, sizeof(date_str), "%a, %d %b %Y %H:%M:%S GMT", gmt);
+
     // Calculate total size of custom headers
     size_t headers_size = 0;
     for (int i = 0; i < res->header_count; i++)
@@ -602,12 +609,15 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     int base_header_len = snprintf(
         NULL, 0,
         "HTTP/1.1 %d\r\n"
+        "Server: Ecewo\r\n"
+        "Date: %s\r\n"
         "%s"
         "Content-Type: %s\r\n"
         "Content-Length: %zu\r\n"
         "Connection: %s\r\n"
         "\r\n",
         status,
+        date_str,
         all_headers,
         content_type,
         body_len,
@@ -635,12 +645,15 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         response,
         (size_t)base_header_len + 1,
         "HTTP/1.1 %d\r\n"
+        "Server: Ecewo\r\n"
+        "Date: %s\r\n"
         "%s"
         "Content-Type: %s\r\n"
         "Content-Length: %zu\r\n"
         "Connection: %s\r\n"
         "\r\n",
         status,
+        date_str,
         all_headers,
         content_type,
         body_len,
