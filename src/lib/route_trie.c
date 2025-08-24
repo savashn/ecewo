@@ -7,143 +7,181 @@
 #include "middleware.h"
 
 // Splits a path into segments (/users/123/posts -> ["users", "123", "posts"])
-int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result) {
-    if (!path || !result) return -1;
-    
+int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result)
+{
+    if (!path || !result)
+        return -1;
+
     // Initialize result
     memset(result, 0, sizeof(tokenized_path_t));
-    
+
     // Skip leading slash
-    if (*path == '/') path++;
-    
+    if (*path == '/')
+        path++;
+
     // Handle root path
-    if (*path == '\0') return 0;
-    
+    if (*path == '\0')
+        return 0;
+
     // Count segments first
     int segment_count = 0;
     const char *p = path;
-    while (*p) {
-        if (*p != '/') {
+    while (*p)
+    {
+        if (*p != '/')
+        {
             segment_count++;
             // Skip to next '/' or end
-            while (*p && *p != '/') p++;
-        } else {
+            while (*p && *p != '/')
+                p++;
+        }
+        else
+        {
             p++;
         }
     }
-    
-    if (segment_count == 0) return 0;
-    
+
+    if (segment_count == 0)
+        return 0;
+
     // Allocate segments
     result->capacity = segment_count;
     result->segments = arena_alloc(arena, sizeof(path_segment_t) * segment_count);
-    if (!result->segments) return -1;
-    
+    if (!result->segments)
+        return -1;
+
     // Parse segments
     p = path;
     result->count = 0;
-    
-    while (*p && result->count < result->capacity) {
+
+    while (*p && result->count < result->capacity)
+    {
         // Skip slashes
-        while (*p == '/') p++;
-        if (!*p) break;
-        
+        while (*p == '/')
+            p++;
+        if (!*p)
+            break;
+
         const char *start = p;
-        
+
         // Find end of segment
-        while (*p && *p != '/') p++;
-        
+        while (*p && *p != '/')
+            p++;
+
         size_t len = p - start;
-        if (len == 0) continue;
-        
+        if (len == 0)
+            continue;
+
         // Analyze segment type
         path_segment_t *seg = &result->segments[result->count];
         seg->start = start;
         seg->len = len;
         seg->is_param = (start[0] == ':');
         seg->is_wildcard = (start[0] == '*');
-        
+
         result->count++;
     }
-    
+
     return 0;
 }
 
 static trie_node_t *match_segments(trie_node_t *node,
-                                             const tokenized_path_t *path,
-                                             int segment_idx,
-                                             route_match_t *match,
-                                             int depth) {
-    if (!node || depth > 100) return NULL;
-    
+                                   const tokenized_path_t *path,
+                                   int segment_idx,
+                                   route_match_t *match,
+                                   int depth)
+{
+    if (!node || depth > 100)
+        return NULL;
+
     // All segments processed
-    if (segment_idx >= path->count) {
+    if (segment_idx >= path->count)
+    {
         return node->is_end ? node : NULL;
     }
-    
+
     const path_segment_t *segment = &path->segments[segment_idx];
-    
+
     // Try exact match first (only for non-param segments)
-    if (!segment->is_param && !segment->is_wildcard) {
+    if (!segment->is_param && !segment->is_wildcard)
+    {
         trie_node_t *current = node;
-        
+
         // Match character by character
-        for (size_t i = 0; i < segment->len && current; i++) {
+        for (size_t i = 0; i < segment->len && current; i++)
+        {
             unsigned char c = (unsigned char)segment->start[i];
             current = current->children[c];
         }
-        
+
         // If exact match succeeded
-        if (current) {
-            if (segment_idx + 1 >= path->count) {
+        if (current)
+        {
+            if (segment_idx + 1 >= path->count)
+            {
                 // Last segment
-                if (current->is_end) return current;
-            } else {
+                if (current->is_end)
+                    return current;
+            }
+            else
+            {
                 // More segments - need slash separator
                 unsigned char sep = '/';
-                if (current->children[sep]) {
+                if (current->children[sep])
+                {
                     trie_node_t *result = match_segments(
                         current->children[sep], path, segment_idx + 1, match, depth + 1);
-                    if (result) return result;
+                    if (result)
+                        return result;
                 }
             }
         }
     }
-    
+
     // Try parameter match
-    if (node->param_child) {
+    if (node->param_child)
+    {
         // Store parameter value
-        if (match && match->param_count < 32) {
+        if (match && match->param_count < 32)
+        {
             match->params[match->param_count].key.data = node->param_child->param_name;
             match->params[match->param_count].key.len = strlen(node->param_child->param_name);
             match->params[match->param_count].value.data = segment->start;
             match->params[match->param_count].value.len = segment->len;
             match->param_count++;
         }
-        
+
         // Continue matching
-        if (segment_idx + 1 >= path->count) {
-            if (node->param_child->is_end) return node->param_child;
-        } else {
+        if (segment_idx + 1 >= path->count)
+        {
+            if (node->param_child->is_end)
+                return node->param_child;
+        }
+        else
+        {
             unsigned char sep = '/';
-            if (node->param_child->children[sep]) {
+            if (node->param_child->children[sep])
+            {
                 trie_node_t *result = match_segments(
                     node->param_child->children[sep], path, segment_idx + 1, match, depth + 1);
-                if (result) return result;
+                if (result)
+                    return result;
             }
         }
-        
+
         // Backtrack parameter
-        if (match && match->param_count > 0) {
+        if (match && match->param_count > 0)
+        {
             match->param_count--;
         }
     }
-    
+
     // Try wildcard match
-    if (node->wildcard_child && node->wildcard_child->is_end) {
+    if (node->wildcard_child && node->wildcard_child->is_end)
+    {
         return node->wildcard_child;
     }
-    
+
     return NULL;
 }
 
@@ -151,45 +189,54 @@ static trie_node_t *match_segments(trie_node_t *node,
 bool route_trie_match(route_trie_t *trie,
                       const char *method,
                       const tokenized_path_t *tokenized_path,
-                      route_match_t *match) {
-    if (!trie || !method || !tokenized_path || !match) return false;
-    
+                      route_match_t *match)
+{
+    if (!trie || !method || !tokenized_path || !match)
+        return false;
+
     http_method_t method_idx = get_method_index(method);
-    if (method_idx == METHOD_UNKNOWN) return false;
-    
+    if (method_idx == METHOD_UNKNOWN)
+        return false;
+
     uv_rwlock_rdlock(&trie->lock);
-    
+
     // Initialize match result
     match->handler = NULL;
     match->middleware_ctx = NULL;
     match->param_count = 0;
-    
+
     trie_node_t *matched_node = NULL;
-    
+
     // Handle root path
-    if (tokenized_path->count == 0) {
-        if (trie->root->is_end) {
+    if (tokenized_path->count == 0)
+    {
+        if (trie->root->is_end)
+        {
             matched_node = trie->root;
         }
-    } else {
+    }
+    else
+    {
         // Start from root/slash
         trie_node_t *start_node = trie->root;
         unsigned char sep = '/';
-        if (start_node->children[sep]) {
+        if (start_node->children[sep])
+        {
             start_node = start_node->children[sep];
         }
-        
+
         matched_node = match_segments(start_node, tokenized_path, 0, match, 0);
     }
-    
+
     // Extract handler if found
-    if (matched_node && matched_node->handlers[method_idx]) {
+    if (matched_node && matched_node->handlers[method_idx])
+    {
         match->handler = matched_node->handlers[method_idx];
         match->middleware_ctx = matched_node->middleware_ctx[method_idx];
         uv_rwlock_rdunlock(&trie->lock);
         return true;
     }
-    
+
     uv_rwlock_rdunlock(&trie->lock);
     return false;
 }

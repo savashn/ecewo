@@ -146,7 +146,7 @@ void init_cors(cors_t *opts)
         custom_cors->origin = safe_strdup(opts->origin);
         if (!custom_cors->origin)
             goto error_cleanup;
-        
+
         // Check for wildcard
         custom_cors->allow_all_origins = (strcmp(opts->origin, "*") == 0);
     }
@@ -157,7 +157,7 @@ void init_cors(cors_t *opts)
     if (!custom_cors->methods)
         goto error_cleanup;
 
-    // Headers  
+    // Headers
     const char *headers_src = (opts && opts->headers) ? opts->headers : def_headers;
     custom_cors->headers = safe_strdup(headers_src);
     if (!custom_cors->headers)

@@ -22,7 +22,7 @@ static void write_completion_cb(uv_write_t *req, int status)
     {
         if (write_req->data)
         {
-            free(write_req->data);  // Using malloc/free for libuv-managed data
+            free(write_req->data); // Using malloc/free for libuv-managed data
             write_req->data = NULL;
         }
 
@@ -369,7 +369,8 @@ static request_t copy_request_t(Arena *arena, const request_t *original)
         }
 
         return copy;
-    } else
+    }
+    else
     {
         // Allocate items array
         copy.capacity = original->capacity;
@@ -707,7 +708,8 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
 // Main router function
 int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len)
 {
-    if (!client_socket || !request_data || request_len == 0) {
+    if (!client_socket || !request_data || request_len == 0)
+    {
         if (client_socket)
             send_error(client_socket, 400);
         return 1;
@@ -718,7 +720,7 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
 
     // Create request arena
     Arena arena = {0};
-    
+
     // Initialize all resources
     http_context_t *ctx = NULL;
     Req *req = NULL;
@@ -734,7 +736,8 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     req = create_req(&arena, client_socket);
     res = create_res(&arena, client_socket);
 
-    if (!ctx || !req || !res) {
+    if (!ctx || !req || !res)
+    {
         error_code = 500;
         send_error_response = true;
         goto cleanup;
@@ -742,7 +745,8 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
 
     // Parse HTTP request
     enum llhttp_errno err = llhttp_execute(&ctx->parser, request_data, request_len);
-    if (err != HPE_OK) {
+    if (err != HPE_OK)
+    {
         error_code = 400;
         send_error_response = true;
         goto cleanup;
@@ -751,13 +755,15 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     // Extract path and query
     char *path = NULL;
     char *query = NULL;
-    if (extract_path_and_query(&arena, ctx->url, &path, &query) != 0) {
+    if (extract_path_and_query(&arena, ctx->url, &path, &query) != 0)
+    {
         error_code = 500;
         send_error_response = true;
         goto cleanup;
     }
 
-    if (!path) {
+    if (!path)
+    {
         error_code = 400;
         send_error_response = true;
         goto cleanup;
@@ -768,14 +774,16 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     res->keep_alive = ctx->keep_alive;
 
     // Handle CORS preflight
-    if (cors_handle_preflight(ctx, res)) {
+    if (cors_handle_preflight(ctx, res))
+    {
         reply(res, res->status, res->content_type, res->body, res->body_len);
         should_close = !res->keep_alive;
         goto cleanup;
     }
 
     // Route matching validation
-    if (!global_route_trie || !ctx->method) {
+    if (!global_route_trie || !ctx->method)
+    {
         printf("ERROR: Missing route trie (%p) or method (%s)\n",
                global_route_trie, ctx->method ? ctx->method : "NULL");
         cors_add_headers(ctx, res);
@@ -784,7 +792,8 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     }
 
     // Tokenize path
-    if (tokenize_path(&arena, path, &tokenized_path) != 0) {
+    if (tokenize_path(&arena, path, &tokenized_path) != 0)
+    {
         error_code = 500;
         send_error_response = true;
         goto cleanup;
@@ -792,59 +801,69 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
 
     // Route matching
     route_match_t match;
-    if (!route_trie_match(global_route_trie, ctx->method, &tokenized_path, &match)) {
+    if (!route_trie_match(global_route_trie, ctx->method, &tokenized_path, &match))
+    {
         cors_add_headers(ctx, res);
         send_404_response = true;
         goto cleanup;
     }
 
-    if (extract_url_params(&arena, &match, &ctx->url_params) != 0) {
+    if (extract_url_params(&arena, &match, &ctx->url_params) != 0)
+    {
         error_code = 500;
         send_error_response = true;
         goto cleanup;
     }
-    
-    if (populate_req_from_context(req, ctx, path) != 0) {
+
+    if (populate_req_from_context(req, ctx, path) != 0)
+    {
         error_code = 500;
         send_error_response = true;
         goto cleanup;
     }
-    
-    if (!match.handler) {
+
+    if (!match.handler)
+    {
         error_code = 500;
         send_error_response = true;
         goto cleanup;
     }
-    
+
     // Success path - call handler
     cors_add_headers(ctx, res);
-    
+
     // Calls chain if there is a middleware
     // otherwise, calls the handler directly
-    if (match.middleware_ctx) {
+    if (match.middleware_ctx)
+    {
         MiddlewareInfo *middleware_info = (MiddlewareInfo *)match.middleware_ctx;
         execute_middleware_chain(req, res, middleware_info);
-    } else {
+    }
+    else
+    {
         // No middleware, call handler directly
         match.handler(req, res);
     }
-    
+
     should_close = !res->keep_alive;
     goto cleanup;
 
 cleanup:
     // Send error responses if needed
-    if (send_error_response && error_code > 0) {
+    if (send_error_response && error_code > 0)
+    {
         send_error(client_socket, error_code);
-    } else if (send_404_response) {
+    }
+    else if (send_404_response)
+    {
         const char *not_found_msg = "404 Not Found";
         reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
         should_close = !res->keep_alive;
     }
-    
+
     // Free the entire arena (handles all request/response memory)
     arena_free(&arena);
-    
+
     return should_close;
 }
 
@@ -866,8 +885,8 @@ void set_header(Res *res, const char *name, const char *value)
         {
             // Arena-based allocation
             tmp = arena_realloc(res->arena, res->headers,
-                               res->header_capacity * sizeof(http_header_t),
-                               new_cap * sizeof(http_header_t));
+                                res->header_capacity * sizeof(http_header_t),
+                                new_cap * sizeof(http_header_t));
         }
         else
         {
@@ -897,18 +916,19 @@ void set_header(Res *res, const char *name, const char *value)
         res->headers[res->header_count].name = strdup(name);
         res->headers[res->header_count].value = strdup(value);
     }
-    
+
     if (!res->headers[res->header_count].name || !res->headers[res->header_count].value)
     {
         fprintf(stderr, "Error: Failed to allocate memory for header strings\n");
         // Cleanup on failure
-        if (!res->arena) {
+        if (!res->arena)
+        {
             free(res->headers[res->header_count].name);
             free(res->headers[res->header_count].value);
         }
         return;
     }
-    
+
     res->header_count++;
 }
 
@@ -1068,7 +1088,8 @@ Req *arena_copy_req(Arena *target_arena, const Req *original)
 
     // Allocate on target arena
     Req *copy = arena_alloc(target_arena, sizeof(Req));
-    if (!copy) return NULL;
+    if (!copy)
+        return NULL;
 
     // Copy primitive fields
     copy->arena = target_arena;
@@ -1078,25 +1099,26 @@ Req *arena_copy_req(Arena *target_arena, const Req *original)
     // Deep copy strings using target arena
     if (original->method)
         copy->method = arena_strdup(target_arena, original->method);
-    
+
     if (original->path)
         copy->path = arena_strdup(target_arena, original->path);
-    
-    if (original->body && original->body_len > 0) {
+
+    if (original->body && original->body_len > 0)
+    {
         copy->body = arena_alloc(target_arena, original->body_len + 1);
         memcpy(copy->body, original->body, original->body_len);
         copy->body[original->body_len] = '\0';
     }
-    
+
     // Deep copy request_t structures using target arena
     copy->headers = copy_request_t(target_arena, &original->headers);
     copy->query = copy_request_t(target_arena, &original->query);
     copy->params = copy_request_t(target_arena, &original->params);
-    
+
     // Initialize context
     memset(&copy->context, 0, sizeof(copy->context));
     copy->context.arena = target_arena;
-    
+
     return copy;
 }
 
@@ -1107,7 +1129,8 @@ Res *arena_copy_res(Arena *target_arena, const Res *original)
 
     // Allocate on target arena
     Res *copy = arena_alloc(target_arena, sizeof(Res));
-    if (!copy) return NULL;
+    if (!copy)
+        return NULL;
 
     // Copy primitive fields
     *copy = *original;
@@ -1117,11 +1140,13 @@ Res *arena_copy_res(Arena *target_arena, const Res *original)
         copy->content_type = arena_strdup(target_arena, original->content_type);
 
     // Copy headers array in target arena
-    if (original->header_capacity > 0) {
-        copy->headers = arena_alloc(target_arena, 
-                                   original->header_capacity * sizeof(http_header_t));
-        
-        for (int i = 0; i < original->header_count; ++i) {
+    if (original->header_capacity > 0)
+    {
+        copy->headers = arena_alloc(target_arena,
+                                    original->header_capacity * sizeof(http_header_t));
+
+        for (int i = 0; i < original->header_count; ++i)
+        {
             if (original->headers[i].name)
                 copy->headers[i].name = arena_strdup(target_arena, original->headers[i].name);
             if (original->headers[i].value)

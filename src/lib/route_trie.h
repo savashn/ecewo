@@ -6,15 +6,17 @@
 #include "router.h"
 
 // Path segment structure for pre-tokenized paths
-typedef struct {
+typedef struct
+{
     const char *start;
     size_t len;
-    bool is_param;     // true if this segment is :param
-    bool is_wildcard;  // true if this segment is *
+    bool is_param;    // true if this segment is :param
+    bool is_wildcard; // true if this segment is *
 } path_segment_t;
 
 // Tokenized path to avoid re-parsing
-typedef struct {
+typedef struct
+{
     path_segment_t *segments;
     int count;
     int capacity;
@@ -31,23 +33,27 @@ typedef struct trie_node
     void *middleware_ctx[8];          // Middleware context for each method
 } trie_node_t;
 
-typedef struct {
+typedef struct
+{
     trie_node_t *root;
     size_t route_count;
     uv_rwlock_t lock;
 } route_trie_t;
 
-typedef struct {
+typedef struct
+{
     const char *data;
     size_t len;
 } string_view_t;
 
-typedef struct {
+typedef struct
+{
     string_view_t key;
     string_view_t value;
 } param_match_t;
 
-typedef struct {
+typedef struct
+{
     RequestHandler handler;
     void *middleware_ctx;
     param_match_t params[32];
@@ -70,10 +76,10 @@ typedef enum
 int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result);
 
 // Now takes tokenized path instead of raw string
-bool route_trie_match(route_trie_t *trie, 
-                                const char *method,
-                                const tokenized_path_t *tokenized_path,
-                                route_match_t *match);
+bool route_trie_match(route_trie_t *trie,
+                      const char *method,
+                      const tokenized_path_t *tokenized_path,
+                      route_match_t *match);
 
 // Existing functions remain same
 route_trie_t *route_trie_create(void);

@@ -94,13 +94,13 @@ typedef struct
     void *data;
     size_t size;
     void (*cleanup)(void *data);
-    Arena *arena;  // Arena this context belongs to
+    Arena *arena; // Arena this context belongs to
 } req_context_t;
 
 // Arena-aware Request structure
 typedef struct Req
 {
-    Arena *arena;           // Arena for this request's memory
+    Arena *arena; // Arena for this request's memory
     uv_tcp_t *client_socket;
     char *method;
     char *path;
@@ -122,11 +122,11 @@ typedef struct
 // Arena-aware Response structure
 typedef struct Res
 {
-    Arena *arena;           // Arena for this response's memory
+    Arena *arena; // Arena for this response's memory
     uv_tcp_t *client_socket;
     int status;
-    char *content_type;     // Arena allocated string
-    void *body;             // Arena allocated if owned by Res
+    char *content_type; // Arena allocated string
+    void *body;         // Arena allocated if owned by Res
     size_t body_len;
     int keep_alive;
     http_header_t *headers; // Arena allocated array

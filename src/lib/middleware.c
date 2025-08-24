@@ -109,7 +109,7 @@ void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_inf
     }
 
     // Allocate memory for combined middleware handlers
-    MiddlewareHandler *combined_handlers = arena_alloc(req->arena, 
+    MiddlewareHandler *combined_handlers = arena_alloc(req->arena,
                                                        sizeof(MiddlewareHandler) * total_middleware_count);
     if (!combined_handlers)
     {
