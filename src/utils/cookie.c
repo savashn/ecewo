@@ -6,7 +6,7 @@
 
 char *get_cookie(Req *req, const char *name)
 {
-    if (!req || !name)
+    if (!req || !req->arena || !name)
         return NULL;
 
     const char *cookie_header = get_headers(req, "Cookie");
@@ -40,11 +40,11 @@ char *get_cookie(Req *req, const char *name)
                 len--;
 
             // Allocate and copy value
-            char *value = malloc(len + 1);
+            char *value = arena_alloc(req->arena, len + 1);
             if (!value)
                 return NULL;
 
-            memcpy(value, pos, len);
+            arena_memcpy(value, pos, len);
             value[len] = '\0';
             return value;
         }
@@ -60,7 +60,7 @@ char *get_cookie(Req *req, const char *name)
 
 void set_cookie(Res *res, const char *name, const char *value, cookie_options_t *options)
 {
-    if (!res || !name || !value)
+    if (!res || !res->arena || !name || !value)
     {
         fprintf(stderr, "Invalid parameters for set_cookie\n");
         return;
@@ -74,6 +74,7 @@ void set_cookie(Res *res, const char *name, const char *value, cookie_options_t 
 
     int max_age = (options && options->max_age >= 0) ? options->max_age : -1;
     const char *path = (options && options->path) ? options->path : "/";
+    const char *domain = (options && options->domain) ? options->domain : NULL;
     const char *same_site = (options && options->same_site) ? options->same_site : NULL;
     bool http_only = options ? options->http_only : false;
     bool secure = options ? options->secure : false;
@@ -81,93 +82,82 @@ void set_cookie(Res *res, const char *name, const char *value, cookie_options_t 
     if (!path)
         path = "/";
 
-    int needed = snprintf(NULL, 0, "%s=%s", name, value);
-
-    if (max_age >= 0)
-    {
-        needed += snprintf(NULL, 0, "; Max-Age=%d", max_age);
-    }
-
-    needed += snprintf(NULL, 0, "; Path=%s", path);
-
-    if (same_site && strlen(same_site) > 0)
-    {
-        needed += snprintf(NULL, 0, "; SameSite=%s", same_site);
-    }
-
-    if (http_only)
-    {
-        needed += strlen("; HttpOnly");
-    }
-
-    if (secure)
-    {
-        needed += strlen("; Secure");
-    }
-
-    if (needed < 0)
-    {
-        fprintf(stderr, "Cookie formatting error\n");
-        return;
-    }
-
-    char *cookie_val = malloc((size_t)needed + 1);
+    // Build cookie string
+    char *cookie_val = arena_sprintf(res->arena, "%s=%s", name, value);
     if (!cookie_val)
     {
-        perror("malloc for cookie_val");
-        return;
-    }
-
-    int written = snprintf(cookie_val, (size_t)needed + 1, "%s=%s", name, value);
-    if (written < 0)
-    {
         fprintf(stderr, "Cookie formatting error\n");
-        free(cookie_val);
         return;
     }
 
+    // Add Max-Age if specified
     if (max_age >= 0)
     {
-        int ret = snprintf(cookie_val + written, (size_t)needed + 1 - written, "; Max-Age=%d", max_age);
-        if (ret < 0)
-            goto error;
-        written += ret;
+        char *new_cookie = arena_sprintf(res->arena, "%s; Max-Age=%d", cookie_val, max_age);
+        if (!new_cookie)
+        {
+            fprintf(stderr, "Arena sprintf failed for Max-Age\n");
+            return;
+        }
+        cookie_val = new_cookie;
     }
 
-    int ret = snprintf(cookie_val + written, (size_t)needed + 1 - written, "; Path=%s", path);
-    if (ret < 0)
-        goto error;
-    written += ret;
+    // Add Path
+    char *new_cookie = arena_sprintf(res->arena, "%s; Path=%s", cookie_val, path);
+    if (!new_cookie)
+    {
+        fprintf(stderr, "Arena sprintf failed for Path\n");
+        return;
+    }
+    cookie_val = new_cookie;
 
+    // Add Domain if specified
+    if (domain && strlen(domain) > 0)
+    {
+        new_cookie = arena_sprintf(res->arena, "%s; Domain=%s", cookie_val, domain);
+        if (!new_cookie)
+        {
+            fprintf(stderr, "Arena sprintf failed for Domain\n");
+            return;
+        }
+        cookie_val = new_cookie;
+    }
+
+    // Add SameSite if specified
     if (same_site && strlen(same_site) > 0)
     {
-        ret = snprintf(cookie_val + written, (size_t)needed + 1 - written, "; SameSite=%s", same_site);
-        if (ret < 0)
-            goto error;
-        written += ret;
+        new_cookie = arena_sprintf(res->arena, "%s; SameSite=%s", cookie_val, same_site);
+        if (!new_cookie)
+        {
+            fprintf(stderr, "Arena sprintf failed for SameSite\n");
+            return;
+        }
+        cookie_val = new_cookie;
     }
 
+    // Add HttpOnly if specified
     if (http_only)
     {
-        ret = snprintf(cookie_val + written, (size_t)needed + 1 - written, "; HttpOnly");
-        if (ret < 0)
-            goto error;
-        written += ret;
+        new_cookie = arena_sprintf(res->arena, "%s; HttpOnly", cookie_val);
+        if (!new_cookie)
+        {
+            fprintf(stderr, "Arena sprintf failed for HttpOnly\n");
+            return;
+        }
+        cookie_val = new_cookie;
     }
 
+    // Add Secure if specified
     if (secure)
     {
-        ret = snprintf(cookie_val + written, (size_t)needed + 1 - written, "; Secure");
-        if (ret < 0)
-            goto error;
-        written += ret;
+        new_cookie = arena_sprintf(res->arena, "%s; Secure", cookie_val);
+        if (!new_cookie)
+        {
+            fprintf(stderr, "Arena sprintf failed for Secure\n");
+            return;
+        }
+        cookie_val = new_cookie;
     }
 
     set_header(res, "Set-Cookie", cookie_val);
-    free(cookie_val);
-    return;
-
-error:
-    fprintf(stderr, "Cookie formatting error during construction\n");
-    free(cookie_val);
 }

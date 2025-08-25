@@ -8,6 +8,7 @@ typedef struct
 {
     int max_age;
     char *path;
+    char *domain;
     char *same_site; // "Strict", "Lax", "None"
     bool http_only;
     bool secure;
