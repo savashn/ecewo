@@ -8,10 +8,6 @@
 #include "uv.h"
 #include "arena.h"
 
-#define ecewo_alloc(req, size) arena_alloc((req)->arena, (size))
-#define ecewo_strdup(req, str) arena_strdup((req)->arena, (str))
-#define ecewo_sprintf(req, fmt, ...) arena_sprintf((req)->arena, (fmt), ##__VA_ARGS__)
-
 // HTTP Status Codes
 typedef enum
 {
@@ -93,7 +89,6 @@ typedef struct
 {
     void *data;
     size_t size;
-    void (*cleanup)(void *data);
     Arena *arena; // Arena this context belongs to
 } req_context_t;
 
@@ -160,18 +155,12 @@ void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_inf
 
 // Function declarations
 int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len);
-Req *arena_copy_req(Arena *target_arena, const Req *original);
-Res *arena_copy_res(Arena *target_arena, const Res *original);
-Req *copy_req(const Req *original);
-Res *copy_res(const Res *original);
-void destroy_req(Req *req);
-void destroy_res(Res *res);
 
 void set_header(Res *res, const char *name, const char *value);
 void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len);
 
 // Context management functions
-void set_context(Req *req, void *data, size_t size, void (*cleanup)(void *));
+void set_context(Req *req, void *data, size_t size);
 void *get_context(Req *req);
 
 // Convenience response functions
@@ -210,5 +199,17 @@ static inline const char *get_headers(const Req *req, const char *key)
 {
     return get_req(&req->headers, key);
 }
+
+// Pass req or res, no difference
+#define handler_free(x)                \
+    do                                 \
+    {                                  \
+        if ((x) && (x)->arena)         \
+        {                              \
+            Arena *arena = (x)->arena; \
+            arena_free(arena);         \
+            free(arena);               \
+        }                              \
+    } while (0)
 
 #endif
