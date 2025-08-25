@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
-#include "arena.h"
+#include "../../vendors/arena.h"
 #include "request.h"
 
 #define MIN_BUFFER_SIZE 64

@@ -1,5 +1,5 @@
-#ifndef ASYNC_H
-#define ASYNC_H
+#ifndef ECEWO_ASYNC_H
+#define ECEWO_ASYNC_H
 
 #include <uv.h>
 

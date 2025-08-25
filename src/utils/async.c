@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include "compat.h"
+#include "../config/compat.h"
 #include "async.h"
 
 // Thread pool work callback
@@ -143,77 +143,3 @@ void then(
         }
     }
 }
-
-/*
-Example usage with arena pattern:
-
-typedef struct {
-    Arena *arena;        // Arena reference for cleanup
-    Res *res;           // Copied in arena
-    char *operation_name; // Allocated in arena
-    int user_id;
-} async_context_t;
-
-void arena_async_handler(Req *req, Res *res)
-{
-    // Create separate arena for async operation
-    Arena *async_arena = malloc(sizeof(Arena));
-    if (!async_arena) {
-        send_text(res, 500, "Arena allocation failed");
-        return;
-    }
-    memset(async_arena, 0, sizeof(Arena));
-
-    // Allocate context in arena
-    async_context_t *ctx = arena_alloc(async_arena, sizeof(async_context_t));
-    if (!ctx) {
-        arena_free(async_arena);
-        free(async_arena);
-        send_text(res, 500, "Context allocation failed");
-        return;
-    }
-
-    // Store arena reference and copy data to arena
-    ctx->arena = async_arena;
-    ctx->res = arena_copy_res(async_arena, res);
-    ctx->operation_name = arena_strdup(async_arena, "database_query");
-    ctx->user_id = 123;
-
-    // Check if arena allocations succeeded
-    if (!ctx->res || !ctx->operation_name) {
-        arena_free(async_arena);
-        free(async_arena);
-        send_text(res, 500, "Arena allocation failed");
-        return;
-    }
-
-    // Use regular task() function
-    task(ctx, arena_async_work, arena_async_response);
-}
-
-void arena_async_work(async_t *task, void *context)
-{
-    async_context_t *ctx = (async_context_t *)context;
-
-    // Simulate work
-    printf("Performing %s for user %d\n", ctx->operation_name, ctx->user_id);
-
-    ok(task);
-}
-
-void arena_async_response(void *context, int success, char *error)
-{
-    async_context_t *ctx = (async_context_t *)context;
-
-    if (success) {
-        send_json(ctx->res, 200, "{\"result\": \"success\"}");
-    } else {
-        send_text(ctx->res, 500, error);
-    }
-
-    // Single arena cleanup
-    Arena *arena = ctx->arena;
-    arena_free(arena);
-    free(arena);
-}
-*/

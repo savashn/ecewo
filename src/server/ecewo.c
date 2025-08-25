@@ -1,5 +1,5 @@
 #include "ecewo.h"
-#include "middleware.h"
+#include "../lib/middleware.h"
 #include <stdio.h>
 #include <stdlib.h>
 

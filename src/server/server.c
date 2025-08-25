@@ -10,7 +10,7 @@
 #include <unistd.h>
 #define sleep_ms(ms) usleep((ms) * 1000)
 #endif
-#include "router.h"
+#include "../lib/router.h"
 #include "uv.h"
 
 #define READ_BUF_SIZE 8192

@@ -1,5 +1,5 @@
-#ifndef MIDDLEWARE_H
-#define MIDDLEWARE_H
+#ifndef ECEWO_MIDDLEWARE_H
+#define ECEWO_MIDDLEWARE_H
 
 #include "router.h"
 

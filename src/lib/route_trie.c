@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include "route_trie.h"
-#include "compat.h"
+#include "../config/compat.h"
 #include "middleware.h"
 
 // Splits a path into segments (/users/123/posts -> ["users", "123", "posts"])

@@ -1,10 +1,11 @@
 #ifndef ECEWO_H
 #define ECEWO_H
 
-#include "router.h"
-#include "middleware.h"
-#include "compat.h"
-#include "route_trie.h"
+#include "../src/lib/router.h"
+#include "../src/lib/middleware.h"
+#include "../src/lib/route_trie.h"
+#include "../src/config/compat.h"
+#include "../src/utils/cookie.h"
 
 extern route_trie_t *global_route_trie;
 

@@ -1,11 +1,11 @@
-#ifndef REQUEST_H
-#define REQUEST_H
+#ifndef ECEWO_REQUEST_H
+#define ECEWO_REQUEST_H
 
 #include <stdbool.h>
 #include <stddef.h>
 #include "llhttp.h"
-#include "compat.h"
-#include "arena.h"
+#include "../config/compat.h"
+#include "../../vendors/arena.h"
 
 typedef struct
 {

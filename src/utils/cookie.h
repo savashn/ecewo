@@ -1,7 +1,7 @@
-#ifndef COOKIE_H
-#define COOKIE_H
+#ifndef ECEWO_COOKIE_H
+#define ECEWO_COOKIE_H
 
-#include "router.h"
+#include "../lib/router.h"
 #include <stdbool.h>
 
 typedef struct

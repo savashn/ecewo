@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(ecewo VERSION 1.2.0 LANGUAGES C)
+project(ecewo VERSION 2.0.0 LANGUAGES C)
 
 # Platform definitions
 if(WIN32)
@@ -59,11 +59,7 @@ if(NOT TARGET ecewo)
     target_include_directories(ecewo PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vendors>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/lib>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/server>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/utils>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/config>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
         $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/_deps/libuv-src/include>
         $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/_deps/llhttp-src/include>
