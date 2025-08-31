@@ -1,58 +1,539 @@
+#include "server.h"
+#include "../lib/router.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
-#ifdef _WIN32
-#include <winsock2.h>
-#include <windows.h>
-#define sleep_ms(ms) Sleep(ms)
-#else
-#include <unistd.h>
-#define sleep_ms(ms) usleep((ms) * 1000)
-#endif
-#include "../lib/router.h"
-#include "uv.h"
+#include <time.h>
 
-#define READ_BUF_SIZE 8192
+#define READ_BUFFER_SIZE 16384
+#define MAX_CONNECTIONS 10000
+#define LISTEN_BACKLOG 511
+#define IDLE_TIMEOUT_SECONDS 120  // 2 minutes idle timeout
+#define CLEANUP_INTERVAL_MS 60000 // Check every minute
 
-typedef struct
+// ============================================================================
+// INTERNAL STRUCTURES
+// ============================================================================
+
+typedef struct client_s
 {
     uv_tcp_t handle;
     uv_buf_t read_buf;
-    char buffer[READ_BUF_SIZE];
-    int closing; // Flag to track if client is being closed
+    char buffer[READ_BUFFER_SIZE];
+    int closing;
+    time_t last_activity;   // Only field needed for idle tracking
+    int keep_alive_enabled; // Track if this connection uses keep-alive
+    struct client_s *next;  // Linked list for easy iteration
 } client_t;
 
-// Global variables for graceful shutdown
-static uv_tcp_t *global_server = NULL;
-static uv_signal_t sigint_handle;
-#ifndef _WIN32
-static uv_signal_t sigterm_handle;
-#endif
-#ifdef _WIN32
-static uv_signal_t sigbreak_handle;
-static uv_signal_t sighup_handle;
-#endif
-static int server_freed = 0;
-static int active_connections = 0;
-static int signal_handlers_closed = 0;
-int shutdown_requested = 0;
-
-static void (*app_shutdown_hook)(void) = NULL;
-
-void shutdown_hook(void (*hook)(void))
+typedef struct timer_data_s
 {
-    app_shutdown_hook = hook;
+    timer_callback_t callback;
+    void *user_data;
+    int is_interval;
+} timer_data_t;
+
+// Global server state
+static struct
+{
+    int initialized;
+    int running;
+    int shutdown_requested;
+    int active_connections;
+
+    uv_loop_t *loop;
+    uv_tcp_t *server;
+    uv_signal_t sigint_handle;
+    uv_signal_t sigterm_handle;
+
+    shutdown_callback_t shutdown_callback;
+    error_callback_t error_callback;
+
+    client_t *client_list_head; // Head of client linked list
+    uv_timer_t *cleanup_timer;  // Single timer for all cleanup
+
+    int server_closed;
+} g_server = {0};
+
+// ============================================================================
+// FORWARD DECLARATIONS
+// ============================================================================
+
+static void on_connection(uv_stream_t *server, int status);
+static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf);
+static void on_signal(uv_signal_t *handle, int signum);
+static void close_client(client_t *client);
+static void cleanup_idle_connections(uv_timer_t *handle);
+static void close_walk_cb(uv_handle_t *handle, void *arg);
+static void on_server_closed(uv_handle_t *handle);
+
+// ============================================================================
+// CONNECTION MANAGEMENT
+// ============================================================================
+
+// Add client to linked list
+static void add_client_to_list(client_t *client)
+{
+    client->next = g_server.client_list_head;
+    g_server.client_list_head = client;
 }
 
-// Allocation callback: returns the preallocated buffer for each connection.
+// Remove client from linked list
+static void remove_client_from_list(client_t *client)
+{
+    if (!client)
+        return;
+
+    if (g_server.client_list_head == client)
+    {
+        g_server.client_list_head = client->next;
+        return;
+    }
+
+    client_t *current = g_server.client_list_head;
+    while (current && current->next != client)
+    {
+        current = current->next;
+    }
+
+    if (current)
+    {
+        current->next = client->next;
+    }
+}
+
+// Periodic cleanup of idle connections
+static void cleanup_idle_connections(uv_timer_t *handle)
+{
+    (void)handle;
+
+    if (g_server.shutdown_requested)
+    {
+        return;
+    }
+
+    time_t now = time(NULL);
+    client_t *current = g_server.client_list_head;
+
+    while (current)
+    {
+        client_t *next = current->next; // Always save next first
+
+        if (current->keep_alive_enabled && !current->closing)
+        {
+            time_t idle_time = now - current->last_activity;
+            if (idle_time > IDLE_TIMEOUT_SECONDS)
+            {
+                close_client(current); // This removes from list
+            }
+        }
+        current = next;
+    }
+}
+
+// Start the cleanup timer
+static int start_cleanup_timer(void)
+{
+    g_server.cleanup_timer = malloc(sizeof(uv_timer_t));
+    if (!g_server.cleanup_timer)
+    {
+        return -1;
+    }
+
+    if (uv_timer_init(g_server.loop, g_server.cleanup_timer) != 0)
+    {
+        free(g_server.cleanup_timer);
+        g_server.cleanup_timer = NULL;
+        return -1;
+    }
+
+    // Start periodic cleanup (every 30 seconds)
+    if (uv_timer_start(g_server.cleanup_timer, cleanup_idle_connections,
+                       CLEANUP_INTERVAL_MS, CLEANUP_INTERVAL_MS) != 0)
+    {
+        uv_close((uv_handle_t *)g_server.cleanup_timer, (uv_close_cb)free);
+        g_server.cleanup_timer = NULL;
+        return -1;
+    }
+
+    return 0;
+}
+
+// Stop the cleanup timer
+static void stop_cleanup_timer(void)
+{
+    if (g_server.cleanup_timer)
+    {
+        uv_timer_stop(g_server.cleanup_timer);
+        uv_close((uv_handle_t *)g_server.cleanup_timer, (uv_close_cb)free);
+        g_server.cleanup_timer = NULL;
+    }
+}
+
+// ============================================================================
+// CORE SERVER API
+// ============================================================================
+
+int server_init(void)
+{
+    if (g_server.initialized)
+    {
+        return SERVER_ALREADY_INITIALIZED;
+    }
+
+    memset(&g_server, 0, sizeof(g_server));
+
+    g_server.loop = uv_default_loop();
+    if (!g_server.loop)
+    {
+        return SERVER_INIT_FAILED;
+    }
+
+    // Setup signal handlers
+    if (uv_signal_init(g_server.loop, &g_server.sigint_handle) != 0 ||
+        uv_signal_init(g_server.loop, &g_server.sigterm_handle) != 0)
+    {
+        return SERVER_INIT_FAILED;
+    }
+
+    uv_signal_start(&g_server.sigint_handle, on_signal, SIGINT);
+    uv_signal_start(&g_server.sigterm_handle, on_signal, SIGTERM);
+
+    g_server.initialized = 1;
+
+    atexit(server_cleanup);
+
+    return SERVER_OK;
+}
+
+int server_listen(int port)
+{
+    if (!g_server.initialized)
+    {
+        return SERVER_NOT_INITIALIZED;
+    }
+
+    if (g_server.running)
+    {
+        return SERVER_ALREADY_RUNNING;
+    }
+
+    // Allocate server handle
+    g_server.server = malloc(sizeof(uv_tcp_t));
+    if (!g_server.server)
+    {
+        return SERVER_OUT_OF_MEMORY;
+    }
+
+    // Initialize TCP server
+    if (uv_tcp_init(g_server.loop, g_server.server) != 0)
+    {
+        free(g_server.server);
+        g_server.server = NULL;
+        return SERVER_INIT_FAILED;
+    }
+
+    // Production TCP settings
+    uv_tcp_simultaneous_accepts(g_server.server, 1);
+
+    // Bind to port
+    struct sockaddr_in addr;
+    uv_ip4_addr("0.0.0.0", port, &addr);
+
+    if (uv_tcp_bind(g_server.server, (const struct sockaddr *)&addr, 0) != 0)
+    {
+        free(g_server.server);
+        g_server.server = NULL;
+        return SERVER_BIND_FAILED;
+    }
+
+    // Start listening
+    if (uv_listen((uv_stream_t *)g_server.server, LISTEN_BACKLOG, on_connection) != 0)
+    {
+        free(g_server.server);
+        g_server.server = NULL;
+        return SERVER_LISTEN_FAILED;
+    }
+
+    // Start cleanup timer for idle connections
+    if (start_cleanup_timer() != 0)
+    {
+        printf("Warning: Failed to start cleanup timer\n");
+    }
+
+    g_server.running = 1;
+    printf("Server listening on http://localhost:%d\n", port);
+
+    return SERVER_OK;
+}
+
+void server_run(void)
+{
+    if (!g_server.initialized || !g_server.running)
+    {
+        if (g_server.error_callback)
+        {
+            g_server.error_callback("Server not initialized or not listening");
+        }
+        return;
+    }
+
+    printf("Server starting - press Ctrl+C to stop\n");
+
+    // Heart of the web server - simple event loop
+    uv_run(g_server.loop, UV_RUN_DEFAULT);
+
+    // Automatic cleanup when loop ends
+    server_cleanup();
+}
+
+static void server_shutdown(void)
+{
+    if (g_server.shutdown_requested)
+    {
+        return;
+    }
+
+    printf("Initiating graceful shutdown...\n");
+    g_server.shutdown_requested = 1;
+    g_server.running = 0;
+
+    // Call user cleanup
+    if (g_server.shutdown_callback)
+    {
+        g_server.shutdown_callback();
+    }
+
+    // Stop cleanup timer first
+    stop_cleanup_timer();
+
+    // Close all connections and timers
+    uv_walk(g_server.loop, close_walk_cb, NULL);
+
+    // Wait for connections to close
+    int wait_count = 0;
+    while (g_server.active_connections > 0 && wait_count < 100)
+    {
+        uv_run(g_server.loop, UV_RUN_ONCE);
+        wait_count++;
+
+        if (wait_count % 10 == 0)
+        {
+            printf("Waiting for %d connections to close...\n",
+                   g_server.active_connections);
+        }
+    }
+
+    // Close server handle
+    if (g_server.server && !uv_is_closing((uv_handle_t *)g_server.server))
+    {
+        uv_close((uv_handle_t *)g_server.server, on_server_closed);
+    }
+
+    // Stop signal handlers
+    uv_signal_stop(&g_server.sigint_handle);
+    uv_signal_stop(&g_server.sigterm_handle);
+}
+
+void server_cleanup(void)
+{
+    if (!g_server.initialized)
+    {
+        return;
+    }
+
+    printf("Cleaning up server resources...\n");
+
+    // Stop cleanup timer first
+    stop_cleanup_timer();
+
+    // Process remaining cleanup events
+    while (uv_loop_alive(g_server.loop))
+    {
+        if (uv_run(g_server.loop, UV_RUN_ONCE) == 0)
+        {
+            break;
+        }
+    }
+
+    // Try to close the event loop
+    if (uv_loop_close(g_server.loop) != 0)
+    {
+        printf("Warning: Event loop cleanup incomplete\n");
+    }
+
+    // Final cleanup
+    if (g_server.server && !g_server.server_closed)
+    {
+        free(g_server.server);
+    }
+
+    memset(&g_server, 0, sizeof(g_server));
+    printf("Server cleanup completed\n");
+}
+
+// ============================================================================
+// CONFIGURATION API
+// ============================================================================
+
+void error_hook(error_callback_t callback)
+{
+    g_server.error_callback = callback;
+}
+
+void shutdown_hook(shutdown_callback_t callback)
+{
+    g_server.shutdown_callback = callback;
+}
+
+// ============================================================================
+// STATUS API
+// ============================================================================
+
+int server_is_running(void)
+{
+    return g_server.running;
+}
+
+int get_active_connections(void)
+{
+    return g_server.active_connections;
+}
+
+uv_loop_t *get_loop(void)
+{
+    return g_server.loop;
+}
+
+// ============================================================================
+// ASYNC UTILITIES API
+// ============================================================================
+
+static void timer_callback(uv_timer_t *handle)
+{
+    timer_data_t *data = (timer_data_t *)handle->data;
+
+    if (data && data->callback)
+    {
+        data->callback(data->user_data);
+    }
+
+    // Cleanup timeout (not interval)
+    if (data && !data->is_interval)
+    {
+        uv_timer_stop(handle);
+        uv_close((uv_handle_t *)handle, (uv_close_cb)free);
+        free(data);
+    }
+}
+
+uv_timer_t *set_timeout(timer_callback_t callback, uint64_t delay_ms, void *user_data)
+{
+    if (!g_server.initialized || !callback)
+    {
+        return NULL;
+    }
+
+    uv_timer_t *timer = malloc(sizeof(uv_timer_t));
+    timer_data_t *data = malloc(sizeof(timer_data_t));
+
+    if (!timer || !data)
+    {
+        free(timer);
+        free(data);
+        return NULL;
+    }
+
+    data->callback = callback;
+    data->user_data = user_data;
+    data->is_interval = 0;
+
+    if (uv_timer_init(g_server.loop, timer) != 0)
+    {
+        free(timer);
+        free(data);
+        return NULL;
+    }
+
+    timer->data = data;
+
+    if (uv_timer_start(timer, timer_callback, delay_ms, 0) != 0)
+    {
+        free(timer);
+        free(data);
+        return NULL;
+    }
+
+    return timer;
+}
+
+uv_timer_t *set_interval(timer_callback_t callback, uint64_t interval_ms, void *user_data)
+{
+    if (!g_server.initialized || !callback)
+    {
+        return NULL;
+    }
+
+    uv_timer_t *timer = malloc(sizeof(uv_timer_t));
+    timer_data_t *data = malloc(sizeof(timer_data_t));
+
+    if (!timer || !data)
+    {
+        free(timer);
+        free(data);
+        return NULL;
+    }
+
+    data->callback = callback;
+    data->user_data = user_data;
+    data->is_interval = 1;
+
+    if (uv_timer_init(g_server.loop, timer) != 0)
+    {
+        free(timer);
+        free(data);
+        return NULL;
+    }
+
+    timer->data = data;
+
+    if (uv_timer_start(timer, timer_callback, interval_ms, interval_ms) != 0)
+    {
+        free(timer);
+        free(data);
+        return NULL;
+    }
+
+    return timer;
+}
+
+void clear_timer(uv_timer_t *timer)
+{
+    if (!timer)
+        return;
+
+    uv_timer_stop(timer);
+
+    timer_data_t *data = (timer_data_t *)timer->data;
+    if (data)
+    {
+        free(data);
+    }
+
+    uv_close((uv_handle_t *)timer, (uv_close_cb)free);
+}
+
+// ============================================================================
+// CONNECTION HANDLING
+// ============================================================================
+
 static void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
 {
     (void)suggested_size;
     client_t *client = (client_t *)handle->data;
 
-    // More defensive checks
-    if (!client || client->closing || shutdown_requested)
+    if (!client || client->closing || g_server.shutdown_requested)
     {
         buf->base = NULL;
         buf->len = 0;
@@ -62,452 +543,199 @@ static void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *b
     *buf = client->read_buf;
 }
 
-// Called when the connection is closed; frees the client struct.
 static void on_client_closed(uv_handle_t *handle)
 {
-    if (!handle)
-        return;
-
     client_t *client = (client_t *)handle->data;
     if (client)
     {
-        active_connections--;
-        handle->data = NULL; // Clear the pointer first
+        remove_client_from_list(client);
+        g_server.active_connections--;
         free(client);
     }
 }
 
-// Safe client close function
-static void safe_close_client(client_t *client)
+static void close_client(client_t *client)
 {
-    if (!client)
-        return;
-
-    if (client->closing)
-        return;
-
-    client->closing = 1;
-
-    // Stop reading first to prevent new data from being processed
-    int read_result = uv_read_stop((uv_stream_t *)&client->handle);
-    if (read_result != 0 && read_result != UV_EINVAL)
+    if (!client || client->closing)
     {
-        fprintf(stderr, "Error stopping read: %s\n", uv_strerror(read_result));
+        return;
     }
 
-    // Then close the handle if it's not already closing
+    client->closing = 1;
+    uv_read_stop((uv_stream_t *)&client->handle);
+
     if (!uv_is_closing((uv_handle_t *)&client->handle))
     {
         uv_close((uv_handle_t *)&client->handle, on_client_closed);
     }
-    else
-    {
-        // If handle is already closing, we still need to decrement counter
-        active_connections--;
-    }
 }
 
-// Called when data is read
-static void on_read(uv_stream_t *client_stream, ssize_t nread, const uv_buf_t *buf)
+static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 {
-    if (!client_stream || !client_stream->data)
-        return;
+    client_t *client = (client_t *)stream->data;
 
-    client_t *client = (client_t *)client_stream->data;
     if (!client || client->closing)
-        return;
-
-    if (shutdown_requested)
     {
-        safe_close_client(client);
+        return;
+    }
+
+    if (g_server.shutdown_requested)
+    {
+        close_client(client);
         return;
     }
 
     if (nread < 0)
     {
-        if (nread != UV_EOF && nread != UV_ECONNRESET)
-            fprintf(stderr, "Read error: %s\n", uv_strerror((int)nread));
-
-        safe_close_client(client);
+        close_client(client);
         return;
     }
 
     if (nread == 0)
-        return;
+    {
+        return; // EAGAIN/EWOULDBLOCK
+    }
 
-    if (buf && buf->base && nread > 0)
+    // Update activity time
+    client->last_activity = time(NULL);
+
+    // Process through router
+    if (buf && buf->base)
     {
         int should_close = router(&client->handle, buf->base, (size_t)nread);
+
         if (should_close)
-            safe_close_client(client);
-    }
-    else
-    {
-        safe_close_client(client);
+        {
+            close_client(client);
+        }
+        else
+        {
+            // Keep-alive: mark as keep-alive enabled
+            client->keep_alive_enabled = 1;
+        }
     }
 }
 
-// Called when a new connection is accepted.
-static void on_new_connection(uv_stream_t *server_stream, int status)
+static void on_connection(uv_stream_t *server, int status)
 {
+    (void)server;
+
     if (status < 0)
     {
-        fprintf(stderr, "New connection error: %s\n", uv_strerror(status));
+        if (g_server.error_callback)
+        {
+            g_server.error_callback("Connection error");
+        }
         return;
     }
 
-    // If shutdown has been requested, reject new connections
-    if (shutdown_requested)
+    if (g_server.shutdown_requested)
     {
         return;
     }
 
-    client_t *client = malloc(sizeof(client_t));
+    if (g_server.active_connections >= MAX_CONNECTIONS)
+    {
+        if (g_server.error_callback)
+        {
+            g_server.error_callback("Max connections reached");
+        }
+        return;
+    }
+
+    client_t *client = calloc(1, sizeof(client_t));
     if (!client)
     {
-        fprintf(stderr, "Failed to allocate client\n");
         return;
     }
 
-    memset(client, 0, sizeof(client_t));
-    client->closing = 0;
+    // Initialize client
+    client->last_activity = time(NULL);
+    client->keep_alive_enabled = 0;
+    client->next = NULL;
 
-    // Initialize the handle
-    int init_result = uv_tcp_init(uv_default_loop(), &client->handle);
-    if (init_result != 0)
+    if (uv_tcp_init(g_server.loop, &client->handle) != 0)
     {
-        fprintf(stderr, "TCP init error: %s\n", uv_strerror(init_result));
         free(client);
         return;
     }
 
     client->handle.data = client;
+    client->read_buf = uv_buf_init(client->buffer, READ_BUFFER_SIZE);
 
-    // Pre-allocate the read buffer
-    client->read_buf = uv_buf_init(client->buffer, READ_BUF_SIZE);
-
-    if (uv_accept(server_stream, (uv_stream_t *)&client->handle) == 0)
+    if (uv_accept(server, (uv_stream_t *)&client->handle) == 0)
     {
-        int enable = 1;
-        uv_tcp_nodelay(&client->handle, enable);
+        // Enable TCP_NODELAY for better latency
+        uv_tcp_nodelay(&client->handle, 1);
 
-        int read_result = uv_read_start((uv_stream_t *)&client->handle, alloc_buffer, on_read);
-        if (read_result == 0)
+        if (uv_read_start((uv_stream_t *)&client->handle, alloc_buffer, on_read) == 0)
         {
-            active_connections++;
+            add_client_to_list(client);
+            g_server.active_connections++;
         }
         else
         {
-            fprintf(stderr, "Read start error: %s\n", uv_strerror(read_result));
-            uv_close((uv_handle_t *)&client->handle, on_client_closed);
+            close_client(client);
         }
     }
     else
     {
-        uv_close((uv_handle_t *)&client->handle, on_client_closed);
+        close_client(client);
     }
 }
 
-// Called when the server handle is closed
-static void on_server_closed(uv_handle_t *handle)
-{
-    (void)handle;
-    if (global_server && !server_freed)
-    {
-        free(global_server);
-        server_freed = 1;
-        global_server = NULL;
-    }
-}
+// ============================================================================
+// SHUTDOWN HANDLING
+// ============================================================================
 
-// Called when a signal handler is closed
-static void on_signal_closed(uv_handle_t *handle)
-{
-    (void)handle;
-    signal_handlers_closed++;
-}
-
-// Timer close callback
-static void on_timer_closed(uv_handle_t *handle)
-{
-    (void)handle;
-    printf("Timer closed\n");
-}
-
-// Used to close all client connections
-static void walk_callback(uv_handle_t *handle, void *arg)
+static void close_walk_cb(uv_handle_t *handle, void *arg)
 {
     (void)arg;
-    if (uv_is_closing(handle))
-        return;
 
-    if (handle->type == UV_TCP && global_server && handle != (uv_handle_t *)global_server)
+    if (uv_is_closing(handle))
     {
-        // This is a client connection
+        return;
+    }
+
+    if (handle->type == UV_TCP && handle != (uv_handle_t *)g_server.server)
+    {
+        // Client connection
         client_t *client = (client_t *)handle->data;
         if (client)
         {
-            safe_close_client(client);
+            close_client(client);
         }
     }
-    else if (handle->type == UV_TIMER)
+    else if (handle->type == UV_TIMER && handle != (uv_handle_t *)g_server.cleanup_timer)
     {
+        // Application timer (not our cleanup timer)
         uv_timer_stop((uv_timer_t *)handle);
-        uv_close(handle, on_timer_closed);
-    }
-    else if (handle->type == UV_POLL)
-    {
-        uv_poll_stop((uv_poll_t *)handle);
-        uv_close(handle, NULL);
-    }
-    else if (handle->type == UV_ASYNC)
-    {
-        uv_close(handle, NULL);
-    }
-    else if (handle->type == UV_SIGNAL)
-    {
-        // Signal handles are managed separately - skip
-        return;
-    }
-    else
-    {
-        uv_close(handle, NULL);
-    }
-}
 
-// DEBUG
-static void count_handles(uv_handle_t *h, void *arg)
-{
-    int *cnt = arg;
-    if (!uv_is_closing(h))
-    {
-        ++*cnt;
-        fprintf(stderr, "OPEN HANDLE: %s\n", uv_handle_type_name(h->type));
-    }
-}
-
-// DEBUG
-static void report_open_handles(uv_loop_t *loop)
-{
-    int count = 0;
-    uv_walk(loop, count_handles, &count);
-    if (count > 0)
-        fprintf(stderr, ">>> %d handle(s) still open\n", count);
-}
-
-// Graceful shutdown procedure
-static void graceful_shutdown(void)
-{
-    if (shutdown_requested)
-        return;
-
-    shutdown_requested = 1;
-
-    // Call application cleanup first (PQUV, DB, modules)
-    if (app_shutdown_hook)
-        app_shutdown_hook();
-
-    // Process UV events after app cleanup to handle cleanup
-    for (int i = 0; i < 10; i++)
-    {
-        uv_run(uv_default_loop(), UV_RUN_NOWAIT);
-    }
-
-    // Close all client connections
-    uv_walk(uv_default_loop(), walk_callback, NULL);
-
-    // Wait for connections to close
-    int wait_iterations = 0;
-    int max_wait = 200;
-
-    while (active_connections > 0 && wait_iterations < max_wait)
-    {
-        // Run the event loop to process close callbacks
-        uv_run(uv_default_loop(), UV_RUN_NOWAIT);
-        wait_iterations++;
-
-        if (wait_iterations % 10 == 0)
+        timer_data_t *data = (timer_data_t *)handle->data;
+        if (data)
         {
-            printf("Waiting for %d connections to close... (iter %d)\n",
-                   active_connections, wait_iterations);
+            free(data);
         }
 
-        if (active_connections > 0)
-        {
-            sleep_ms(50);
-        }
+        uv_close(handle, (uv_close_cb)free);
     }
-
-    if (active_connections > 0)
-    {
-        printf("Warning: %d connections still active after timeout\n", active_connections);
-    }
-
-    // Close the server
-    if (global_server && !uv_is_closing((uv_handle_t *)global_server))
-    {
-        uv_close((uv_handle_t *)global_server, on_server_closed);
-    }
-
-    // Stop and close signal handlers
-    uv_signal_stop(&sigint_handle);
-#ifndef _WIN32
-    uv_signal_stop(&sigterm_handle);
-#endif
-#ifdef _WIN32
-    uv_signal_stop(&sigbreak_handle);
-    uv_signal_stop(&sighup_handle);
-#endif
-
-    // Close signal handlers
-    if (!uv_is_closing((uv_handle_t *)&sigint_handle))
-        uv_close((uv_handle_t *)&sigint_handle, on_signal_closed);
-#ifndef _WIN32
-    if (!uv_is_closing((uv_handle_t *)&sigterm_handle))
-        uv_close((uv_handle_t *)&sigterm_handle, on_signal_closed);
-#endif
-#ifdef _WIN32
-    if (!uv_is_closing((uv_handle_t *)&sigbreak_handle))
-        uv_close((uv_handle_t *)&sigbreak_handle, on_signal_closed);
-    if (!uv_is_closing((uv_handle_t *)&sighup_handle))
-        uv_close((uv_handle_t *)&sighup_handle, on_signal_closed);
-#endif
 }
 
-// Signal callback: triggered when signals are received
-static void signal_handler(uv_signal_t *handle, int signum)
+static void on_server_closed(uv_handle_t *handle)
 {
     (void)handle;
-    switch (signum)
+    if (g_server.server)
     {
-    case SIGINT:
-        printf("Received SIGINT, shutting down...\n");
-        break;
-#ifndef _WIN32
-    case SIGTERM:
-        printf("Received SIGTERM, shutting down...\n");
-        break;
-#endif
-#ifdef _WIN32
-    case SIGBREAK:
-        printf("Received SIGBREAK, shutting down...\n");
-        break;
-    case SIGHUP:
-        printf("Received SIGHUP, shutting down...\n");
-        break;
-#endif
-    default:
-        printf("Received signal %d, shutting down...\n", signum);
-        break;
+        free(g_server.server);
+        g_server.server = NULL;
+        g_server.server_closed = 1;
     }
-    graceful_shutdown();
 }
 
-// Server startup function
-void ecewo(unsigned short PORT)
+static void on_signal(uv_signal_t *handle, int signum)
 {
-    uv_loop_t *loop = uv_default_loop();
-    uv_tcp_t *server = calloc(1, sizeof(*server));
-    if (!server)
-    {
-        fprintf(stderr, "Failed to allocate server\n");
-        exit(1);
-    }
-
-    uv_tcp_init(loop, server);
-
-    // Bind the server socket to the specified port
-    struct sockaddr_in addr;
-    uv_ip4_addr("0.0.0.0", PORT, &addr);
-    int r = uv_tcp_bind(server, (const struct sockaddr *)&addr, 0);
-    if (r)
-    {
-        fprintf(stderr, "Bind error: %s\n", uv_strerror(r));
-        free(server);
-        exit(1);
-    }
-
-    // Start listening for incoming connections
-    uv_tcp_simultaneous_accepts(server, 1);
-    r = uv_listen((uv_stream_t *)server, 128, on_new_connection);
-    if (r)
-    {
-        fprintf(stderr, "Listen error: %s\n", uv_strerror(r));
-        free(server);
-        exit(1);
-    }
-
-    // A valid server handle is now available
-    global_server = server;
-
-    // Initialize and start signal handlers
-    uv_signal_init(loop, &sigint_handle);
-#ifndef _WIN32
-    uv_signal_init(loop, &sigterm_handle);
-#endif
-#ifdef _WIN32
-    uv_signal_init(loop, &sigbreak_handle);
-    uv_signal_init(loop, &sighup_handle);
-#endif
-
-    uv_signal_start(&sigint_handle, signal_handler, SIGINT);
-#ifndef _WIN32
-    uv_signal_start(&sigterm_handle, signal_handler, SIGTERM);
-#endif
-#ifdef _WIN32
-    uv_signal_start(&sigbreak_handle, signal_handler, SIGBREAK);
-    uv_signal_start(&sighup_handle, signal_handler, SIGHUP);
-#endif
-
-    printf("Server is running on http://localhost:%d\n", PORT);
-
-    // Main event loop: runs until a signal stops it
-    uv_run(loop, UV_RUN_DEFAULT);
-
-    // Wait for all handles to be closed properly
-    int max_iterations = 150;
-    int iterations = 0;
-    while (uv_loop_alive(loop) && iterations < max_iterations)
-    {
-        uv_run(loop, UV_RUN_NOWAIT);
-        iterations++;
-        if (iterations % 20 == 0)
-        {
-            printf("Waiting for handles to close... (iteration %d)\n", iterations);
-            report_open_handles(loop);
-        }
-    }
-
-    // Try to close the loop
-    int close_result = uv_loop_close(loop);
-    if (close_result != 0)
-    {
-        fprintf(stderr, "Failed to close loop: %s\n", uv_strerror(close_result));
-
-        // Force close remaining handles
-        uv_walk(loop, walk_callback, NULL);
-
-        // Give more time for cleanup
-        iterations = 0;
-        while (uv_loop_alive(loop) && iterations < 50)
-        {
-            uv_run(loop, UV_RUN_NOWAIT);
-            iterations++;
-        }
-
-        close_result = uv_loop_close(loop);
-        if (close_result != 0)
-        {
-            fprintf(stderr, "Still failed to close loop: %s\n", uv_strerror(close_result));
-        }
-    }
-
-    // Clean up server memory if not already done
-    if (!server_freed && global_server)
-    {
-        free(global_server);
-        server_freed = 1;
-    }
-
-    global_server = NULL;
+    (void)handle;
+    const char *signal_name = (signum == SIGINT) ? "SIGINT" : "SIGTERM";
+    printf("Received %s, shutting down...\n", signal_name);
+    server_shutdown();
 }

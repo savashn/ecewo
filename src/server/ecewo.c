@@ -6,7 +6,7 @@
 route_trie_t *global_route_trie = NULL;
 
 // Initialize router with default capacity
-void init_router(void)
+void router_init(void)
 {
     global_route_trie = route_trie_create();
     if (!global_route_trie)
@@ -16,7 +16,7 @@ void init_router(void)
     }
 }
 
-void reset_router(void)
+void router_cleanup(void)
 {
     if (global_route_trie)
     {

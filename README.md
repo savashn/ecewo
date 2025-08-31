@@ -36,7 +36,7 @@ include(FetchContent)
 FetchContent_Declare(
     ecewo
     GIT_REPOSITORY https://github.com/savashn/ecewo.git
-    GIT_TAG main
+    GIT_TAG main # or type the version, such as v2.0.0
 )
 
 FetchContent_MakeAvailable(ecewo)
@@ -60,15 +60,19 @@ void hello_world(Req *req, Res *res)
 
 void destroy_app(void)
 {
-    reset_router();
+    router_cleanup();
 }
 
 int main(void)
 {
-    init_router();
+    server_init();
+    router_init();
+
     get("/", hello_world);
+
     shutdown_hook(destroy_app);
-    ecewo(3000);
+    server_listen(3000);
+    server_run();
     return 0;
 }
 ```
@@ -97,13 +101,15 @@ mkdir build && cd build && cmake .. && cmake --build .
 
 Here are 'Hello World' benchmark results for several frameworks compared to Ecewo. See the source code of the [benchmark test](https://github.com/savashn/ecewo-benchmarks).
 
-| Framework | Average   | Median   | Max     | P90      | P95     |
-|-----------|-----------|----------|---------|----------|---------|
-| Ecewo     | 166.24µs  | 0s       | 19.52ms | 545.29µs | 922µs   |
-| Axum      | 185.67µs  | 0s       | 35.9ms  | 549.79µs | 971.5µs |
-| Go        | 720.42µs  | 598.19µs | 22.15ms | 1.46ms   | 1.93ms  |
-| Hono      | 393.05µs  | 341.8µs  | 23.08ms | 1ms      | 1.12ms  |
-| Express   | 1.38ms    | 1.08ms   | 18.83ms | 2.83ms   | 3.7ms   |
+Lower is better.
+
+| Framework  | Average   | Median   | Max     | P90      | P95     |
+|------------|-----------|----------|---------|----------|---------|
+| Ecewo      | 0.440ms   | 0.504ms  | 7.73ms  | 1.0ms    | 1.26ms  |
+| Axum       | 0.507ms   | 0.509ms  | 10.78ms | 1.04ms   | 1.54ms  |
+| Go         | 0.939ms   | 0.716ms  | 51.09ms | 1.8ms    | 2.39ms  |
+| Dotnet     | 1.01ms    | 0.736ms  | 55.15ms | 2ms      | 2.74ms  |
+| Express.js | 1.59ms    | 1.35ms   | 9ms     | 2.96ms   | 3.53ms  |
 
 ## Documentation
 
