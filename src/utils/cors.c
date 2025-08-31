@@ -13,7 +13,7 @@ static char *safe_strdup(const char *str)
     return strdup(str);
 }
 
-int cors_cleanup(void)
+void cors_cleanup(void)
 {
     if (g_cors_opts)
     {
@@ -25,8 +25,6 @@ int cors_cleanup(void)
         free(g_cors_opts);
         g_cors_opts = NULL;
     }
-
-    return 1;
 }
 
 static bool is_origin_allowed(const char *origin)
@@ -130,7 +128,7 @@ int cors_init(cors_t *opts)
     if (!custom_cors)
     {
         fprintf(stderr, "Failed to allocate memory for CORS options\n");
-        return 0;
+        return 1;
     }
 
     static const char *def_methods = "GET, POST, PUT, DELETE, OPTIONS";
@@ -173,7 +171,7 @@ int cors_init(cors_t *opts)
         goto error_cleanup;
 
     g_cors_opts = custom_cors;
-    return 1;
+    return 0;
 
 error_cleanup:
     // Partial cleanup on allocation failure
@@ -188,5 +186,5 @@ error_cleanup:
     }
 
     fprintf(stderr, "Failed to allocate CORS strings\n");
-    return 0;
+    return 1;
 }

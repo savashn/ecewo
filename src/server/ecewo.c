@@ -6,14 +6,16 @@
 route_trie_t *global_route_trie = NULL;
 
 // Initialize router with default capacity
-void router_init(void)
+int router_init(void)
 {
     global_route_trie = route_trie_create();
     if (!global_route_trie)
     {
         fprintf(stderr, "Error: Failed to create route trie\n");
-        exit(EXIT_FAILURE);
+        return 1;
     }
+
+    return 0;
 }
 
 void router_cleanup(void)

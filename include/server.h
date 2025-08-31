@@ -104,7 +104,7 @@ void clear_timer(uv_timer_t *timer);
 // FROM ECEWO.C
 // ============================================================================
 
-void router_init(void);
+int router_init(void);
 void router_cleanup(void);
 
 #endif
