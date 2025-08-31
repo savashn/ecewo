@@ -13,12 +13,7 @@ static char *safe_strdup(const char *str)
     return strdup(str);
 }
 
-void cors_register(cors_t *opts)
-{
-    g_cors_opts = opts;
-}
-
-void reset_cors(void)
+int cors_cleanup(void)
 {
     if (g_cors_opts)
     {
@@ -30,6 +25,8 @@ void reset_cors(void)
         free(g_cors_opts);
         g_cors_opts = NULL;
     }
+
+    return 1;
 }
 
 static bool is_origin_allowed(const char *origin)
@@ -52,7 +49,7 @@ static bool is_origin_allowed(const char *origin)
 
 bool cors_handle_preflight(const http_context_t *ctx, Res *res)
 {
-    if (!g_cors_opts || !g_cors_opts->enabled)
+    if (!g_cors_opts)
         return false;
     if (strcmp(ctx->method, "OPTIONS") != 0)
         return false;
@@ -96,7 +93,7 @@ bool cors_handle_preflight(const http_context_t *ctx, Res *res)
 
 void cors_add_headers(const http_context_t *ctx, Res *res)
 {
-    if (!g_cors_opts || !g_cors_opts->enabled)
+    if (!g_cors_opts)
         return;
 
     const char *origin = get_req(&ctx->headers, "Origin");
@@ -127,13 +124,13 @@ void cors_add_headers(const http_context_t *ctx, Res *res)
     }
 }
 
-void init_cors(cors_t *opts)
+int cors_init(cors_t *opts)
 {
     cors_t *custom_cors = calloc(1, sizeof(cors_t));
     if (!custom_cors)
     {
         fprintf(stderr, "Failed to allocate memory for CORS options\n");
-        return;
+        return 0;
     }
 
     static const char *def_methods = "GET, POST, PUT, DELETE, OPTIONS";
@@ -175,11 +172,8 @@ void init_cors(cors_t *opts)
     if (!custom_cors->max_age)
         goto error_cleanup;
 
-    // Enabled flag - default true
-    custom_cors->enabled = (opts && opts->enabled != 0) ? opts->enabled : true;
-
-    cors_register(custom_cors);
-    return;
+    g_cors_opts = custom_cors;
+    return 1;
 
 error_cleanup:
     // Partial cleanup on allocation failure
@@ -192,5 +186,7 @@ error_cleanup:
         free(custom_cors->max_age);
         free(custom_cors);
     }
+
     fprintf(stderr, "Failed to allocate CORS strings\n");
+    return 0;
 }

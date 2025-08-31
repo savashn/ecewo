@@ -279,7 +279,7 @@ void server_run(void)
         return;
     }
 
-    printf("Server starting - press Ctrl+C to stop\n");
+    printf("Press Ctrl+C to stop the server\n");
 
     // Heart of the web server - simple event loop
     uv_run(g_server.loop, UV_RUN_DEFAULT);

@@ -6,6 +6,7 @@
 #include "../src/lib/route_trie.h"
 #include "../src/config/compat.h"
 #include "../src/utils/cookie.h"
+#include "../src/utils/async.h"
 
 extern route_trie_t *global_route_trie;
 

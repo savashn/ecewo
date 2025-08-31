@@ -11,14 +11,12 @@ typedef struct
     char *headers;
     char *credentials;
     char *max_age;
-    bool enabled;
     bool allow_all_origins; // For "*" support
 } cors_t;
 
-void cors_register(cors_t *opts);
-void reset_cors(void);
+int cors_cleanup(void);
 bool cors_handle_preflight(const http_context_t *ctx, Res *res);
 void cors_add_headers(const http_context_t *ctx, Res *res);
-void init_cors(cors_t *opts);
+int cors_init(cors_t *opts);
 
 #endif

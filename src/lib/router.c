@@ -5,7 +5,7 @@
 #include "ecewo.h"
 #include "uv.h"
 #include "llhttp.h"
-#include "cors.h"
+#include "../utils/cors.h"
 #include "route_trie.h"
 #include "middleware.h"
 

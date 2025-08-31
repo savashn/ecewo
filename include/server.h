@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "uv.h"
+#include "../src/utils/cors.h"
 
 // ============================================================================
 // ERROR CODES
