@@ -201,7 +201,7 @@ static inline const char *get_headers(const Req *req, const char *key)
 }
 
 // Pass req or res, no difference
-#define handler_free(x)                \
+#define handler_cleanup(x)             \
     do                                 \
     {                                  \
         if ((x) && (x)->arena)         \
@@ -211,5 +211,23 @@ static inline const char *get_headers(const Req *req, const char *key)
             free(arena);               \
         }                              \
     } while (0)
+
+#define ecewo_alloc(x, size_bytes) \
+    arena_alloc((x)->arena, size_bytes)
+
+#define ecewo_realloc(x, oldptr, oldsz, newsz) \
+    arena_realloc((x)->arena, oldptr, oldsz, newsz)
+
+#define ecewo_strdup(x, cstr) \
+    arena_strdup((x)->arena, cstr)
+
+#define ecewo_memdup(x, data, size) \
+    arena_memdup((x)->arena, data, size)
+
+#define ecewo_sprintf(x, format, ...) \
+    arena_sprintf((x)->arena, format, ##__VA_ARGS__)
+
+#define ecewo_vsprintf(x, format, args) \
+    arena_vsprintf((x)->arena, format, args)
 
 #endif

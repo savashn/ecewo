@@ -26,9 +26,6 @@ struct async_t
     async_response_handler_t handler; // Response handler
 };
 
-static void _async_work_cb(uv_work_t *req);
-static void _async_after_work_cb(uv_work_t *req, int status);
-
 // Task result functions
 void ok(async_t *task);
 void fail(async_t *task, const char *error_msg);
