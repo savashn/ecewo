@@ -295,7 +295,6 @@ static void server_shutdown(void)
         return;
     }
 
-    printf("Initiating graceful shutdown...\n");
     g_server.shutdown_requested = 1;
     g_server.running = 0;
 
@@ -308,16 +307,21 @@ static void server_shutdown(void)
     // Stop cleanup timer first
     stop_cleanup_timer();
 
+    // Stop signal handlers
+    uv_signal_stop(&g_server.sigint_handle);
+    uv_signal_stop(&g_server.sigterm_handle);
+
     // Close all connections and timers
     uv_walk(g_server.loop, close_walk_cb, NULL);
 
     // Wait for connections to close
     int wait_count = 0;
-    while (g_server.active_connections > 0 && wait_count < 100)
+    while (g_server.active_connections > 0)
     {
         uv_run(g_server.loop, UV_RUN_ONCE);
         wait_count++;
 
+        // Progress report every 10 iterations
         if (wait_count % 10 == 0)
         {
             printf("Waiting for %d connections to close...\n",
@@ -330,10 +334,6 @@ static void server_shutdown(void)
     {
         uv_close((uv_handle_t *)g_server.server, on_server_closed);
     }
-
-    // Stop signal handlers
-    uv_signal_stop(&g_server.sigint_handle);
-    uv_signal_stop(&g_server.sigterm_handle);
 }
 
 void server_cleanup(void)
@@ -342,8 +342,6 @@ void server_cleanup(void)
     {
         return;
     }
-
-    printf("Cleaning up server resources...\n");
 
     // Stop cleanup timer first
     stop_cleanup_timer();
@@ -357,11 +355,7 @@ void server_cleanup(void)
         }
     }
 
-    // Try to close the event loop
-    if (uv_loop_close(g_server.loop) != 0)
-    {
-        printf("Warning: Event loop cleanup incomplete\n");
-    }
+    uv_loop_close(g_server.loop);
 
     // Final cleanup
     if (g_server.server && !g_server.server_closed)
