@@ -40,6 +40,8 @@ typedef struct
     uv_rwlock_t lock;
 } route_trie_t;
 
+extern route_trie_t *global_route_trie;
+
 typedef struct
 {
     const char *data;

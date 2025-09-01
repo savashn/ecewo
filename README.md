@@ -50,8 +50,7 @@ target_link_libraries(server PRIVATE ecewo)
 
 **main.c:**
 ```c
-#include "server.h"  // To start and end the server
-#include "ecewo.h"   // To use the main API
+#include "ecewo.h"
 #include <stdlib.h>
 #include <stdio.h>
 

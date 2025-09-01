@@ -1,9 +1,10 @@
-#include "server.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
 #include <time.h>
+#include "server.h"
+#include "../lib/route_trie.h"
 
 #define READ_BUFFER_SIZE 16384
 #define MAX_CONNECTIONS 10000

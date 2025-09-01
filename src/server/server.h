@@ -105,8 +105,6 @@ void clear_timer(uv_timer_t *timer);
 // ROUTER
 // ============================================================================
 
-extern route_trie_t *global_route_trie;
-
 int router_init(void);
 void router_cleanup(void);
 
