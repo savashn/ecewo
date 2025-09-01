@@ -171,6 +171,9 @@ int cors_init(cors_t *opts)
         goto error_cleanup;
 
     g_cors_opts = custom_cors;
+
+    atexit(cors_cleanup);
+
     return 0;
 
 error_cleanup:

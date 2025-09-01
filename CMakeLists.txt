@@ -24,7 +24,8 @@ FetchContent_MakeAvailable(libuv)
 
 # Fetch llhttp from the GitHub repository
 FetchContent_Declare(llhttp
-  URL "https://github.com/nodejs/llhttp/archive/refs/tags/release/v8.1.0.tar.gz")
+  URL "https://github.com/nodejs/llhttp/archive/refs/tags/release/v8.1.0.tar.gz"
+)
 
 # Static build configuration for llhttp
 set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")

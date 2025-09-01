@@ -36,7 +36,7 @@ include(FetchContent)
 FetchContent_Declare(
     ecewo
     GIT_REPOSITORY https://github.com/savashn/ecewo.git
-    GIT_TAG main # or type the version, such as v2.0.0
+    GIT_TAG main # or use a specific version, such as v2.0.0
 )
 
 FetchContent_MakeAvailable(ecewo)
@@ -58,18 +58,11 @@ target_link_libraries(server PRIVATE ecewo)
 void hello_world(Req *req, Res *res)
 {
     send_text(res, 200, "Hello, World!");
-}
-
-void system_cleanup(void)
-{
-    router_cleanup();
-    server_cleanup();
+    handler_cleanup(res);
 }
 
 int main(void)
 {
-    atexit(system_cleanup);
-
     if (server_init() != SERVER_OK)
     {
         fprintf(stderr, "Failed to initialize server\n");
@@ -78,13 +71,11 @@ int main(void)
 
     if (router_init() != 0)
     {
-        printf("Failed to initialize router\n");
+        fprintf(stderr, "Failed to initialize router\n");
         return 1;
     }
 
     get("/", hello_world);
-
-    shutdown_hook(destroy_app);
 
     if (server_listen(3000) != SERVER_OK)
     {
