@@ -1,5 +1,4 @@
 #include "server.h"
-#include "../lib/router.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -732,4 +731,37 @@ static void on_signal(uv_signal_t *handle, int signum)
     const char *signal_name = (signum == SIGINT) ? "SIGINT" : "SIGTERM";
     printf("Received %s, shutting down...\n", signal_name);
     server_shutdown();
+}
+
+// ============================================================================
+// ROUTER
+// ============================================================================
+
+route_trie_t *global_route_trie = NULL;
+
+void router_cleanup(void)
+{
+    if (global_route_trie)
+    {
+        // Middleware contexts will be cleaned up in route_trie_free
+        route_trie_free(global_route_trie);
+        global_route_trie = NULL;
+    }
+
+    reset_middleware();
+}
+
+// Initialize router with default capacity
+int router_init(void)
+{
+    global_route_trie = route_trie_create();
+    if (!global_route_trie)
+    {
+        fprintf(stderr, "Error: Failed to create route trie\n");
+        return 1;
+    }
+
+    atexit(router_cleanup);
+
+    return 0;
 }

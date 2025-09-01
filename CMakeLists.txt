@@ -38,7 +38,6 @@ if(NOT TARGET ecewo)
 
     # List of source files
     set(ECEWO_SRC_FILES
-        src/server/ecewo.c
         src/server/server.c
         src/lib/request.c
         src/lib/router.c
