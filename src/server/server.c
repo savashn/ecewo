@@ -217,6 +217,12 @@ int server_init(void)
 
 int server_listen(int port)
 {
+    if (port < 1 || port > 65535)
+    {
+        fprintf(stderr, "Error: Invalid port %d (must be 1-65535)\n", port);
+        return SERVER_INVALID_PORT;
+    }
+
     if (!g_server.initialized)
     {
         return SERVER_NOT_INITIALIZED;
@@ -253,6 +259,7 @@ int server_listen(int port)
     {
         free(g_server.server);
         g_server.server = NULL;
+        fprintf(stderr, "Error: Failed to bind to port %d (may be in use)\n", port);
         return SERVER_BIND_FAILED;
     }
 
@@ -261,6 +268,7 @@ int server_listen(int port)
     {
         free(g_server.server);
         g_server.server = NULL;
+        fprintf(stderr, "Error: Failed to listen on port %d\n", port);
         return SERVER_LISTEN_FAILED;
     }
 

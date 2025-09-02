@@ -21,6 +21,7 @@ typedef enum
     SERVER_OUT_OF_MEMORY = -5,       // Memory allocation failed
     SERVER_BIND_FAILED = -6,         // Socket bind failed
     SERVER_LISTEN_FAILED = -7,       // Socket listen failed
+    SERVER_INVALID_PORT = -8,        // Invalid PORT
 } server_error_t;
 
 // ============================================================================
