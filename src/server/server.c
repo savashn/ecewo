@@ -67,6 +67,8 @@ static void close_client(client_t *client);
 static void cleanup_idle_connections(uv_timer_t *handle);
 static void close_walk_cb(uv_handle_t *handle, void *arg);
 static void on_server_closed(uv_handle_t *handle);
+static int router_init(void);
+static void router_cleanup(void);
 
 // ============================================================================
 // CONNECTION MANAGEMENT
@@ -200,6 +202,12 @@ int server_init(void)
     uv_signal_start(&g_server.sigint_handle, on_signal, SIGINT);
     uv_signal_start(&g_server.sigterm_handle, on_signal, SIGTERM);
 
+    // Initialize router system
+    if (router_init() != 0)
+    {
+        return SERVER_INIT_FAILED;
+    }
+
     g_server.initialized = 1;
 
     atexit(server_cleanup);
@@ -288,7 +296,7 @@ void server_run(void)
     server_cleanup();
 }
 
-static void server_shutdown(void)
+void server_shutdown(void)
 {
     if (g_server.shutdown_requested)
     {
@@ -345,6 +353,9 @@ void server_cleanup(void)
 
     // Stop cleanup timer first
     stop_cleanup_timer();
+
+    // Cleanup router system internally
+    router_cleanup();
 
     // Process remaining cleanup events
     while (uv_loop_alive(g_server.loop))
@@ -740,7 +751,25 @@ static void on_signal(uv_signal_t *handle, int signum)
 
 route_trie_t *global_route_trie = NULL;
 
-void router_cleanup(void)
+// Initialize router with default capacity
+static int router_init(void)
+{
+    if (global_route_trie)
+    {
+        return 0; // Already initialized
+    }
+
+    global_route_trie = route_trie_create();
+    if (!global_route_trie)
+    {
+        fprintf(stderr, "Error: Failed to create route trie\n");
+        return 1;
+    }
+
+    return 0;
+}
+
+static void router_cleanup(void)
 {
     if (global_route_trie)
     {
@@ -750,19 +779,4 @@ void router_cleanup(void)
     }
 
     reset_middleware();
-}
-
-// Initialize router with default capacity
-int router_init(void)
-{
-    global_route_trie = route_trie_create();
-    if (!global_route_trie)
-    {
-        fprintf(stderr, "Error: Failed to create route trie\n");
-        return 1;
-    }
-
-    atexit(router_cleanup);
-
-    return 0;
 }

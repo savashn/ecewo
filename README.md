@@ -68,12 +68,6 @@ int main(void)
         return 1;
     }
 
-    if (router_init() != 0)
-    {
-        fprintf(stderr, "Failed to initialize router\n");
-        return 1;
-    }
-
     get("/", hello_world);
 
     if (server_listen(3000) != SERVER_OK)

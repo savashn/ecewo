@@ -42,17 +42,20 @@ typedef void (*timer_callback_t)(void *user_data);
 // ============================================================================
 
 // Must be called before any other server operations
-// returns ECEWO_OK on success, error code on failure
+// returns SERVER_OK on success, error code on failure
 int server_init(void);
 
 // Server must be initialized before calling this
-// returns ECEWO_OK on success, error code on failure
+// returns SERVER_OK on success, error code on failure
 int server_listen(int port);
 
 // Run the server event loop
 // This function blocks until the server is shut down
 // Automatically calls server_cleanup() when loop exits
 void server_run(void);
+
+// Emergency graceful shutdown
+void server_shutdown(void);
 
 // Clean up server resources
 // Called automatically by server_run() or can be called manually
@@ -104,9 +107,6 @@ void clear_timer(uv_timer_t *timer);
 // ============================================================================
 // ROUTER
 // ============================================================================
-
-int router_init(void);
-void router_cleanup(void);
 
 // GET
 #define GET_CHOOSER(_1, _2, _3, NAME, ...) NAME
