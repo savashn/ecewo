@@ -135,6 +135,7 @@ typedef struct
     uv_write_t req;
     uv_buf_t buf;
     char *data; // Heap allocated (managed by libuv callbacks)
+    Arena *arena;
 } write_req_t;
 
 // Route handler function type
@@ -199,18 +200,6 @@ static inline const char *get_headers(const Req *req, const char *key)
 {
     return get_req(&req->headers, key);
 }
-
-// Pass req or res, no difference
-#define handler_cleanup(x)             \
-    do                                 \
-    {                                  \
-        if ((x) && (x)->arena)         \
-        {                              \
-            Arena *arena = (x)->arena; \
-            arena_free(arena);         \
-            free(arena);               \
-        }                              \
-    } while (0)
 
 #define ecewo_alloc(x, size_bytes) \
     arena_alloc((x)->arena, size_bytes)

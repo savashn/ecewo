@@ -19,19 +19,30 @@ static void write_completion_cb(uv_write_t *req, int status)
     write_req_t *write_req = (write_req_t *)req;
     if (write_req)
     {
-        if (write_req->data)
+        if (write_req->arena)
         {
-            free(write_req->data); // Using malloc/free for libuv-managed data
-            write_req->data = NULL;
+            Arena *arena = write_req->arena;
+            arena_free(arena);
+            free(arena);
         }
-
-        memset(write_req, 0, sizeof(write_req_t));
-        free(write_req);
+        else
+        {
+            // This is necessary for early errors
+            // that don't have arena yet
+            // and called send_error
+            if (write_req->data)
+            {
+                free(write_req->data);
+                write_req->data = NULL;
+            }
+            memset(write_req, 0, sizeof(write_req_t));
+            free(write_req);
+        }
     }
 }
 
-// Sends error responses (400 or 500) - uses malloc for libuv
-static void send_error(uv_tcp_t *client_socket, int error_code)
+// Sends error responses (400 or 500)
+static void send_error(Arena *arena, uv_tcp_t *client_socket, int error_code)
 {
     if (!client_socket)
         return;
@@ -43,61 +54,114 @@ static void send_error(uv_tcp_t *client_socket, int error_code)
         !uv_is_writable((uv_stream_t *)client_socket))
         return;
 
-    const char *err = NULL;
-    const char *err_500 = "HTTP/1.1 500 Internal Server Error\r\n"
-                          "Content-Type: text/plain\r\n"
-                          "Content-Length: 21\r\n"
-                          "Connection: close\r\n"
-                          "\r\n"
-                          "Internal Server Error";
+    // Generate current date
+    time_t now = time(NULL);
+    struct tm *gmt = gmtime(&now);
+    char date_str[64];
+    strftime(date_str, sizeof(date_str), "%a, %d %b %Y %H:%M:%S GMT", gmt);
 
-    const char *err_400 = "HTTP/1.1 400 Bad Request\r\n"
-                          "Content-Type: text/plain\r\n"
-                          "Content-Length: 11\r\n"
-                          "Connection: close\r\n"
-                          "\r\n"
-                          "Bad Request";
+    const char *status_text = (error_code == 500) ? "Internal Server Error" : "Bad Request";
+    const char *body = status_text;
+    size_t body_len = strlen(body);
 
-    if (error_code == 500)
-        err = err_500;
-    else if (error_code == 400)
-        err = err_400;
+    if (arena)
+    {
+        // Arena path
+        char *response = arena_sprintf(arena,
+                                       "HTTP/1.1 %d %s\r\n"
+                                       "Server: Ecewo\r\n"
+                                       "Date: %s\r\n"
+                                       "Content-Type: text/plain\r\n"
+                                       "Content-Length: %zu\r\n"
+                                       "Connection: close\r\n"
+                                       "\r\n"
+                                       "%s",
+                                       error_code,
+                                       status_text,
+                                       date_str,
+                                       body_len,
+                                       body);
+
+        if (!response)
+        {
+            arena_free(arena);
+            free(arena);
+            return;
+        }
+
+        size_t response_len = strlen(response);
+
+        write_req_t *write_req = arena_alloc(arena, sizeof(write_req_t));
+        if (!write_req)
+        {
+            arena_free(arena);
+            free(arena);
+            return;
+        }
+
+        memset(&write_req->req, 0, sizeof(uv_write_t));
+        write_req->data = response;
+        write_req->arena = arena;
+        write_req->buf = uv_buf_init(response, (unsigned int)response_len);
+
+        int res = uv_write(&write_req->req, (uv_stream_t *)client_socket,
+                           &write_req->buf, 1, write_completion_cb);
+        if (res < 0)
+        {
+            fprintf(stderr, "Write error: %s\n", uv_strerror(res));
+            arena_free(arena);
+            free(arena);
+        }
+    }
     else
-        return;
-
-    write_req_t *write_req = malloc(sizeof(write_req_t));
-    if (!write_req)
-        return;
-
-    size_t len = strlen(err);
-    char *response = malloc(len + 1);
-    if (!response)
     {
-        free(write_req);
-        return;
-    }
+        // Malloc path
+        // This is necessary for early errors
+        // that don't have arena yet
+        // and called send_error
+        size_t response_size = 512;
+        char *response = malloc(response_size);
 
-    memcpy(response, err, len);
-    response[len] = '\0';
+        if (!response)
+            return;
 
-    memset(write_req, 0, sizeof(write_req_t));
-    write_req->data = response;
-    write_req->buf = uv_buf_init(response, (unsigned int)len);
+        int written = snprintf(response, response_size,
+                               "HTTP/1.1 %d %s\r\n"
+                               "Server: Ecewo\r\n"
+                               "Date: %s\r\n"
+                               "Content-Type: text/plain\r\n"
+                               "Content-Length: %zu\r\n"
+                               "Connection: close\r\n"
+                               "\r\n"
+                               "%s",
+                               error_code, status_text, date_str, body_len, body);
 
-    if (uv_is_closing((uv_handle_t *)client_socket))
-    {
-        free(response);
-        free(write_req);
-        return;
-    }
+        if (written < 0 || (size_t)written >= response_size)
+        {
+            free(response);
+            return;
+        }
 
-    int res = uv_write(&write_req->req, (uv_stream_t *)client_socket,
-                       &write_req->buf, 1, write_completion_cb);
-    if (res < 0)
-    {
-        fprintf(stderr, "Write error: %s\n", uv_strerror(res));
-        free(response);
-        free(write_req);
+        write_req_t *write_req = malloc(sizeof(write_req_t));
+        if (!write_req)
+        {
+            free(response);
+            return;
+        }
+
+        memset(&write_req->req, 0, sizeof(uv_write_t));
+        write_req->data = response;
+        write_req->arena = NULL;
+        write_req->buf = uv_buf_init(response, (unsigned int)written);
+
+        int res = uv_write(&write_req->req, (uv_stream_t *)client_socket,
+                           &write_req->buf, 1, write_completion_cb);
+        if (res < 0)
+        {
+            fprintf(stderr, "Write error: %s\n", uv_strerror(res));
+            free(response);
+            free(write_req);
+        }
     }
 }
 
@@ -280,6 +344,7 @@ static http_context_t *create_http_context(Arena *arena)
     if (!context)
         return NULL;
 
+    memset(context, 0, sizeof(http_context_t));
     http_context_init(context, arena);
     return context;
 }
@@ -455,22 +520,32 @@ static int populate_req_from_context(Req *req, http_context_t *context, const ch
 // Composes and sends the response (headers + body) using malloc for libuv data
 void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len)
 {
-    if (!res || !res->client_socket)
+    // Early validation
+    if (!res)
+        return;
+
+    if (!res->client_socket)
     {
+        Arena *arena = res->arena;
+        arena_free(arena);
+        free(arena);
         return;
     }
 
     if (uv_is_closing((uv_handle_t *)res->client_socket))
     {
+        send_error(res->arena, res->client_socket, 500);
         return;
     }
 
     if (!uv_is_readable((uv_stream_t *)res->client_socket) ||
         !uv_is_writable((uv_stream_t *)res->client_socket))
     {
+        send_error(res->arena, res->client_socket, 500);
         return;
     }
 
+    // Set defaults
     if (!content_type)
         content_type = "text/plain";
     if (!body)
@@ -482,7 +557,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     char date_str[64];
     strftime(date_str, sizeof(date_str), "%a, %d %b %Y %H:%M:%S GMT", gmt);
 
-    // Calculate total size of custom headers
+    // Calculate custom headers size
     size_t headers_size = 0;
     for (int i = 0; i < res->header_count; i++)
     {
@@ -492,14 +567,15 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         }
     }
 
-    // Allocate and fill entire header string using malloc for libuv
-    char *all_headers = malloc(headers_size + 1);
+    // Allocate header string from arena
+    char *all_headers = arena_alloc(res->arena, headers_size + 1);
     if (!all_headers)
     {
-        send_error(res->client_socket, 500);
+        send_error(res->arena, res->client_socket, 500);
         return;
     }
 
+    // Build custom headers string
     size_t pos = 0;
     for (int i = 0; i < res->header_count; i++)
     {
@@ -513,15 +589,14 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
             }
             else
             {
-                free(all_headers);
-                send_error(res->client_socket, 500);
+                send_error(res->arena, res->client_socket, 500);
                 return;
             }
         }
     }
     all_headers[pos] = '\0';
 
-    // Calculate response size
+    // Calculate total response size
     int base_header_len = snprintf(
         NULL, 0,
         "HTTP/1.1 %d\r\n"
@@ -541,22 +616,27 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
 
     if (base_header_len < 0)
     {
-        free(all_headers);
-        send_error(res->client_socket, 500);
+        send_error(res->arena, res->client_socket, 500);
+        return;
+    }
+
+    if (SIZE_MAX - (size_t)base_header_len < body_len)
+    {
+        send_error(res->arena, res->client_socket, 500);
         return;
     }
 
     size_t total_len = (size_t)base_header_len + body_len;
 
-    // Use malloc for libuv-managed response
-    char *response = malloc(total_len + 1);
+    // Allocate response buffer from arena
+    char *response = arena_alloc(res->arena, total_len + 1);
     if (!response)
     {
-        free(all_headers);
-        send_error(res->client_socket, 500);
+        send_error(res->arena, res->client_socket, 500);
         return;
     }
 
+    // Build response headers
     int written = snprintf(
         response,
         (size_t)base_header_len + 1,
@@ -575,47 +655,53 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         body_len,
         res->keep_alive ? "keep-alive" : "close");
 
-    free(all_headers);
-
     if (written < 0 || (size_t)written > total_len)
     {
-        free(response);
-        send_error(res->client_socket, 500);
+        send_error(res->arena, res->client_socket, 500);
         return;
     }
 
+    // Append body if present
     if (body_len > 0 && body)
     {
         memcpy(response + written, body, body_len);
     }
 
-    write_req_t *write_req = malloc(sizeof(write_req_t));
+    // Allocate write request
+    write_req_t *write_req = arena_alloc(res->arena, sizeof(write_req_t));
     if (!write_req)
     {
-        free(response);
-        send_error(res->client_socket, 500);
+        send_error(res->arena, res->client_socket, 500);
         return;
     }
 
+    // Setup write request
     memset(write_req, 0, sizeof(write_req_t));
-    write_req->data = response;
+    write_req->data = response;    // Arena memory pointer
+    write_req->arena = res->arena; // Transfer arena ownership
     write_req->buf = uv_buf_init(response, (unsigned int)total_len);
 
-    // Final check before writing
+    // Final socket check
     if (uv_is_closing((uv_handle_t *)res->client_socket))
     {
-        free(response);
-        free(write_req);
+        // Arena cleanup will be handled by callback if write succeeds
+        // but we need to clean up here if we're not going to write
+        Arena *arena = res->arena;
+        arena_free(arena);
+        free(arena);
         return;
     }
 
+    // Perform async write
     int result = uv_write(&write_req->req, (uv_stream_t *)res->client_socket,
                           &write_req->buf, 1, write_completion_cb);
+
     if (result < 0)
     {
         fprintf(stderr, "Write error: %s\n", uv_strerror(result));
-        free(response);
-        free(write_req);
+        Arena *arena = res->arena;
+        arena_free(arena);
+        free(arena);
         return;
     }
 }
@@ -627,7 +713,7 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     if (!client_socket || !request_data || request_len == 0)
     {
         if (client_socket)
-            send_error(client_socket, 400);
+            send_error(NULL, client_socket, 400);
         return 1;
     }
 
@@ -638,7 +724,7 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     Arena *arena = calloc(1, sizeof(Arena));
     if (!arena)
     {
-        send_error(client_socket, 500);
+        send_error(NULL, client_socket, 500);
         return 1;
     }
 
@@ -647,10 +733,6 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     Req *req = NULL;
     Res *res = NULL;
     tokenized_path_t tokenized_path = {0};
-    int error_code = 0;
-    int should_close = 1;
-    bool send_error_response = false;
-    bool send_404_response = false;
 
     // Create resources using heap arena
     ctx = create_http_context(arena);
@@ -659,18 +741,16 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
 
     if (!ctx || !req || !res)
     {
-        error_code = 500;
-        send_error_response = true;
-        goto cleanup;
+        send_error(arena, client_socket, 500);
+        return 1;
     }
 
     // Parse HTTP request
     enum llhttp_errno err = llhttp_execute(&ctx->parser, request_data, request_len);
     if (err != HPE_OK)
     {
-        error_code = 400;
-        send_error_response = true;
-        goto cleanup;
+        send_error(arena, client_socket, 400);
+        return 1;
     }
 
     // Extract path and query
@@ -678,16 +758,14 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     char *query = NULL;
     if (extract_path_and_query(arena, ctx->url, &path, &query) != 0)
     {
-        error_code = 500;
-        send_error_response = true;
-        goto cleanup;
+        send_error(arena, client_socket, 500);
+        return 1;
     }
 
     if (!path)
     {
-        error_code = 400;
-        send_error_response = true;
-        goto cleanup;
+        send_error(arena, client_socket, 400);
+        return 1;
     }
 
     // Parse query parameters
@@ -697,9 +775,10 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     // Handle CORS preflight
     if (cors_handle_preflight(ctx, res))
     {
+        // SUCCESS: Return based on keep_alive setting
+        int keep_alive = res->keep_alive;
         reply(res, res->status, res->content_type, res->body, res->body_len);
-        should_close = !res->keep_alive;
-        goto cleanup;
+        return keep_alive ? 0 : 1;
     }
 
     // Route matching validation
@@ -708,16 +787,21 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
         printf("ERROR: Missing route trie (%p) or method (%s)\n",
                global_route_trie, ctx->method ? ctx->method : "NULL");
         cors_add_headers(ctx, res);
-        send_404_response = true;
-        goto cleanup;
+
+        // 404 but still success response: Return based on keep_alive
+        int keep_alive = res->keep_alive;
+
+        const char *not_found_msg = "404 Not Found";
+        reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
+
+        return keep_alive ? 0 : 1;
     }
 
     // Tokenize path
     if (tokenize_path(arena, path, &tokenized_path) != 0)
     {
-        error_code = 500;
-        send_error_response = true;
-        goto cleanup;
+        send_error(arena, client_socket, 500);
+        return 1;
     }
 
     // Route matching
@@ -725,29 +809,32 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     if (!route_trie_match(global_route_trie, ctx->method, &tokenized_path, &match))
     {
         cors_add_headers(ctx, res);
-        send_404_response = true;
-        goto cleanup;
+
+        // 404 but still success response: Return based on keep_alive
+        int keep_alive = res->keep_alive;
+
+        const char *not_found_msg = "404 Not Found";
+        reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
+
+        return keep_alive ? 0 : 1;
     }
 
     if (extract_url_params(arena, &match, &ctx->url_params) != 0)
     {
-        error_code = 500;
-        send_error_response = true;
-        goto cleanup;
+        send_error(arena, client_socket, 500);
+        return 1;
     }
 
     if (populate_req_from_context(req, ctx, path) != 0)
     {
-        error_code = 500;
-        send_error_response = true;
-        goto cleanup;
+        send_error(arena, client_socket, 500);
+        return 1;
     }
 
     if (!match.handler)
     {
-        error_code = 500;
-        send_error_response = true;
-        goto cleanup;
+        send_error(arena, client_socket, 500);
+        return 1;
     }
 
     // Success path - call handler
@@ -766,24 +853,9 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
         match.handler(req, res);
     }
 
-    should_close = !res->keep_alive;
-
-    goto cleanup;
-
-cleanup:
-    // Send error responses if needed
-    if (send_error_response && error_code > 0)
-    {
-        send_error(client_socket, error_code);
-    }
-    else if (send_404_response)
-    {
-        const char *not_found_msg = "404 Not Found";
-        reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
-        should_close = !res->keep_alive;
-    }
-
-    return should_close;
+    // SUCCESS: Return based on keep_alive setting
+    // 0 = keep connection open, 1 = close connection
+    return res->keep_alive ? 0 : 1;
 }
 
 // Adds a header
@@ -810,6 +882,9 @@ void set_header(Res *res, const char *name, const char *value)
             fprintf(stderr, "Error: Failed to realloc headers array\n");
             return;
         }
+
+        memset(&res->headers[res->header_capacity], 0,
+               (new_cap - res->header_capacity) * sizeof(http_header_t));
 
         res->headers = tmp;
         res->header_capacity = new_cap;

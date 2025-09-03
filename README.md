@@ -57,7 +57,6 @@ target_link_libraries(server PRIVATE ecewo)
 void hello_world(Req *req, Res *res)
 {
     send_text(res, 200, "Hello, World!");
-    handler_cleanup(res);
 }
 
 int main(void)
