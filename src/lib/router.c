@@ -354,125 +354,55 @@ static request_t copy_request_t(Arena *arena, const request_t *original)
     request_t copy;
     memset(&copy, 0, sizeof(request_t));
 
-    if (!original || original->count == 0)
+    if (!arena || !original || original->count == 0)
         return copy;
 
-    if (arena)
+    // Allocate items array in arena
+    copy.capacity = original->count;
+    copy.count = original->count;
+    copy.items = arena_alloc(arena, copy.capacity * sizeof(request_item_t));
+
+    if (!copy.items)
     {
-        // Allocate items array in arena
-        copy.capacity = original->capacity;
-        copy.count = original->count;
-        copy.items = arena_alloc(arena, copy.capacity * sizeof(request_item_t));
-
-        if (!copy.items)
-        {
-            copy.capacity = 0;
-            copy.count = 0;
-            return copy;
-        }
-
-        // Copy each item using arena
-        for (int i = 0; i < original->count; i++)
-        {
-            if (original->items[i].key)
-            {
-                copy.items[i].key = arena_strdup(arena, original->items[i].key);
-                if (!copy.items[i].key)
-                {
-                    // Arena allocation failed - clear and return
-                    memset(&copy, 0, sizeof(request_t));
-                    return copy;
-                }
-            }
-            else
-            {
-                copy.items[i].key = NULL;
-            }
-
-            if (original->items[i].value)
-            {
-                copy.items[i].value = arena_strdup(arena, original->items[i].value);
-                if (!copy.items[i].value)
-                {
-                    // Arena allocation failed - clear and return
-                    memset(&copy, 0, sizeof(request_t));
-                    return copy;
-                }
-            }
-            else
-            {
-                copy.items[i].value = NULL;
-            }
-        }
-
+        memset(&copy, 0, sizeof(request_t));
         return copy;
     }
-    else
+
+    // Copy each item using arena
+    for (int i = 0; i < original->count; i++)
     {
-        // Allocate items array
-        copy.capacity = original->capacity;
-        copy.count = original->count;
-        copy.items = malloc(copy.capacity * sizeof(request_item_t));
-
-        if (!copy.items)
+        if (original->items[i].key)
         {
-            // Allocation failed, return empty
-            copy.capacity = 0;
-            copy.count = 0;
-            return copy;
-        }
-
-        // Copy each item
-        for (int i = 0; i < original->count; i++)
-        {
-            // Copy key
-            if (original->items[i].key)
+            copy.items[i].key = arena_strdup(arena, original->items[i].key);
+            if (!copy.items[i].key)
             {
-                copy.items[i].key = strdup(original->items[i].key);
-                if (!copy.items[i].key)
-                {
-                    // Cleanup on failure
-                    for (int j = 0; j < i; j++)
-                    {
-                        free(copy.items[j].key);
-                        free(copy.items[j].value);
-                    }
-                    free(copy.items);
-                    memset(&copy, 0, sizeof(request_t));
-                    return copy;
-                }
-            }
-            else
-            {
-                copy.items[i].key = NULL;
-            }
-
-            // Copy value
-            if (original->items[i].value)
-            {
-                copy.items[i].value = strdup(original->items[i].value);
-                if (!copy.items[i].value)
-                {
-                    // Cleanup on failure
-                    free(copy.items[i].key);
-                    for (int j = 0; j < i; j++)
-                    {
-                        free(copy.items[j].key);
-                        free(copy.items[j].value);
-                    }
-                    free(copy.items);
-                    memset(&copy, 0, sizeof(request_t));
-                    return copy;
-                }
-            }
-            else
-            {
-                copy.items[i].value = NULL;
+                // Arena allocation failed - clear and return
+                memset(&copy, 0, sizeof(request_t));
+                return copy;
             }
         }
+        else
+        {
+            copy.items[i].key = NULL;
+        }
 
-        return copy;
+        if (original->items[i].value)
+        {
+            copy.items[i].value = arena_strdup(arena, original->items[i].value);
+            if (!copy.items[i].value)
+            {
+                // Arena allocation failed - clear and return
+                memset(&copy, 0, sizeof(request_t));
+                return copy;
+            }
+        }
+        else
+        {
+            copy.items[i].value = NULL;
+        }
     }
+
+    return copy;
 }
 
 // Arena-aware request population
