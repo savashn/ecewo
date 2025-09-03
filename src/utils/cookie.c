@@ -308,7 +308,7 @@ char *get_cookie(Req *req, const char *name)
     return NULL;
 }
 
-void set_cookie(Res *res, const char *name, const char *value, cookie_options_t *options)
+void set_cookie(Res *res, const char *name, const char *value, cookie_t *options)
 {
     if (!res || !res->arena || !name || !value)
     {
