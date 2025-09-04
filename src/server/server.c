@@ -48,7 +48,6 @@ static struct
     uv_signal_t sigterm_handle;
 
     shutdown_callback_t shutdown_callback;
-    error_callback_t error_callback;
 
     client_t *client_list_head; // Head of client linked list
     uv_timer_t *cleanup_timer;  // Single timer for all cleanup
@@ -288,10 +287,7 @@ void server_run(void)
 {
     if (!g_server.initialized || !g_server.running)
     {
-        if (g_server.error_callback)
-        {
-            g_server.error_callback("Server not initialized or not listening");
-        }
+        fprintf(stderr, "Error: Server not initialized or not listening\n");
         return;
     }
 
@@ -389,11 +385,6 @@ void server_cleanup(void)
 // ============================================================================
 // CONFIGURATION API
 // ============================================================================
-
-void error_hook(error_callback_t callback)
-{
-    g_server.error_callback = callback;
-}
 
 void shutdown_hook(shutdown_callback_t callback)
 {
@@ -635,10 +626,7 @@ static void on_connection(uv_stream_t *server, int status)
 
     if (status < 0)
     {
-        if (g_server.error_callback)
-        {
-            g_server.error_callback("Connection error");
-        }
+        fprintf(stderr, "Error: Connection error\n");
         return;
     }
 
@@ -649,10 +637,7 @@ static void on_connection(uv_stream_t *server, int status)
 
     if (g_server.active_connections >= MAX_CONNECTIONS)
     {
-        if (g_server.error_callback)
-        {
-            g_server.error_callback("Max connections reached");
-        }
+        fprintf(stderr, "Error: Max connections (%d) reached\n", MAX_CONNECTIONS);
         return;
     }
 

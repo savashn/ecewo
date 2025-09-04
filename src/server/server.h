@@ -28,9 +28,6 @@ typedef enum
 // CALLBACK TYPE DEFINITIONS
 // ============================================================================
 
-// Called when non-fatal errors occur during server operation
-typedef void (*error_callback_t)(const char *error_message);
-
 // Called when server begins graceful shutdown process
 // Use this to cleanup application resources, close databases, etc.
 typedef void (*shutdown_callback_t)(void);
@@ -65,10 +62,6 @@ void server_cleanup(void);
 // ============================================================================
 // CONFIGURATION API
 // ============================================================================
-
-// Set error callback function
-// Function to call when errors occur (can be NULL)
-void error_hook(error_callback_t callback);
 
 // Set shutdown callback function
 // Function to call during shutdown (can be NULL)
