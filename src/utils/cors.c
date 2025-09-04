@@ -38,17 +38,16 @@ static bool is_origin_allowed(const char *origin)
 
     // Allow specific origins
     if (g_cors_opts->origin && strcmp(origin, g_cors_opts->origin) == 0)
-    {
         return true;
-    }
 
     return false;
 }
 
 bool cors_handle_preflight(const http_context_t *ctx, Res *res)
 {
-    if (!g_cors_opts)
+    if (!ctx || !ctx->method || !res || !g_cors_opts)
         return false;
+
     if (strcmp(ctx->method, "OPTIONS") != 0)
         return false;
 
@@ -91,11 +90,11 @@ bool cors_handle_preflight(const http_context_t *ctx, Res *res)
 
 void cors_add_headers(const http_context_t *ctx, Res *res)
 {
-    if (!g_cors_opts)
+    // Input validation
+    if (!ctx || !res || !g_cors_opts)
         return;
 
     const char *origin = get_req(&ctx->headers, "Origin");
-
     bool should_add_cors = false;
 
     // Check origin and add headers
@@ -136,6 +135,7 @@ int cors_init(cors_t *opts)
     static const char *def_credentials = "true";
     static const char *def_max_age = "3600";
 
+    // Origin handling
     if (opts && opts->origin)
     {
         custom_cors->origin = safe_strdup(opts->origin);
@@ -171,13 +171,11 @@ int cors_init(cors_t *opts)
         goto error_cleanup;
 
     g_cors_opts = custom_cors;
-
     atexit(cors_cleanup);
 
     return 0;
 
 error_cleanup:
-    // Partial cleanup on allocation failure
     if (custom_cors)
     {
         free(custom_cors->origin);
