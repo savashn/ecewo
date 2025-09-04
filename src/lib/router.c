@@ -800,12 +800,10 @@ void set_header(Res *res, const char *name, const char *value)
     if (res->header_count >= res->header_capacity)
     {
         int new_cap = res->header_capacity ? res->header_capacity * 2 : 8;
-        http_header_t *tmp;
 
-        // Arena-based allocation
-        tmp = arena_realloc(res->arena, res->headers,
-                            res->header_capacity * sizeof(http_header_t),
-                            new_cap * sizeof(http_header_t));
+        http_header_t *tmp = arena_realloc(res->arena, res->headers,
+                                           res->header_capacity * sizeof(http_header_t),
+                                           new_cap * sizeof(http_header_t));
 
         if (!tmp)
         {
@@ -813,20 +811,24 @@ void set_header(Res *res, const char *name, const char *value)
             return;
         }
 
-        memset(&res->headers[res->header_capacity], 0,
+        memset(&tmp[res->header_capacity], 0,
                (new_cap - res->header_capacity) * sizeof(http_header_t));
 
         res->headers = tmp;
         res->header_capacity = new_cap;
     }
 
-    // Arena-based string allocation
     res->headers[res->header_count].name = arena_strdup(res->arena, name);
-    res->headers[res->header_count].value = arena_strdup(res->arena, value);
-
-    if (!res->headers[res->header_count].name || !res->headers[res->header_count].value)
+    if (!res->headers[res->header_count].name)
     {
-        fprintf(stderr, "Error: Failed to allocate memory for header strings\n");
+        fprintf(stderr, "Error: Failed to allocate memory for name\n");
+        return;
+    }
+
+    res->headers[res->header_count].value = arena_strdup(res->arena, value);
+    if (!res->headers[res->header_count].value)
+    {
+        fprintf(stderr, "Error: Failed to allocate memory for value\n");
         return;
     }
 
