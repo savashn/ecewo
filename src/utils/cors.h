@@ -1,7 +1,7 @@
 #ifndef ECEWO_CORS_H
 #define ECEWO_CORS_H
 
-#include "../src/lib/router.h"
+#include "../lib/router.h"
 #include <stdbool.h>
 
 typedef struct
