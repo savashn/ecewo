@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "uv.h"
-#include "../utils/cors.h"
 #include "../lib/middleware.h"
 
 // ============================================================================

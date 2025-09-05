@@ -4,7 +4,6 @@
 #include <time.h>
 #include "uv.h"
 #include "llhttp.h"
-#include "../utils/cors.h"
 #include "route_trie.h"
 #include "middleware.h"
 
@@ -702,21 +701,11 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     parse_query(arena, query, &ctx->query_params);
     res->keep_alive = ctx->keep_alive;
 
-    // Handle CORS preflight
-    if (cors_handle_preflight(ctx, res))
-    {
-        // SUCCESS: Return based on keep_alive setting
-        int keep_alive = res->keep_alive;
-        reply(res, res->status, res->content_type, res->body, res->body_len);
-        return keep_alive ? 0 : 1;
-    }
-
     // Route matching validation
     if (!global_route_trie || !ctx->method)
     {
         printf("ERROR: Missing route trie (%p) or method (%s)\n",
                global_route_trie, ctx->method ? ctx->method : "NULL");
-        cors_add_headers(ctx, res);
 
         // 404 but still success response: Return based on keep_alive
         int keep_alive = res->keep_alive;
@@ -738,8 +727,6 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     route_match_t match;
     if (!route_trie_match(global_route_trie, ctx->method, &tokenized_path, &match))
     {
-        cors_add_headers(ctx, res);
-
         // 404 but still success response: Return based on keep_alive
         int keep_alive = res->keep_alive;
 
@@ -768,7 +755,6 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     }
 
     // Success path - call handler
-    cors_add_headers(ctx, res);
 
     // Calls chain if there is a middleware
     // otherwise, calls the handler directly
