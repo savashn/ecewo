@@ -245,36 +245,96 @@ static int extract_url_params(Arena *arena, const route_match_t *match, request_
     return 0;
 }
 
-// Context clearing
-static void req_clear_context(Req *req)
+static unsigned int hash_key(const char *key)
 {
-    if (!req)
-        return;
-
-    req->context.data = NULL;
-    req->context.size = 0;
-    req->context.arena = NULL;
+    unsigned int hash = 5381;
+    while (*key)
+    {
+        hash = ((hash << 5) + hash) + (unsigned char)*key++;
+    }
+    return hash % CONTEXT_HASH_SIZE;
 }
 
-// Context management functions
-void set_context(Req *req, void *data, size_t size)
+void context_init(context_t *ctx, Arena *arena)
 {
-    if (!req)
+    if (!ctx || !arena)
         return;
 
-    // Clear existing context first
-    req_clear_context(req);
-
-    req->context.data = data;
-    req->context.size = size;
-    req->context.arena = req->arena;
+    ctx->arena = arena;
+    for (int i = 0; i < CONTEXT_HASH_SIZE; i++)
+    {
+        ctx->buckets[i] = NULL;
+    }
 }
 
-void *get_context(Req *req)
+void context_set(Req *req, const char *key, void *data, size_t size)
 {
-    if (!req)
+    if (!req || !key || !data)
+        return;
+
+    context_t *ctx = &req->ctx;
+    unsigned int bucket = hash_key(key);
+    context_entry_t *entry = ctx->buckets[bucket];
+
+    // Update existing entry
+    while (entry)
+    {
+        if (strcmp(entry->key, key) == 0)
+        {
+            entry->data = arena_alloc(ctx->arena, size);
+            if (!entry->data)
+                return;
+            arena_memcpy(entry->data, data, size);
+            entry->size = size;
+            return;
+        }
+        entry = entry->next;
+    }
+
+    // Create new entry
+    context_entry_t *new_entry = arena_alloc(ctx->arena, sizeof(context_entry_t));
+    if (!new_entry)
+        return;
+
+    new_entry->key = arena_strdup(ctx->arena, key);
+    if (!new_entry->key)
+        return;
+
+    new_entry->data = arena_alloc(ctx->arena, size);
+    if (!new_entry->data)
+        return;
+
+    arena_memcpy(new_entry->data, data, size);
+    new_entry->size = size;
+    new_entry->next = ctx->buckets[bucket];
+
+    ctx->buckets[bucket] = new_entry;
+}
+
+void *context_get(Req *req, const char *key)
+{
+    if (!req || !key)
         return NULL;
-    return req->context.data;
+
+    context_t *ctx = &req->ctx;
+    unsigned int bucket = hash_key(key);
+    context_entry_t *entry = ctx->buckets[bucket];
+
+    while (entry)
+    {
+        if (strcmp(entry->key, key) == 0)
+        {
+            return entry->data;
+        }
+        entry = entry->next;
+    }
+
+    return NULL;
+}
+
+bool context_has(Req *req, const char *key)
+{
+    return context_get(req, key) != NULL;
 }
 
 // Create and initialize Req
@@ -300,10 +360,8 @@ static Req *create_req(Arena *arena, uv_tcp_t *client_socket)
     memset(&req->query, 0, sizeof(request_t));
     memset(&req->params, 0, sizeof(request_t));
 
-    // Initialize context
-    req->context.data = NULL;
-    req->context.size = 0;
-    req->context.arena = arena;
+    // Context'i başlat
+    context_init(&req->ctx, arena);
 
     return req;
 }

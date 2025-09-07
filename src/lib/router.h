@@ -84,13 +84,21 @@ typedef enum
     NETWORK_AUTHENTICATION_REQUIRED = 511
 } http_status_t;
 
-// Arena-aware context structure for middleware data
-typedef struct
+typedef struct context_entry
 {
+    char *key;
     void *data;
     size_t size;
-    Arena *arena; // Arena this context belongs to
-} req_context_t;
+    struct context_entry *next;
+} context_entry_t;
+
+#define CONTEXT_HASH_SIZE 32
+
+typedef struct
+{
+    context_entry_t *buckets[CONTEXT_HASH_SIZE];
+    Arena *arena;
+} context_t;
 
 // Arena-aware Request structure
 typedef struct Req
@@ -104,7 +112,7 @@ typedef struct Req
     request_t headers;
     request_t query;
     request_t params;
-    req_context_t context; // Middleware context
+    context_t ctx; // Middleware context
 } Req;
 
 // HTTP Header structure
@@ -160,9 +168,10 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
 void set_header(Res *res, const char *name, const char *value);
 void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len);
 
-// Context management functions
-void set_context(Req *req, void *data, size_t size);
-void *get_context(Req *req);
+void ctx_init(context_t *ctx, Arena *arena);
+void context_set(Req *req, const char *key, void *data, size_t size);
+void *context_get(Req *req, const char *key);
+bool ctx_has(Req *req, const char *key);
 
 // Convenience response functions
 static inline void send_text(Res *res, int status, const char *body)
@@ -201,6 +210,8 @@ static inline const char *get_headers(const Req *req, const char *key)
     return get_req(&req->headers, key);
 }
 
+// Allocation
+
 #define ecewo_alloc(x, size_bytes) \
     arena_alloc((x)->arena, size_bytes)
 
@@ -218,5 +229,46 @@ static inline const char *get_headers(const Req *req, const char *key)
 
 #define ecewo_vsprintf(x, format, args) \
     arena_vsprintf((x)->arena, format, args)
+
+// Context
+static inline void context_set_string(Req *req, const char *key, const char *value)
+{
+    if (value)
+    {
+        char *copy = ecewo_strdup(req, value);
+        context_set(req, key, copy, strlen(copy) + 1);
+    }
+}
+
+static inline char *context_get_string(Req *req, const char *key)
+{
+    return (char *)context_get(req, key);
+}
+
+static inline void context_set_int(Req *req, const char *key, int value)
+{
+    int *copy = ecewo_alloc(req, sizeof(int));
+    *copy = value;
+    context_set(req, key, copy, sizeof(int));
+}
+
+static inline int context_get_int(Req *req, const char *key)
+{
+    int *value = (int *)context_get(req, key);
+    return value ? *value : 0;
+}
+
+static inline void context_set_bool(Req *req, const char *key, bool value)
+{
+    bool *copy = ecewo_alloc(req, sizeof(bool));
+    *copy = value;
+    context_set(req, key, copy, sizeof(bool));
+}
+
+static inline bool context_get_bool(Req *req, const char *key)
+{
+    bool *value = (bool *)context_get(req, key);
+    return value ? *value : false;
+}
 
 #endif
