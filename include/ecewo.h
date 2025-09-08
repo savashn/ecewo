@@ -2,7 +2,6 @@
 #define ECEWO_H
 
 #include "../src/server/server.h"
-#include "../src/utils/cookie.h"
 #include "../src/utils/async.h"
 
 #endif
