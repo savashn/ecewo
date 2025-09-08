@@ -230,45 +230,4 @@ static inline const char *get_headers(const Req *req, const char *key)
 #define ecewo_vsprintf(x, format, args) \
     arena_vsprintf((x)->arena, format, args)
 
-// Type-safe context convenience functions
-static inline void context_set_string(Req *req, const char *key, const char *value)
-{
-    if (value)
-    {
-        char *copy = ecewo_strdup(req, value);
-        context_set(req, key, copy, strlen(copy) + 1);
-    }
-}
-
-static inline char *context_get_string(Req *req, const char *key)
-{
-    return (char *)context_get(req, key);
-}
-
-static inline void context_set_int(Req *req, const char *key, int value)
-{
-    int *copy = ecewo_alloc(req, sizeof(int));
-    *copy = value;
-    context_set(req, key, copy, sizeof(int));
-}
-
-static inline int context_get_int(Req *req, const char *key)
-{
-    int *value = (int *)context_get(req, key);
-    return value ? *value : 0;
-}
-
-static inline void context_set_bool(Req *req, const char *key, bool value)
-{
-    bool *copy = ecewo_alloc(req, sizeof(bool));
-    *copy = value;
-    context_set(req, key, copy, sizeof(bool));
-}
-
-static inline bool context_get_bool(Req *req, const char *key)
-{
-    bool *value = (bool *)context_get(req, key);
-    return value ? *value : false;
-}
-
 #endif
