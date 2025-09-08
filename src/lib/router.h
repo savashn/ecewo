@@ -84,23 +84,24 @@ typedef enum
     NETWORK_AUTHENTICATION_REQUIRED = 511
 } http_status_t;
 
-typedef struct context_entry
+// Context entry
+typedef struct
 {
     char *key;
     void *data;
     size_t size;
-    struct context_entry *next;
 } context_entry_t;
 
-#define CONTEXT_HASH_SIZE 32
-
+// Context
 typedef struct
 {
-    context_entry_t *buckets[CONTEXT_HASH_SIZE];
+    context_entry_t *entries;
+    int count;
+    int capacity;
     Arena *arena;
 } context_t;
 
-// Arena-aware Request structure
+// Request structure
 typedef struct Req
 {
     Arena *arena; // Arena for this request's memory
@@ -122,7 +123,7 @@ typedef struct
     char *value;
 } http_header_t;
 
-// Arena-aware Response structure
+// Response structure
 typedef struct Res
 {
     Arena *arena; // Arena for this response's memory
@@ -168,10 +169,10 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
 void set_header(Res *res, const char *name, const char *value);
 void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len);
 
-void ctx_init(context_t *ctx, Arena *arena);
+void context_init(context_t *ctx, Arena *arena);
 void context_set(Req *req, const char *key, void *data, size_t size);
 void *context_get(Req *req, const char *key);
-bool ctx_has(Req *req, const char *key);
+bool context_has(Req *req, const char *key);
 
 // Convenience response functions
 static inline void send_text(Res *res, int status, const char *body)
@@ -210,8 +211,7 @@ static inline const char *get_headers(const Req *req, const char *key)
     return get_req(&req->headers, key);
 }
 
-// Allocation
-
+// Allocation macros
 #define ecewo_alloc(x, size_bytes) \
     arena_alloc((x)->arena, size_bytes)
 
@@ -230,7 +230,7 @@ static inline const char *get_headers(const Req *req, const char *key)
 #define ecewo_vsprintf(x, format, args) \
     arena_vsprintf((x)->arena, format, args)
 
-// Context
+// Type-safe context convenience functions
 static inline void context_set_string(Req *req, const char *key, const char *value)
 {
     if (value)

@@ -68,7 +68,6 @@ static void send_error(Arena *arena, uv_tcp_t *client_socket, int error_code)
         // Arena path
         char *response = arena_sprintf(arena,
                                        "HTTP/1.1 %d %s\r\n"
-                                       "Server: Ecewo\r\n"
                                        "Date: %s\r\n"
                                        "Content-Type: text/plain\r\n"
                                        "Content-Length: %zu\r\n"
@@ -126,14 +125,17 @@ static void send_error(Arena *arena, uv_tcp_t *client_socket, int error_code)
 
         int written = snprintf(response, response_size,
                                "HTTP/1.1 %d %s\r\n"
-                               "Server: Ecewo\r\n"
                                "Date: %s\r\n"
                                "Content-Type: text/plain\r\n"
                                "Content-Length: %zu\r\n"
                                "Connection: close\r\n"
                                "\r\n"
                                "%s",
-                               error_code, status_text, date_str, body_len, body);
+                               error_code,
+                               status_text,
+                               date_str,
+                               body_len,
+                               body);
 
         if (written < 0 || (size_t)written >= response_size)
         {
@@ -245,26 +247,16 @@ static int extract_url_params(Arena *arena, const route_match_t *match, request_
     return 0;
 }
 
-static unsigned int hash_key(const char *key)
-{
-    unsigned int hash = 5381;
-    while (*key)
-    {
-        hash = ((hash << 5) + hash) + (unsigned char)*key++;
-    }
-    return hash % CONTEXT_HASH_SIZE;
-}
-
+// Context initialization
 void context_init(context_t *ctx, Arena *arena)
 {
     if (!ctx || !arena)
         return;
 
     ctx->arena = arena;
-    for (int i = 0; i < CONTEXT_HASH_SIZE; i++)
-    {
-        ctx->buckets[i] = NULL;
-    }
+    ctx->entries = NULL;
+    ctx->count = 0;
+    ctx->capacity = 0;
 }
 
 void context_set(Req *req, const char *key, void *data, size_t size)
@@ -273,42 +265,62 @@ void context_set(Req *req, const char *key, void *data, size_t size)
         return;
 
     context_t *ctx = &req->ctx;
-    unsigned int bucket = hash_key(key);
-    context_entry_t *entry = ctx->buckets[bucket];
 
-    // Update existing entry
-    while (entry)
+    // Linear search for existing entry
+    for (int i = 0; i < ctx->count; i++)
     {
-        if (strcmp(entry->key, key) == 0)
+        if (ctx->entries[i].key && strcmp(ctx->entries[i].key, key) == 0)
         {
-            entry->data = arena_alloc(ctx->arena, size);
-            if (!entry->data)
+            // Update existing entry
+            ctx->entries[i].data = arena_alloc(ctx->arena, size);
+            if (!ctx->entries[i].data)
                 return;
-            arena_memcpy(entry->data, data, size);
-            entry->size = size;
+            arena_memcpy(ctx->entries[i].data, data, size);
+            ctx->entries[i].size = size;
             return;
         }
-        entry = entry->next;
     }
 
-    // Create new entry
-    context_entry_t *new_entry = arena_alloc(ctx->arena, sizeof(context_entry_t));
-    if (!new_entry)
+    // Need to add new entry - check capacity
+    if (ctx->count >= ctx->capacity)
+    {
+        int new_capacity = ctx->capacity == 0 ? 8 : ctx->capacity * 2;
+
+        context_entry_t *new_entries = arena_realloc(ctx->arena,
+                                                     ctx->entries,
+                                                     ctx->capacity * sizeof(context_entry_t),
+                                                     new_capacity * sizeof(context_entry_t));
+
+        if (!new_entries)
+            return;
+
+        // Initialize new entries
+        for (int i = ctx->capacity; i < new_capacity; i++)
+        {
+            new_entries[i].key = NULL;
+            new_entries[i].data = NULL;
+            new_entries[i].size = 0;
+        }
+
+        ctx->entries = new_entries;
+        ctx->capacity = new_capacity;
+    }
+
+    // Add new entry
+    context_entry_t *entry = &ctx->entries[ctx->count];
+
+    entry->key = arena_strdup(ctx->arena, key);
+    if (!entry->key)
         return;
 
-    new_entry->key = arena_strdup(ctx->arena, key);
-    if (!new_entry->key)
+    entry->data = arena_alloc(ctx->arena, size);
+    if (!entry->data)
         return;
 
-    new_entry->data = arena_alloc(ctx->arena, size);
-    if (!new_entry->data)
-        return;
+    arena_memcpy(entry->data, data, size);
+    entry->size = size;
 
-    arena_memcpy(new_entry->data, data, size);
-    new_entry->size = size;
-    new_entry->next = ctx->buckets[bucket];
-
-    ctx->buckets[bucket] = new_entry;
+    ctx->count++;
 }
 
 void *context_get(Req *req, const char *key)
@@ -317,16 +329,13 @@ void *context_get(Req *req, const char *key)
         return NULL;
 
     context_t *ctx = &req->ctx;
-    unsigned int bucket = hash_key(key);
-    context_entry_t *entry = ctx->buckets[bucket];
 
-    while (entry)
+    for (int i = 0; i < ctx->count; i++)
     {
-        if (strcmp(entry->key, key) == 0)
+        if (ctx->entries[i].key && strcmp(ctx->entries[i].key, key) == 0)
         {
-            return entry->data;
+            return ctx->entries[i].data;
         }
-        entry = entry->next;
     }
 
     return NULL;
@@ -360,7 +369,7 @@ static Req *create_req(Arena *arena, uv_tcp_t *client_socket)
     memset(&req->query, 0, sizeof(request_t));
     memset(&req->params, 0, sizeof(request_t));
 
-    // Context'i başlat
+    // Initialize context
     context_init(&req->ctx, arena);
 
     return req;
@@ -587,7 +596,6 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     int base_header_len = snprintf(
         NULL, 0,
         "HTTP/1.1 %d\r\n"
-        "Server: Ecewo\r\n"
         "Date: %s\r\n"
         "%s"
         "Content-Type: %s\r\n"
@@ -628,7 +636,6 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         response,
         (size_t)base_header_len + 1,
         "HTTP/1.1 %d\r\n"
-        "Server: Ecewo\r\n"
         "Date: %s\r\n"
         "%s"
         "Content-Type: %s\r\n"
