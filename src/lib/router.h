@@ -195,6 +195,50 @@ static inline void send_cbor(Res *res, int status, const char *body, size_t body
     reply(res, status, "application/cbor", body, body_len);
 }
 
+// Redirect
+
+static inline void redirect(Res *res, int status, const char *url)
+{
+    if (!res || !url)
+        return;
+
+    set_header(res, "Location", url);
+
+    // Default message based on status code
+    const char *message;
+    size_t message_len;
+
+    switch (status)
+    {
+    case MOVED_PERMANENTLY: // 301
+        message = "Moved Permanently";
+        message_len = 17;
+        break;
+    case FOUND: // 302
+        message = "Found";
+        message_len = 5;
+        break;
+    case SEE_OTHER: // 303
+        message = "See Other";
+        message_len = 9;
+        break;
+    case TEMPORARY_REDIRECT: // 307
+        message = "Temporary Redirect";
+        message_len = 18;
+        break;
+    case PERMANENT_REDIRECT: // 308
+        message = "Permanent Redirect";
+        message_len = 18;
+        break;
+    default:
+        message = "Redirect";
+        message_len = 8;
+        break;
+    }
+
+    reply(res, status, "text/plain", message, message_len);
+}
+
 // Convenience getter functions
 static inline const char *get_params(const Req *req, const char *key)
 {
