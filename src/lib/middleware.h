@@ -48,7 +48,7 @@ extern int global_middleware_count;
 void hook(MiddlewareHandler middleware_handler);
 
 // Function to execute the next middleware or route handler in the chain
-int next(Chain *chain, Req *req, Res *res);
+int next(Req *req, Res *res, Chain *chain);
 
 void register_route(const char *method, const char *path,
                     MiddlewareArray middleware,

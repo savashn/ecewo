@@ -248,7 +248,7 @@ static int extract_url_params(Arena *arena, const route_match_t *match, request_
 }
 
 // Context initialization
-void context_init(context_t *ctx, Arena *arena)
+static void context_init(context_t *ctx, Arena *arena)
 {
     if (!ctx || !arena)
         return;
@@ -259,7 +259,7 @@ void context_init(context_t *ctx, Arena *arena)
     ctx->capacity = 0;
 }
 
-void context_set(Req *req, const char *key, void *data, size_t size)
+void set_context(Req *req, const char *key, void *data, size_t size)
 {
     if (!req || !key || !data)
         return;
@@ -323,7 +323,7 @@ void context_set(Req *req, const char *key, void *data, size_t size)
     ctx->count++;
 }
 
-void *context_get(Req *req, const char *key)
+void *get_context(Req *req, const char *key)
 {
     if (!req || !key)
         return NULL;
@@ -339,11 +339,6 @@ void *context_get(Req *req, const char *key)
     }
 
     return NULL;
-}
-
-bool context_has(Req *req, const char *key)
-{
-    return context_get(req, key) != NULL;
 }
 
 // Create and initialize Req

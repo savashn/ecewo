@@ -30,7 +30,7 @@ void hook(MiddlewareHandler middleware_handler)
 }
 
 // Helper function for middleware chain execution
-int next(Chain *chain, Req *req, Res *res)
+int next(Req *req, Res *res, Chain *chain)
 {
     if (!chain)
     {

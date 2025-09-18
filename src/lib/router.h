@@ -169,10 +169,8 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
 void set_header(Res *res, const char *name, const char *value);
 void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len);
 
-void context_init(context_t *ctx, Arena *arena);
-void context_set(Req *req, const char *key, void *data, size_t size);
-void *context_get(Req *req, const char *key);
-bool context_has(Req *req, const char *key);
+void set_context(Req *req, const char *key, void *data, size_t size);
+void *get_context(Req *req, const char *key);
 
 // Convenience response functions
 static inline void send_text(Res *res, int status, const char *body)
@@ -240,7 +238,7 @@ static inline void redirect(Res *res, int status, const char *url)
 }
 
 // Convenience getter functions
-static inline const char *get_params(const Req *req, const char *key)
+static inline const char *get_param(const Req *req, const char *key)
 {
     return get_req(&req->params, key);
 }
@@ -250,7 +248,7 @@ static inline const char *get_query(const Req *req, const char *key)
     return get_req(&req->query, key);
 }
 
-static inline const char *get_headers(const Req *req, const char *key)
+static inline const char *get_header(const Req *req, const char *key)
 {
     return get_req(&req->headers, key);
 }
