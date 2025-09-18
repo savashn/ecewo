@@ -37,3 +37,6 @@
     5. [Step 4: Write The Second Operation](07.async_operations.md#step-4-write-the-second-operation)
     6. [Final View](07.async_operations.md#final-view)
     7. [Test](07.async_operations.md#test)
+8. [Timers](08.timers.md)
+    1. [One-Time Delay](08.timers.md#one-time-delay)
+    2. [Periodic Task](08.timers.md#periodic-task)
