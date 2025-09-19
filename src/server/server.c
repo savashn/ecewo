@@ -176,6 +176,88 @@ static void stop_cleanup_timer(void)
 // CORE SERVER API
 // ============================================================================
 
+static void server_shutdown(void)
+{
+    if (g_server.shutdown_requested)
+    {
+        return;
+    }
+
+    g_server.shutdown_requested = 1;
+    g_server.running = 0;
+
+    // Call user cleanup
+    if (g_server.shutdown_callback)
+    {
+        g_server.shutdown_callback();
+    }
+
+    // Stop cleanup timer first
+    stop_cleanup_timer();
+
+    // Stop signal handlers
+    uv_signal_stop(&g_server.sigint_handle);
+    uv_signal_stop(&g_server.sigterm_handle);
+
+    // Close all connections and timers
+    uv_walk(g_server.loop, close_walk_cb, NULL);
+
+    // Wait for connections to close
+    int wait_count = 0;
+    while (g_server.active_connections > 0)
+    {
+        uv_run(g_server.loop, UV_RUN_ONCE);
+        wait_count++;
+
+        // Progress report every 10 iterations
+        if (wait_count % 10 == 0)
+        {
+            printf("Waiting for %d connections to close...\n",
+                   g_server.active_connections);
+        }
+    }
+
+    // Close server handle
+    if (g_server.server && !uv_is_closing((uv_handle_t *)g_server.server))
+    {
+        uv_close((uv_handle_t *)g_server.server, on_server_closed);
+    }
+}
+
+static void server_cleanup(void)
+{
+    if (!g_server.initialized)
+    {
+        return;
+    }
+
+    // Stop cleanup timer first
+    stop_cleanup_timer();
+
+    // Cleanup router system internally
+    router_cleanup();
+
+    // Process remaining cleanup events
+    while (uv_loop_alive(g_server.loop))
+    {
+        if (uv_run(g_server.loop, UV_RUN_ONCE) == 0)
+        {
+            break;
+        }
+    }
+
+    uv_loop_close(g_server.loop);
+
+    // Final cleanup
+    if (g_server.server && !g_server.server_closed)
+    {
+        free(g_server.server);
+    }
+
+    memset(&g_server, 0, sizeof(g_server));
+    printf("Server cleanup completed\n");
+}
+
 int server_init(void)
 {
     if (g_server.initialized)
@@ -298,88 +380,6 @@ void server_run(void)
 
     // Automatic cleanup when loop ends
     server_cleanup();
-}
-
-void server_shutdown(void)
-{
-    if (g_server.shutdown_requested)
-    {
-        return;
-    }
-
-    g_server.shutdown_requested = 1;
-    g_server.running = 0;
-
-    // Call user cleanup
-    if (g_server.shutdown_callback)
-    {
-        g_server.shutdown_callback();
-    }
-
-    // Stop cleanup timer first
-    stop_cleanup_timer();
-
-    // Stop signal handlers
-    uv_signal_stop(&g_server.sigint_handle);
-    uv_signal_stop(&g_server.sigterm_handle);
-
-    // Close all connections and timers
-    uv_walk(g_server.loop, close_walk_cb, NULL);
-
-    // Wait for connections to close
-    int wait_count = 0;
-    while (g_server.active_connections > 0)
-    {
-        uv_run(g_server.loop, UV_RUN_ONCE);
-        wait_count++;
-
-        // Progress report every 10 iterations
-        if (wait_count % 10 == 0)
-        {
-            printf("Waiting for %d connections to close...\n",
-                   g_server.active_connections);
-        }
-    }
-
-    // Close server handle
-    if (g_server.server && !uv_is_closing((uv_handle_t *)g_server.server))
-    {
-        uv_close((uv_handle_t *)g_server.server, on_server_closed);
-    }
-}
-
-void server_cleanup(void)
-{
-    if (!g_server.initialized)
-    {
-        return;
-    }
-
-    // Stop cleanup timer first
-    stop_cleanup_timer();
-
-    // Cleanup router system internally
-    router_cleanup();
-
-    // Process remaining cleanup events
-    while (uv_loop_alive(g_server.loop))
-    {
-        if (uv_run(g_server.loop, UV_RUN_ONCE) == 0)
-        {
-            break;
-        }
-    }
-
-    uv_loop_close(g_server.loop);
-
-    // Final cleanup
-    if (g_server.server && !g_server.server_closed)
-    {
-        free(g_server.server);
-    }
-
-    memset(&g_server, 0, sizeof(g_server));
-    printf("Server cleanup completed\n");
 }
 
 // ============================================================================

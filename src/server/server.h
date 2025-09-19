@@ -51,13 +51,6 @@ int server_listen(int port);
 // Automatically calls server_cleanup() when loop exits
 void server_run(void);
 
-// Emergency graceful shutdown
-void server_shutdown(void);
-
-// Clean up server resources
-// Called automatically by server_run() or can be called manually
-void server_cleanup(void);
-
 // ============================================================================
 // CONFIGURATION API
 // ============================================================================
