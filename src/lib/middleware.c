@@ -57,7 +57,7 @@ int next(Req *req, Res *res, Chain *chain)
         {
             printf("Warning: NULL middleware handler at position %d\n", chain->current - 1);
             // Skip this middleware and try the next one
-            return next(chain, req, res);
+            return next(req, res, chain);
         }
     }
     else
@@ -148,7 +148,7 @@ void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_inf
     chain->route_handler = middleware_info->handler;
 
     // Start middleware chain execution
-    int result = next(chain, req, res);
+    int result = next(req, res, chain);
 
     // Error handling
     if (result == -1)
