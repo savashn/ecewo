@@ -1,8 +1,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include "../config/compat.h"
 #include "async.h"
+
+#ifdef _WIN32
+#define strdup _strdup
+#endif
 
 // Thread pool work callback
 static void _async_work_cb(uv_work_t *req)

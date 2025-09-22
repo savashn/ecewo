@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <ctype.h>
 #include "../../vendors/arena.h"
 #include "request.h"
 
@@ -192,6 +193,26 @@ static int ensure_array_capacity(Arena *arena, request_t *array)
     return 0;
 }
 
+static int str_case_ncmp(const char *s1, const char *s2, size_t n)
+{
+    if (!s1 || !s2 || n == 0)
+        return (n == 0) ? 0 : s1 - s2;
+
+    for (size_t i = 0; i < n && *s1 && *s2; i++, s1++, s2++)
+    {
+        int c1 = tolower((unsigned char)*s1);
+        int c2 = tolower((unsigned char)*s2);
+
+        if (c1 != c2)
+            return c1 - c2;
+    }
+
+    if (n > 0)
+        return tolower((unsigned char)*s1) - tolower((unsigned char)*s2);
+
+    return 0;
+}
+
 // llhttp callback for headers value
 static int on_header_value_cb(llhttp_t *parser, const char *at, size_t length)
 {
@@ -231,15 +252,14 @@ static int on_header_value_cb(llhttp_t *parser, const char *at, size_t length)
     context->headers.items[context->headers.count].value = value;
     context->headers.count++;
 
-    // Handle Connection header for keep-alive
     if (context->current_header_field &&
-        strcasecmp(context->current_header_field, "Connection") == 0)
+        str_case_ncmp(context->current_header_field, "Connection", 10) == 0)
     {
-        if (length == 10 && strncasecmp(at, "keep-alive", 10) == 0)
+        if (length == 10 && str_case_ncmp(at, "keep-alive", 10) == 0)
         {
             context->keep_alive = 1;
         }
-        else if (length == 5 && strncasecmp(at, "close", 5) == 0)
+        else if (length == 5 && str_case_ncmp(at, "close", 5) == 0)
         {
             context->keep_alive = 0;
         }

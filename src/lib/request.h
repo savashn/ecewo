@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include "llhttp.h"
-#include "../config/compat.h"
 #include "../../vendors/arena.h"
 
 typedef struct
