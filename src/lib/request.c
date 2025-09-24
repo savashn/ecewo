@@ -101,7 +101,7 @@ static int ensure_buffer_capacity(Arena *arena, char **buffer, size_t *capacity,
 static int on_url_cb(llhttp_t *parser, const char *at, size_t length)
 {
     if (!parser || !parser->data || !at || length == 0)
-        return HPE_INVALID_INTERNAL_STATE;
+        return HPE_INTERNAL;
 
     http_context_t *context = (http_context_t *)parser->data;
 
@@ -137,7 +137,7 @@ static int on_url_cb(llhttp_t *parser, const char *at, size_t length)
 static int on_header_field_cb(llhttp_t *parser, const char *at, size_t length)
 {
     if (!parser || !parser->data || !at || length == 0)
-        return HPE_INVALID_INTERNAL_STATE;
+        return HPE_INTERNAL;
 
     http_context_t *context = (http_context_t *)parser->data;
 
@@ -262,7 +262,7 @@ static int str_case_ncmp(const char *s1, const char *s2, size_t n)
 static int on_header_value_cb(llhttp_t *parser, const char *at, size_t length)
 {
     if (!parser || !parser->data || !at || length == 0)
-        return HPE_INVALID_INTERNAL_STATE;
+        return HPE_INTERNAL;
 
     http_context_t *context = (http_context_t *)parser->data;
 
@@ -330,7 +330,7 @@ static int on_header_value_cb(llhttp_t *parser, const char *at, size_t length)
 static int on_method_cb(llhttp_t *parser, const char *at, size_t length)
 {
     if (!parser || !parser->data || !at || length == 0)
-        return HPE_INVALID_INTERNAL_STATE;
+        return HPE_INTERNAL;
 
     http_context_t *context = (http_context_t *)parser->data;
 
@@ -376,7 +376,7 @@ static int on_method_cb(llhttp_t *parser, const char *at, size_t length)
 static int on_body_cb(llhttp_t *parser, const char *at, size_t length)
 {
     if (!parser || !parser->data || !at || length == 0)
-        return HPE_INVALID_INTERNAL_STATE;
+        return HPE_INTERNAL;
 
     http_context_t *context = (http_context_t *)parser->data;
 
@@ -405,7 +405,7 @@ static int on_body_cb(llhttp_t *parser, const char *at, size_t length)
 static int on_version_cb(llhttp_t *parser)
 {
     if (!parser || !parser->data)
-        return HPE_INVALID_INTERNAL_STATE;
+        return HPE_INTERNAL;
 
     http_context_t *context = (http_context_t *)parser->data;
 
