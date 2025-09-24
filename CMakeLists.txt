@@ -1,4 +1,12 @@
 cmake_minimum_required(VERSION 3.14)
+
+if(POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW)  # DOWNLOAD_EXTRACT_TIMESTAMP
+endif()
+if(POLICY CMP0092)
+    cmake_policy(SET CMP0092 NEW)  # Don't add /W3 by default
+endif()
+
 project(ecewo VERSION 2.0.0 LANGUAGES C)
 
 # C Standard
@@ -66,12 +74,12 @@ FetchContent_Declare(
 
 # Configure llhttp to match ecewo's library type
 if(ECEWO_BUILD_SHARED)
-    set(LLHTTP_BUILD_SHARED_LIBS ON CACHE BOOL "Build shared llhttp for shared ecewo" FORCE)
-    set(LLHTTP_BUILD_STATIC_LIBS OFF CACHE BOOL "Don't build static llhttp for shared ecewo" FORCE)
+    set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared llhttp for shared ecewo" FORCE)
+    set(BUILD_STATIC_LIBS OFF CACHE BOOL "Don't build static llhttp for shared ecewo" FORCE)
     message(STATUS "  - Configuring llhttp as SHARED library")
 else()
-    set(LLHTTP_BUILD_SHARED_LIBS OFF CACHE BOOL "Don't build shared llhttp for static ecewo" FORCE)
-    set(LLHTTP_BUILD_STATIC_LIBS ON CACHE BOOL "Build static llhttp for static ecewo" FORCE)
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Don't build shared llhttp for static ecewo" FORCE)
+    set(BUILD_STATIC_LIBS ON CACHE BOOL "Build static llhttp for static ecewo" FORCE)
     message(STATUS "  - Configuring llhttp as STATIC library")
 endif()
 
