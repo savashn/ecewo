@@ -53,6 +53,7 @@ FetchContent_Declare(
     libuv
     GIT_REPOSITORY https://github.com/libuv/libuv.git
     GIT_TAG v1.51.0
+    GIT_SHALLOW TRUE
 )
 
 # Configure libuv to match ecewo's library type
@@ -69,17 +70,19 @@ FetchContent_MakeAvailable(libuv)
 # Fetch llhttp
 FetchContent_Declare(
     llhttp
-    URL "https://github.com/nodejs/llhttp/archive/refs/tags/release/v8.1.0.tar.gz"
+    GIT_REPOSITORY https://github.com/nodejs/llhttp.git
+    GIT_TAG v9.3.0
+    GIT_SHALLOW TRUE
 )
 
 # Configure llhttp to match ecewo's library type
 if(ECEWO_BUILD_SHARED)
-    set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared llhttp for shared ecewo" FORCE)
-    set(BUILD_STATIC_LIBS OFF CACHE BOOL "Don't build static llhttp for shared ecewo" FORCE)
+    set(LLHTTP_BUILD_SHARED_LIBS ON CACHE BOOL "Build shared llhttp for shared ecewo" FORCE)
+    set(LLHTTP_BUILD_STATIC_LIBS OFF CACHE BOOL "Don't build static llhttp for shared ecewo" FORCE)
     message(STATUS "  - Configuring llhttp as SHARED library")
 else()
-    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Don't build shared llhttp for static ecewo" FORCE)
-    set(BUILD_STATIC_LIBS ON CACHE BOOL "Build static llhttp for static ecewo" FORCE)
+    set(LLHTTP_BUILD_SHARED_LIBS OFF CACHE BOOL "Don't build shared llhttp for static ecewo" FORCE)
+    set(LLHTTP_BUILD_STATIC_LIBS ON CACHE BOOL "Build static llhttp for static ecewo" FORCE)
     message(STATUS "  - Configuring llhttp as STATIC library")
 endif()
 

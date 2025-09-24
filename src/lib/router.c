@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <stddef.h>
 #include <time.h>
@@ -738,8 +739,39 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     enum llhttp_errno err = llhttp_execute(&ctx->parser, request_data, request_len);
     if (err != HPE_OK)
     {
-        send_error(arena, client_socket, 400);
+        const char *error_name = llhttp_errno_name(err);
+        const char *error_reason = llhttp_get_error_reason(&ctx->parser);
+
+        fprintf(stderr, "HTTP parsing failed: %s", error_name);
+        if (error_reason)
+        {
+            fprintf(stderr, " - %s", error_reason);
+        }
+        fprintf(stderr, "\n");
+
+        int error_code = (err == HPE_USER) ? 400 : 500;
+        send_error(arena, client_socket, error_code);
         return 1;
+    }
+
+    if (llhttp_message_needs_eof(&ctx->parser))
+    {
+        enum llhttp_errno finish_err = llhttp_finish(&ctx->parser);
+        if (finish_err != HPE_OK)
+        {
+            const char *error_name = llhttp_errno_name(finish_err);
+            const char *error_reason = llhttp_get_error_reason(&ctx->parser);
+
+            fprintf(stderr, "HTTP finish failed: %s", error_name);
+            if (error_reason)
+            {
+                fprintf(stderr, " - %s", error_reason);
+            }
+            fprintf(stderr, "\n");
+
+            send_error(arena, client_socket, 400);
+            return 1;
+        }
     }
 
     // Extract path and query
