@@ -75,12 +75,12 @@ FetchContent_Declare(
 
 # Configure llhttp to match ecewo's library type
 if(ECEWO_BUILD_SHARED)
-    set(LLHTTP_BUILD_SHARED_LIBS ON CACHE BOOL "Build shared llhttp for shared ecewo" FORCE)
-    set(LLHTTP_BUILD_STATIC_LIBS OFF CACHE BOOL "Don't build static llhttp for shared ecewo" FORCE)
+    set(LLHTTP_BUILD_SHARED_LIBS ON CACHE INTERNAL "")
+    set(LLHTTP_BUILD_STATIC_LIBS OFF CACHE INTERNAL "")
     message(STATUS "  - Configuring llhttp as SHARED library")
 else()
-    set(LLHTTP_BUILD_SHARED_LIBS OFF CACHE BOOL "Don't build shared llhttp for static ecewo" FORCE)
-    set(LLHTTP_BUILD_STATIC_LIBS ON CACHE BOOL "Build static llhttp for static ecewo" FORCE)
+    set(LLHTTP_BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
+    set(LLHTTP_BUILD_STATIC_LIBS ON CACHE INTERNAL "")
     message(STATUS "  - Configuring llhttp as STATIC library")
 endif()
 
