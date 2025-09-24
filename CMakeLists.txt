@@ -70,9 +70,7 @@ FetchContent_MakeAvailable(libuv)
 # Fetch llhttp
 FetchContent_Declare(
     llhttp
-    GIT_REPOSITORY https://github.com/nodejs/llhttp.git
-    GIT_TAG v9.3.0
-    GIT_SHALLOW TRUE
+    URL "https://github.com/nodejs/llhttp/archive/refs/tags/release/v9.3.0.tar.gz"
 )
 
 # Configure llhttp to match ecewo's library type
