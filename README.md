@@ -71,7 +71,7 @@ FetchContent_Declare(
 )
 
 # Recommended: Force static build (remove this line for shared build)
-set(ECEWO_BUILD_SHARED OFF CACHE BOOL "Build as shared" FORCE)
+set(ECEWO_BUILD_SHARED OFF CACHE BOOL "Build shared library" FORCE)
 
 FetchContent_MakeAvailable(ecewo)
 
