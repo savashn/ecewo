@@ -73,14 +73,9 @@ FetchContent_Declare(
     URL "https://github.com/nodejs/llhttp/archive/refs/tags/release/v9.3.0.tar.gz"
 )
 
-# Configure llhttp to match ecewo's library type
-if(ECEWO_BUILD_SHARED)
-    set(LLHTTP_BUILD_SHARED_LIBS ON CACHE INTERNAL "")
-    set(LLHTTP_BUILD_STATIC_LIBS OFF CACHE INTERNAL "")
-    message(STATUS "  - Configuring llhttp as SHARED library")
-else()
-    set(LLHTTP_BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
-    set(LLHTTP_BUILD_STATIC_LIBS ON CACHE INTERNAL "")
+if (NOT ECEWO_BUILD_SHARED)
+    set(LLHTTP_BUILD_SHARED_LIBS OFF CACHE INTERNAL "" FORCE)
+    set(LLHTTP_BUILD_STATIC_LIBS ON CACHE INTERNAL "" FORCE)
     message(STATUS "  - Configuring llhttp as STATIC library")
 endif()
 
@@ -365,26 +360,6 @@ if(NOT TARGET ecewo::ecewo)
         install(EXPORT ecewoTargets
             FILE ecewoTargets.cmake
             NAMESPACE ecewo::
-            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ecewo
-        )
-        
-        # Create and install config file
-        include(CMakePackageConfigHelpers)
-        write_basic_package_version_file(
-            "${CMAKE_CURRENT_BINARY_DIR}/ecewoConfigVersion.cmake"
-            VERSION ${PROJECT_VERSION}
-            COMPATIBILITY AnyNewerVersion
-        )
-        
-        configure_package_config_file(
-            "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ecewoConfig.cmake.in"
-            "${CMAKE_CURRENT_BINARY_DIR}/ecewoConfig.cmake"
-            INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ecewo
-        )
-        
-        install(FILES
-            "${CMAKE_CURRENT_BINARY_DIR}/ecewoConfig.cmake"
-            "${CMAKE_CURRENT_BINARY_DIR}/ecewoConfigVersion.cmake"
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ecewo
         )
     endif()
