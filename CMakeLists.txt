@@ -73,9 +73,17 @@ FetchContent_Declare(
     URL "https://github.com/nodejs/llhttp/archive/refs/tags/release/v9.3.0.tar.gz"
 )
 
-if (NOT ECEWO_BUILD_SHARED)
+if(ECEWO_BUILD_SHARED)
+    set(LLHTTP_BUILD_SHARED_LIBS ON CACHE INTERNAL "" FORCE)
+    set(LLHTTP_BUILD_STATIC_LIBS OFF CACHE INTERNAL "" FORCE)
+    set(BUILD_SHARED_LIBS ON CACHE INTERNAL "" FORCE)
+    set(BUILD_STATIC_LIBS OFF CACHE INTERNAL "" FORCE)
+    message(STATUS "  - Configuring llhttp as SHARED library")
+else()
     set(LLHTTP_BUILD_SHARED_LIBS OFF CACHE INTERNAL "" FORCE)
     set(LLHTTP_BUILD_STATIC_LIBS ON CACHE INTERNAL "" FORCE)
+    set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "" FORCE)
+    set(BUILD_STATIC_LIBS ON CACHE INTERNAL "" FORCE)
     message(STATUS "  - Configuring llhttp as STATIC library")
 endif()
 
