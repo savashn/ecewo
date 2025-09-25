@@ -17,7 +17,6 @@ Inspired by [Express.js](https://expressjs.com/). It’s minimalist, unopinionat
 ## Table of Contents
 
 - [Quick Start](#quick-start)
-- [Out of The Box Features](#out-of-the-box-features)
 - [Requirements](#requirements)
 - [Benchmarks](#benchmarks)
 - [Documentation](#documentation)
@@ -25,28 +24,6 @@ Inspired by [Express.js](https://expressjs.com/). It’s minimalist, unopinionat
 - [License](#license)
 
 ## Quick Start
-
-**CMakeLists.txt:**
-```cmake
-cmake_minimum_required(VERSION 3.14)
-project(your_project VERSION 1.0.0 LANGUAGES C)
-
-include(FetchContent)
-
-FetchContent_Declare(
-    ecewo
-    GIT_REPOSITORY https://github.com/savashn/ecewo.git
-    GIT_TAG main # or use a specific version, such as v2.0.0
-)
-
-FetchContent_MakeAvailable(ecewo)
-
-add_executable(server
-    main.c
-)
-
-target_link_libraries(server PRIVATE ecewo)
-```
 
 **main.c:**
 ```c
@@ -80,20 +57,36 @@ int main(void)
 }
 ```
 
+**CMakeLists.txt:**
+```cmake
+cmake_minimum_required(VERSION 3.14)
+project(my_project VERSION 1.0.0 LANGUAGES C)
+
+include(FetchContent)
+
+FetchContent_Declare(
+    ecewo
+    GIT_REPOSITORY https://github.com/savashn/ecewo.git
+    GIT_TAG v2.0.0
+)
+
+# Recommended: Force static build (remove this line for shared build)
+set(ECEWO_BUILD_SHARED OFF CACHE BOOL "Build as shared" FORCE)
+
+FetchContent_MakeAvailable(ecewo)
+
+add_executable(server
+    main.c
+)
+
+target_link_libraries(server PRIVATE ecewo)
+```
+
 **Build:**
 
 ```shell
 mkdir build && cd build && cmake .. && cmake --build .
 ```
-
-## Out of The Box Features
-
-- Full asynchronous operations support
-- Cross-platform compatibility
-- JSON and CBOR support
-- Cookie management and optional session based authentication mechanism
-- Flexible middleware support (route-specific and global)
-- Express.js-like routing mechanism
 
 ## Requirements
 
@@ -116,7 +109,7 @@ Lower is better.
 
 ## Documentation
 
-Refer to the [docs](https://ecewo.vercel.app) for usage.
+Refer to the [docs](/docs/) for usage.
 
 ## Example App
 
