@@ -177,7 +177,7 @@ if(NOT TARGET ecewo::ecewo)
         # MSVC Production Optimizations
         if(CMAKE_BUILD_TYPE STREQUAL "Release")
             target_compile_options(ecewo PRIVATE 
-                /O2         # Maximize speed
+                /O2         # Balanced optimization
                 /Oi         # Enable intrinsic functions
                 /Ot         # Favor fast code
                 /GL         # Whole program optimization
@@ -189,11 +189,6 @@ if(NOT TARGET ecewo::ecewo)
                 /LTCG       # Link time code generation
                 /OPT:REF    # Remove unreferenced functions/data
                 /OPT:ICF    # Identical COMDAT folding
-            )
-            
-            # Web server specific optimizations
-            target_compile_options(ecewo PRIVATE 
-                /fp:fast    # Fast floating point for HTTP parsing
             )
         endif()
         
@@ -213,7 +208,7 @@ if(NOT TARGET ecewo::ecewo)
         # GCC/Clang Production Optimizations
         if(CMAKE_BUILD_TYPE STREQUAL "Release")
             target_compile_options(ecewo PRIVATE 
-                -O3                      # Maximum optimization
+                -O2                      # Balanced optimization
                 -ffunction-sections      # Each function in separate section
                 -fdata-sections          # Each data item in separate section
                 -fstack-protector-strong # Stack protection
@@ -222,22 +217,10 @@ if(NOT TARGET ecewo::ecewo)
             
             # Web Framework Specific Optimizations
             target_compile_options(ecewo PRIVATE 
-                -finline-functions     # Aggressive inlining
+                -finline-functions     # Reasonable inlining
                 -funroll-loops         # Loop unrolling
-                -fpredictive-commoning # Optimize memory access patterns
-                -fgcse-after-reload    # Global common subexpression elimination
                 -ftree-vectorize       # Auto-vectorization
-                -ffast-math            # Fast math for HTTP parsing
             )
-            
-            # Safe Cross-Platform Architecture Optimizations
-            if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
-                target_compile_options(ecewo PRIVATE -msse4.2)
-                message(STATUS "  - x86_64 SSE4.2 optimizations enabled")
-            elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
-                target_compile_options(ecewo PRIVATE -march=armv8-a)
-                message(STATUS "  - ARM64 optimizations enabled")
-            endif()
             
             # Linker Optimizations
             target_link_options(ecewo PRIVATE 
@@ -376,7 +359,7 @@ endif()
 
 # Build Configuration Summary
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    message(STATUS "=== ECEWO Web Framework Build Configuration ===")
+    message(STATUS "=== ECEWO Build Configuration ===")
     message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
     if(ECEWO_BUILD_SHARED)
         message(STATUS "Library type: SHARED")
@@ -390,8 +373,6 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
         message(STATUS "LTO enabled: ${CMAKE_INTERPROCEDURAL_OPTIMIZATION}")
         message(STATUS "Strip binaries: ${CMAKE_STRIP_BINARIES}")
-        message(STATUS "Cross-platform optimizations: ON")
-        message(STATUS "Security hardening: ON")
     endif()
     message(STATUS "===============================================")
 endif()
