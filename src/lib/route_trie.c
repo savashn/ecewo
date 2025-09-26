@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <inttypes.h>
 #include "route_trie.h"
 #include "middleware.h"
 
@@ -33,7 +34,7 @@ int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result)
             // DoS protection - reject overly deep paths
             if (segment_count > MAX_PATH_SEGMENTS)
             {
-                fprintf(stderr, "Path too deep: %u segments (max %d)\n",
+                fprintf(stderr, "Path too deep: %" PRIu8 " segments (max %d)\n",
                         segment_count, MAX_PATH_SEGMENTS);
                 return -1;
             }

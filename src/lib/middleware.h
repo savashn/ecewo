@@ -43,7 +43,7 @@ typedef struct
 
 // Global middleware array
 extern MiddlewareHandler *global_middleware;
-extern int global_middleware_count;
+extern uint16_t global_middleware_count;
 
 // Function to add global middleware
 void hook(MiddlewareHandler middleware_handler);

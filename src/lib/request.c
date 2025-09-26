@@ -200,7 +200,7 @@ static int ensure_array_capacity(Arena *arena, request_t *array)
         return 0;
 
     // Check for overflow
-    if (array->capacity > INT_MAX / 2 || array->capacity > MAX_HEADERS_COUNT / 2)
+    if (array->capacity > MAX_HEADERS_COUNT / 2)
         return -1;
 
     int new_capacity = array->capacity == 0 ? 16 : array->capacity * 2;
@@ -619,7 +619,7 @@ const char *get_req(const request_t *request, const char *key)
 
     size_t key_len = strlen(key);
 
-    for (int i = 0; i < request->count; i++)
+    for (uint16_t i = 0; i < request->count; i++)
     {
         if (request->items[i].key)
         {

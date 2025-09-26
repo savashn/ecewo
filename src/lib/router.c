@@ -268,7 +268,7 @@ void set_context(Req *req, const char *key, void *data, size_t size)
     context_t *ctx = &req->ctx;
 
     // Linear search for existing entry
-    for (int i = 0; i < ctx->count; i++)
+    for (uint32_t i = 0; i < ctx->count; i++)
     {
         if (ctx->entries[i].key && strcmp(ctx->entries[i].key, key) == 0)
         {
@@ -285,7 +285,7 @@ void set_context(Req *req, const char *key, void *data, size_t size)
     // Need to add new entry - check capacity
     if (ctx->count >= ctx->capacity)
     {
-        int new_capacity = ctx->capacity == 0 ? 8 : ctx->capacity * 2;
+        uint32_t new_capacity = ctx->capacity == 0 ? 8 : ctx->capacity * 2;
 
         context_entry_t *new_entries = arena_realloc(ctx->arena,
                                                      ctx->entries,
@@ -296,7 +296,7 @@ void set_context(Req *req, const char *key, void *data, size_t size)
             return;
 
         // Initialize new entries
-        for (int i = ctx->capacity; i < new_capacity; i++)
+        for (uint32_t i = ctx->capacity; i < new_capacity; i++)
         {
             new_entries[i].key = NULL;
             new_entries[i].data = NULL;
@@ -331,7 +331,7 @@ void *get_context(Req *req, const char *key)
 
     context_t *ctx = &req->ctx;
 
-    for (int i = 0; i < ctx->count; i++)
+    for (uint32_t i = 0; i < ctx->count; i++)
     {
         if (ctx->entries[i].key && strcmp(ctx->entries[i].key, key) == 0)
         {
@@ -431,7 +431,7 @@ static request_t copy_request_t(Arena *arena, const request_t *original)
     }
 
     // Copy each item using arena
-    for (int i = 0; i < original->count; i++)
+    for (uint32_t i = 0; i < original->count; i++)
     {
         if (original->items[i].key)
         {

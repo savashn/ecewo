@@ -3,6 +3,7 @@
 #include <string.h>
 #include <signal.h>
 #include <time.h>
+#include <inttypes.h>
 #include "server.h"
 #include "../lib/route_trie.h"
 
@@ -300,7 +301,7 @@ int server_listen(uint16_t port)
 {
     if (port == 0)
     {
-        fprintf(stderr, "Error: Invalid port.");
+        fprintf(stderr, "Error: Invalid port %" PRIu16 " (must be 1-65535)\n", port);
         return SERVER_INVALID_PORT;
     }
 
