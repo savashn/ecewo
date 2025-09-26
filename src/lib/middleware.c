@@ -162,7 +162,10 @@ void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_inf
 }
 
 // Helper function to register route with middleware (uses malloc for long-lived data)
-void register_route(const char *method, const char *path, MiddlewareArray middleware, RequestHandler handler)
+void register_route(llhttp_method_t method,
+                    const char *path,
+                    MiddlewareArray middleware,
+                    RequestHandler handler)
 {
     if (!handler)
     {

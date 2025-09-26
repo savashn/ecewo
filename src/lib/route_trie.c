@@ -255,120 +255,16 @@ static void trie_node_free(trie_node_t *node)
     free(node);
 }
 
-static inline int char_equal_ci(char a, char b)
-{
-    // Convert both to uppercase for comparison
-    if (a >= 'a' && a <= 'z')
-        a -= 32;
-    if (b >= 'a' && b <= 'z')
-        b -= 32;
-    return a == b;
-}
-
-static inline int method_equal(const char *method, const char *expected, size_t len)
-{
-    for (size_t i = 0; i < len; i++)
-    {
-        if (!char_equal_ci(method[i], expected[i]))
-        {
-            return 0;
-        }
-    }
-    return method[len] == '\0'; // Ensure exact length match
-}
-
-// Get HTTP method index from string
-http_method_t get_method_index(const char *method)
-{
-    if (!method || !method[0])
-        return METHOD_UNKNOWN;
-
-    // Fast path: switch on first character (most distinctive)
-    char first = method[0];
-    if (first >= 'a' && first <= 'z')
-        first -= 32; // Convert to uppercase
-
-    switch (first)
-    {
-    case 'G':
-        // Only GET starts with G - quick 3-char check
-        if (!method[1] || !method[2])
-            return METHOD_UNKNOWN; // Safety check
-
-        return (char_equal_ci(method[1], 'E') &&
-                char_equal_ci(method[2], 'T') &&
-                method[3] == '\0')
-                   ? METHOD_GET
-                   : METHOD_UNKNOWN;
-
-    case 'P':
-        // POST, PUT, PATCH start with P - check second char
-        if (!method[1])
-            return METHOD_UNKNOWN; // Safety check
-
-        switch (method[1] | 32) // Convert to lowercase
-        {
-        case 'o':
-            // POST - 4 characters
-            if (!method[2] || !method[3])
-                return METHOD_UNKNOWN; // Safety check
-            return (char_equal_ci(method[2], 'S') &&
-                    char_equal_ci(method[3], 'T') &&
-                    method[4] == '\0')
-                       ? METHOD_POST
-                       : METHOD_UNKNOWN;
-
-        case 'u':
-            // PUT - 3 characters
-            if (!method[2])
-                return METHOD_UNKNOWN; // Safety check
-            return (char_equal_ci(method[2], 'T') &&
-                    method[3] == '\0')
-                       ? METHOD_PUT
-                       : METHOD_UNKNOWN;
-
-        case 'a':
-            // PATCH - 5 characters
-            if (!method[2] || !method[3] || !method[4])
-                return METHOD_UNKNOWN; // Safety check
-            return (char_equal_ci(method[2], 'T') &&
-                    char_equal_ci(method[3], 'C') &&
-                    char_equal_ci(method[4], 'H') &&
-                    method[5] == '\0')
-                       ? METHOD_PATCH
-                       : METHOD_UNKNOWN;
-        }
-        return METHOD_UNKNOWN;
-
-    case 'D':
-        // Only DELETE starts with D
-        return method_equal(method, "DELETE", 6) ? METHOD_DELETE : METHOD_UNKNOWN;
-
-    case 'H':
-        // Only HEAD starts with H
-        return method_equal(method, "HEAD", 4) ? METHOD_HEAD : METHOD_UNKNOWN;
-
-    case 'O':
-        // Only OPTIONS starts with O
-        return method_equal(method, "OPTIONS", 7) ? METHOD_OPTIONS : METHOD_UNKNOWN;
-
-    default:
-        return METHOD_UNKNOWN;
-    }
-}
-
 // Find a matching route
 bool route_trie_match(route_trie_t *trie,
-                      const char *method,
+                      llhttp_t *parser,
                       const tokenized_path_t *tokenized_path,
                       route_match_t *match)
 {
-    if (!trie || !method || !tokenized_path || !match)
+    if (!trie || !parser || !tokenized_path || !match)
         return false;
 
-    http_method_t method_idx = get_method_index(method);
-    if (method_idx == METHOD_UNKNOWN)
-        return false;
+    llhttp_method_t method = llhttp_get_method(parser);
 
     uv_rwlock_rdlock(&trie->lock);
 
@@ -401,10 +297,10 @@ bool route_trie_match(route_trie_t *trie,
     }
 
     // Extract handler if found
-    if (matched_node && matched_node->handlers[method_idx])
+    if (matched_node && matched_node->handlers[method])
     {
-        match->handler = matched_node->handlers[method_idx];
-        match->middleware_ctx = matched_node->middleware_ctx[method_idx];
+        match->handler = matched_node->handlers[method];
+        match->middleware_ctx = matched_node->middleware_ctx[method];
         uv_rwlock_rdunlock(&trie->lock);
         return true;
     }
@@ -439,14 +335,13 @@ route_trie_t *route_trie_create(void)
 }
 
 // Add a route to the trie
-int route_trie_add(route_trie_t *trie, const char *method, const char *path,
-                   RequestHandler handler, void *middleware_ctx)
+int route_trie_add(route_trie_t *trie,
+                   llhttp_method_t method,
+                   const char *path,
+                   RequestHandler handler,
+                   void *middleware_ctx)
 {
     if (!trie || !method || !path || !handler)
-        return -1;
-
-    http_method_t method_idx = get_method_index(method);
-    if (method_idx == METHOD_UNKNOWN)
         return -1;
 
     // Write lock for thread safety
@@ -557,8 +452,8 @@ int route_trie_add(route_trie_t *trie, const char *method, const char *path,
 
     // Mark as end node and store handler
     current->is_end = true;
-    current->handlers[method_idx] = handler;
-    current->middleware_ctx[method_idx] = middleware_ctx;
+    current->handlers[method] = handler;
+    current->middleware_ctx[method] = middleware_ctx;
     trie->route_count++;
 
     uv_rwlock_wrunlock(&trie->lock);

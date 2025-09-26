@@ -32,8 +32,8 @@ typedef struct trie_node
     struct trie_node *wildcard_child; // For * wildcard
     char *param_name;                 // Name of parameter if this is a param node
     bool is_end;                      // Marks end of a route
-    RequestHandler handlers[8];       // Handlers for different HTTP methods
-    void *middleware_ctx[8];          // Middleware context for each method
+    RequestHandler handlers[47];      // Handlers for different HTTP methods (see the llhttp_method struct)
+    void *middleware_ctx[47];         // Middleware context for each method
 } trie_node_t;
 
 typedef struct
@@ -65,32 +65,23 @@ typedef struct
     uint8_t param_count;
 } route_match_t;
 
-typedef enum
-{
-    METHOD_GET = 0,
-    METHOD_POST = 1,
-    METHOD_PUT = 2,
-    METHOD_DELETE = 3,
-    METHOD_PATCH = 4,
-    METHOD_HEAD = 5,
-    METHOD_OPTIONS = 6,
-    METHOD_UNKNOWN = 7
-} http_method_t;
-
 // Path tokenization functions
 int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result);
 
 // Now takes tokenized path instead of raw string
 bool route_trie_match(route_trie_t *trie,
-                      const char *method,
+                      llhttp_t *parser,
                       const tokenized_path_t *tokenized_path,
                       route_match_t *match);
 
 // Existing functions remain same
 route_trie_t *route_trie_create(void);
-int route_trie_add(route_trie_t *trie, const char *method, const char *path,
-                   RequestHandler handler, void *middleware_ctx);
+int route_trie_add(route_trie_t *trie,
+                   llhttp_method_t method,
+                   const char *path,
+                   RequestHandler handler,
+                   void *middleware_ctx);
+
 void route_trie_free(route_trie_t *trie);
-http_method_t get_method_index(const char *method);
 
 #endif

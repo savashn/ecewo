@@ -51,7 +51,8 @@ void hook(MiddlewareHandler middleware_handler);
 // Function to execute the next middleware or route handler in the chain
 int next(Req *req, Res *res, Chain *chain);
 
-void register_route(const char *method, const char *path,
+void register_route(llhttp_method_t method,
+                    const char *path,
                     MiddlewareArray middleware,
                     RequestHandler handler);
 

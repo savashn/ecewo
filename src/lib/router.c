@@ -396,7 +396,7 @@ static Res *create_res(Arena *arena, uv_tcp_t *client_socket)
     return res;
 }
 
-// Create and initialize http_context_t
+// Create and initialize http_context_t using new API
 static http_context_t *create_http_context(Arena *arena)
 {
     if (!arena)
@@ -406,7 +406,7 @@ static http_context_t *create_http_context(Arena *arena)
     if (!context)
         return NULL;
 
-    memset(context, 0, sizeof(http_context_t));
+    // Use the new initialization function
     http_context_init(context, arena);
     return context;
 }
@@ -696,7 +696,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     }
 }
 
-// Main router function
+// Main router function - UPDATED to use new parsing API
 int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len)
 {
     // Early validation
@@ -735,44 +735,60 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
         return 1;
     }
 
-    // Parse HTTP request
-    enum llhttp_errno err = llhttp_execute(&ctx->parser, request_data, request_len);
-    if (err != HPE_OK)
+    parse_result_t parse_result = http_parse_request(ctx, request_data, request_len);
+
+    switch (parse_result)
     {
-        const char *error_name = llhttp_errno_name(err);
-        const char *error_reason = llhttp_get_error_reason(&ctx->parser);
+    case PARSE_SUCCESS:
+        // Parsing completed successfully
+        break;
 
-        fprintf(stderr, "HTTP parsing failed: %s", error_name);
-        if (error_reason)
+    case PARSE_INCOMPLETE:
+        // Need more data - for single request parsing, this is usually an error
+        fprintf(stderr, "HTTP parsing incomplete - need more data\n");
+        send_error(arena, client_socket, 400);
+        return 1;
+
+    case PARSE_OVERFLOW:
+        // Size limits exceeded
+        fprintf(stderr, "HTTP parsing failed: size limits exceeded\n");
+        if (ctx->error_reason)
         {
-            fprintf(stderr, " - %s", error_reason);
+            fprintf(stderr, " - %s\n", ctx->error_reason);
         }
-        fprintf(stderr, "\n");
+        send_error(arena, client_socket, 413); // Payload Too Large
+        return 1;
 
-        int error_code = (err == HPE_USER) ? 400 : 500;
-        send_error(arena, client_socket, error_code);
+    case PARSE_ERROR:
+    default:
+        // Parse error
+        fprintf(stderr, "HTTP parsing failed: %s\n", parse_result_to_string(parse_result));
+        if (ctx->error_reason)
+        {
+            fprintf(stderr, " - %s\n", ctx->error_reason);
+        }
+        send_error(arena, client_socket, 400);
         return 1;
     }
 
-    if (llhttp_message_needs_eof(&ctx->parser))
+    // Check if we need to finish parsing (for requests without Content-Length)
+    if (http_message_needs_eof(ctx))
     {
-        enum llhttp_errno finish_err = llhttp_finish(&ctx->parser);
-        if (finish_err != HPE_OK)
+        parse_result_t finish_result = http_finish_parsing(ctx);
+        if (finish_result != PARSE_SUCCESS)
         {
-            const char *error_name = llhttp_errno_name(finish_err);
-            const char *error_reason = llhttp_get_error_reason(&ctx->parser);
-
-            fprintf(stderr, "HTTP finish failed: %s", error_name);
-            if (error_reason)
+            fprintf(stderr, "HTTP finish parsing failed: %s\n",
+                    parse_result_to_string(finish_result));
+            if (ctx->error_reason)
             {
-                fprintf(stderr, " - %s", error_reason);
+                fprintf(stderr, " - %s\n", ctx->error_reason);
             }
-            fprintf(stderr, "\n");
-
             send_error(arena, client_socket, 400);
             return 1;
         }
     }
+
+    res->keep_alive = ctx->keep_alive;
 
     // Extract path and query
     char *path = NULL;
@@ -789,9 +805,9 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
         return 1;
     }
 
-    // Parse query parameters
-    parse_query(arena, query, &ctx->query_params);
-    res->keep_alive = ctx->keep_alive;
+    // Parse query parameters (this was already done in on_message_complete callback)
+    // but we need to make sure it's available in the context
+    // parse_query(arena, query, &ctx->query_params); // Already done in callback
 
     // Route matching validation
     if (!global_route_trie || !ctx->method)
@@ -800,7 +816,7 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
                global_route_trie, ctx->method ? ctx->method : "NULL");
 
         // 404 but still success response: Return based on keep_alive
-        int keep_alive = res->keep_alive;
+        bool keep_alive = res->keep_alive;
 
         const char *not_found_msg = "404 Not Found";
         reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
@@ -817,10 +833,10 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
 
     // Route matching
     route_match_t match;
-    if (!route_trie_match(global_route_trie, ctx->method, &tokenized_path, &match))
+    if (!route_trie_match(global_route_trie, &ctx->parser, &tokenized_path, &match))
     {
         // 404 but still success response: Return based on keep_alive
-        int keep_alive = res->keep_alive;
+        bool keep_alive = res->keep_alive;
 
         const char *not_found_msg = "404 Not Found";
         reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));

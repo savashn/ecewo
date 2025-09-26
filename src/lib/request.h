@@ -20,6 +20,15 @@ typedef struct
     uint16_t capacity;
 } request_t;
 
+// Parse result enumeration
+typedef enum
+{
+    PARSE_SUCCESS = 0,    // Parsing completed successfully
+    PARSE_INCOMPLETE = 1, // Need more data
+    PARSE_ERROR = -1,     // Parse error occurred
+    PARSE_OVERFLOW = -2   // Buffer overflow or size limit exceeded
+} parse_result_t;
+
 // HTTP parsing context structure to hold state during parsing
 typedef struct
 {
@@ -46,17 +55,24 @@ typedef struct
     size_t body_length;   // Body length
     size_t body_capacity; // Body buffer capacity
 
-    // Keep-alive tracking
-    bool keep_alive; // true for keep-alive, false for close
+    // HTTP protocol information
+    uint8_t http_major;   // HTTP major version
+    uint8_t http_minor;   // HTTP minor version
+    uint16_t status_code; // Status code (for responses)
 
-    // HTTP version
-    uint8_t http_major; // Major HTTP version
-    uint8_t http_minor; // Minor HTTP version
+    // Parsing state flags
+    bool message_complete; // true when message parsing is complete
+    bool keep_alive;       // true for keep-alive, false for close
+    bool headers_complete; // true when headers are fully parsed
 
     // Temporary header parsing
     char *current_header_field;   // Dynamic current header field buffer
     size_t header_field_length;   // Current header field length
     size_t header_field_capacity; // Header field buffer capacity
+
+    // Error tracking
+    llhttp_errno_t last_error; // Last parse error
+    const char *error_reason;  // Error description
 } http_context_t;
 
 // Function to initialize the http context
@@ -65,10 +81,26 @@ void http_context_init(http_context_t *context, Arena *arena);
 // Function to cleanup the http context
 void http_context_free(http_context_t *context);
 
+// Reset context for parsing a new request (reuse existing buffers)
+void http_context_reset(http_context_t *context);
+
+// Main parsing function
+parse_result_t http_parse_request(http_context_t *context, const char *data, size_t len);
+
+// Check if the message needs EOF to complete (for requests without Content-Length)
+bool http_message_needs_eof(const http_context_t *context);
+
+// Finish parsing when EOF is reached
+parse_result_t http_finish_parsing(http_context_t *context);
+
 // Parse the query string into request_t structure
 void parse_query(Arena *arena, const char *query_string, request_t *query);
 
 // Get value by key from request_t structure
 const char *get_req(const request_t *request, const char *key);
+
+// Utility functions for debugging
+void print_request_info(const http_context_t *context);
+const char *parse_result_to_string(parse_result_t result);
 
 #endif

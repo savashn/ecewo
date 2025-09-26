@@ -101,7 +101,7 @@ void clear_timer(uv_timer_t *timer);
 
 static inline void get_no_mw(const char *path, RequestHandler handler)
 {
-    register_route("GET", path, NO_MW, handler);
+    register_route(HTTP_GET, path, NO_MW, handler);
 }
 
 static inline void get_with_mw(
@@ -109,7 +109,7 @@ static inline void get_with_mw(
     MiddlewareArray mw,
     RequestHandler handler)
 {
-    register_route("GET", path, mw, handler);
+    register_route(HTTP_GET, path, mw, handler);
 }
 
 // POST
@@ -119,12 +119,12 @@ static inline void get_with_mw(
 
 static inline void post_no_mw(const char *p, RequestHandler h)
 {
-    register_route("POST", p, NO_MW, h);
+    register_route(HTTP_POST, p, NO_MW, h);
 }
 
 static inline void post_with_mw(const char *p, MiddlewareArray mw, RequestHandler h)
 {
-    register_route("POST", p, mw, h);
+    register_route(HTTP_POST, p, mw, h);
 }
 
 // PUT
@@ -134,12 +134,12 @@ static inline void post_with_mw(const char *p, MiddlewareArray mw, RequestHandle
 
 static inline void put_no_mw(const char *p, RequestHandler h)
 {
-    register_route("PUT", p, NO_MW, h);
+    register_route(HTTP_PUT, p, NO_MW, h);
 }
 
 static inline void put_with_mw(const char *p, MiddlewareArray mw, RequestHandler h)
 {
-    register_route("PUT", p, mw, h);
+    register_route(HTTP_PUT, p, mw, h);
 }
 
 // PATCH
@@ -149,12 +149,12 @@ static inline void put_with_mw(const char *p, MiddlewareArray mw, RequestHandler
 
 static inline void patch_no_mw(const char *p, RequestHandler h)
 {
-    register_route("PATCH", p, NO_MW, h);
+    register_route(HTTP_PATCH, p, NO_MW, h);
 }
 
 static inline void patch_with_mw(const char *p, MiddlewareArray mw, RequestHandler h)
 {
-    register_route("PATCH", p, mw, h);
+    register_route(HTTP_PATCH, p, mw, h);
 }
 
 // DELETE
@@ -164,12 +164,12 @@ static inline void patch_with_mw(const char *p, MiddlewareArray mw, RequestHandl
 
 static inline void del_no_mw(const char *p, RequestHandler h)
 {
-    register_route("DELETE", p, NO_MW, h);
+    register_route(HTTP_DELETE, p, NO_MW, h);
 }
 
 static inline void del_with_mw(const char *p, MiddlewareArray mw, RequestHandler h)
 {
-    register_route("DELETE", p, mw, h);
+    register_route(HTTP_DELETE, p, mw, h);
 }
 
 #endif
