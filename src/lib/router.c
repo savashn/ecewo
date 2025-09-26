@@ -224,7 +224,7 @@ static int extract_url_params(Arena *arena, const route_match_t *match, request_
         }
     }
 
-    for (int i = 0; i < match->param_count && url_params->count < url_params->capacity; i++)
+    for (uint8_t i = 0; i < match->param_count && url_params->count < url_params->capacity; i++)
     {
         char *key = arena_alloc(arena, match->params[i].key.len + 1);
         char *value = arena_alloc(arena, match->params[i].value.len + 1);
@@ -551,7 +551,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
 
     // Calculate custom headers size
     size_t headers_size = 0;
-    for (int i = 0; i < res->header_count; i++)
+    for (uint16_t i = 0; i < res->header_count; i++)
     {
         if (res->headers[i].name && res->headers[i].value)
         {
@@ -569,7 +569,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
 
     // Build custom headers string
     size_t pos = 0;
-    for (int i = 0; i < res->header_count; i++)
+    for (uint16_t i = 0; i < res->header_count; i++)
     {
         if (res->headers[i].name && res->headers[i].value)
         {
@@ -877,7 +877,7 @@ void set_header(Res *res, const char *name, const char *value)
 
     if (res->header_count >= res->header_capacity)
     {
-        int new_cap = res->header_capacity ? res->header_capacity * 2 : 8;
+        uint16_t new_cap = res->header_capacity ? res->header_capacity * 2 : 8;
 
         http_header_t *tmp = arena_realloc(res->arena, res->headers,
                                            res->header_capacity * sizeof(http_header_t),

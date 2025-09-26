@@ -2,6 +2,7 @@
 #define ECEWO_MIDDLEWARE_H
 
 #include "router.h"
+#include <stdint.h>
 
 // Forward declaration of Chain structure
 typedef struct Chain Chain;
@@ -13,15 +14,15 @@ typedef int (*MiddlewareHandler)(Req *req, Res *res, Chain *chain);
 struct Chain
 {
     MiddlewareHandler *handlers;  // Array of middleware handlers
-    int count;                    // Number of handlers in the chain
-    int current;                  // Current position in the middleware chain
+    uint16_t count;               // Number of handlers in the chain
+    uint16_t current;             // Current position in the middleware chain
     RequestHandler route_handler; // The final route handler
 };
 
 typedef struct MiddlewareInfo
 {
     MiddlewareHandler *middleware;
-    int middleware_count;
+    uint16_t middleware_count;
     RequestHandler handler;
 } MiddlewareInfo;
 

@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
+#include <stdint.h>
 #include "request.h"
 #include "uv.h"
 #include "../../vendors/arena.h"
@@ -96,8 +97,8 @@ typedef struct
 typedef struct
 {
     context_entry_t *entries;
-    int count;
-    int capacity;
+    uint32_t count;
+    uint32_t capacity;
     Arena *arena;
 } context_t;
 
@@ -128,14 +129,14 @@ typedef struct Res
 {
     Arena *arena; // Arena for this response's memory
     uv_tcp_t *client_socket;
-    int status;
+    uint16_t status;
     char *content_type; // Arena allocated string
     void *body;         // Arena allocated if owned by Res
     size_t body_len;
-    int keep_alive;
+    bool keep_alive;
     http_header_t *headers; // Arena allocated array
-    int header_count;
-    int header_capacity;
+    uint16_t header_count;
+    uint16_t header_capacity;
 } Res;
 
 // Write request structure (managed by libuv)
@@ -194,7 +195,6 @@ static inline void send_cbor(Res *res, int status, const char *body, size_t body
 }
 
 // Redirect
-
 static inline void redirect(Res *res, int status, const char *url)
 {
     if (!res || !url)

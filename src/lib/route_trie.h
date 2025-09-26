@@ -3,7 +3,10 @@
 
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include "router.h"
+
+#define MAX_PATH_SEGMENTS 128
 
 // Path segment structure for pre-tokenized paths
 typedef struct
@@ -18,8 +21,8 @@ typedef struct
 typedef struct
 {
     path_segment_t *segments;
-    int count;
-    int capacity;
+    uint8_t count;
+    uint8_t capacity;
 } tokenized_path_t;
 
 typedef struct trie_node
@@ -59,7 +62,7 @@ typedef struct
     RequestHandler handler;
     void *middleware_ctx;
     param_match_t params[32];
-    int param_count;
+    uint8_t param_count;
 } route_match_t;
 
 typedef enum

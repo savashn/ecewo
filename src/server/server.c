@@ -21,10 +21,10 @@ typedef struct client_s
     uv_tcp_t handle;
     uv_buf_t read_buf;
     char buffer[READ_BUFFER_SIZE];
-    int closing;
-    time_t last_activity;   // Only field needed for idle tracking
-    int keep_alive_enabled; // Track if this connection uses keep-alive
-    struct client_s *next;  // Linked list for easy iteration
+    bool closing;
+    time_t last_activity;    // Only field needed for idle tracking
+    bool keep_alive_enabled; // Track if this connection uses keep-alive
+    struct client_s *next;   // Linked list for easy iteration
 } client_t;
 
 typedef struct timer_data_s
@@ -37,9 +37,9 @@ typedef struct timer_data_s
 // Global server state
 static struct
 {
-    int initialized;
-    int running;
-    int shutdown_requested;
+    bool initialized;
+    bool running;
+    bool shutdown_requested;
     int active_connections;
 
     uv_loop_t *loop;
@@ -52,7 +52,7 @@ static struct
     client_t *client_list_head; // Head of client linked list
     uv_timer_t *cleanup_timer;  // Single timer for all cleanup
 
-    int server_closed;
+    bool server_closed;
 } g_server = {0};
 
 // ============================================================================
@@ -296,11 +296,11 @@ int server_init(void)
     return SERVER_OK;
 }
 
-int server_listen(int port)
+int server_listen(uint16_t port)
 {
-    if (port < 1 || port > 65535)
+    if (port == 0)
     {
-        fprintf(stderr, "Error: Invalid port %d (must be 1-65535)\n", port);
+        fprintf(stderr, "Error: Invalid port.");
         return SERVER_INVALID_PORT;
     }
 
@@ -340,7 +340,7 @@ int server_listen(int port)
     {
         free(g_server.server);
         g_server.server = NULL;
-        fprintf(stderr, "Error: Failed to bind to port %d (may be in use)\n", port);
+        fprintf(stderr, "Error: Failed to bind to port %" PRIu16 " (may be in use)\n", port);
         return SERVER_BIND_FAILED;
     }
 
@@ -349,7 +349,7 @@ int server_listen(int port)
     {
         free(g_server.server);
         g_server.server = NULL;
-        fprintf(stderr, "Error: Failed to listen on port %d\n", port);
+        fprintf(stderr, "Error: Failed to listen on port %" PRIu16 "\n", port);
         return SERVER_LISTEN_FAILED;
     }
 
@@ -360,7 +360,7 @@ int server_listen(int port)
     }
 
     g_server.running = 1;
-    printf("Server listening on http://localhost:%d\n", port);
+    printf("Server listening on http://localhost:%" PRIu16 "\n", port);
 
     return SERVER_OK;
 }
@@ -395,7 +395,7 @@ void shutdown_hook(shutdown_callback_t callback)
 // STATUS API
 // ============================================================================
 
-int server_is_running(void)
+bool server_is_running(void)
 {
     return g_server.running;
 }
@@ -565,7 +565,7 @@ static void close_client(client_t *client)
         return;
     }
 
-    client->closing = 1;
+    client->closing = true;
     uv_read_stop((uv_stream_t *)&client->handle);
 
     if (!uv_is_closing((uv_handle_t *)&client->handle))
@@ -615,7 +615,7 @@ static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
         else
         {
             // Keep-alive: mark as keep-alive enabled
-            client->keep_alive_enabled = 1;
+            client->keep_alive_enabled = true;
         }
     }
 }
@@ -649,7 +649,7 @@ static void on_connection(uv_stream_t *server, int status)
 
     // Initialize client
     client->last_activity = time(NULL);
-    client->keep_alive_enabled = 0;
+    client->keep_alive_enabled = false;
     client->next = NULL;
 
     if (uv_tcp_init(g_server.loop, &client->handle) != 0)

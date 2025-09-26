@@ -2,6 +2,7 @@
 #define ECEWO_REQUEST_H
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <stddef.h>
 #include "llhttp.h"
 #include "../../vendors/arena.h"
@@ -15,8 +16,8 @@ typedef struct
 typedef struct
 {
     request_item_t *items;
-    int count;
-    int capacity;
+    uint16_t count;
+    uint16_t capacity;
 } request_t;
 
 // HTTP parsing context structure to hold state during parsing
@@ -46,11 +47,11 @@ typedef struct
     size_t body_capacity; // Body buffer capacity
 
     // Keep-alive tracking
-    int keep_alive; // 1 for keep-alive, 0 for close
+    bool keep_alive; // true for keep-alive, false for close
 
     // HTTP version
-    int http_major; // Major HTTP version
-    int http_minor; // Minor HTTP version
+    uint8_t http_major; // Major HTTP version
+    uint8_t http_minor; // Minor HTTP version
 
     // Temporary header parsing
     char *current_header_field;   // Dynamic current header field buffer

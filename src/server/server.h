@@ -2,6 +2,7 @@
 #define ECEWO_SERVER_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include "uv.h"
 #include "../lib/middleware.h"
@@ -44,7 +45,7 @@ int server_init(void);
 
 // Server must be initialized before calling this
 // returns SERVER_OK on success, error code on failure
-int server_listen(int port);
+int server_listen(uint16_t port);
 
 // Run the server event loop
 // This function blocks until the server is shut down
@@ -64,8 +65,7 @@ void shutdown_hook(shutdown_callback_t callback);
 // ============================================================================
 
 // Check if server is currently running
-// returns 1 if running, 0 if not
-int server_is_running(void);
+bool server_is_running(void);
 
 // Get number of active client connections
 int get_active_connections(void);

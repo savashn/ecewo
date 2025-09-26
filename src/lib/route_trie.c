@@ -22,13 +22,22 @@ int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result)
         return 0;
 
     // Count segments first
-    int segment_count = 0;
+    uint8_t segment_count = 0;
     const char *p = path;
     while (*p)
     {
         if (*p != '/')
         {
             segment_count++;
+
+            // DoS protection - reject overly deep paths
+            if (segment_count > MAX_PATH_SEGMENTS)
+            {
+                fprintf(stderr, "Path too deep: %u segments (max %d)\n",
+                        segment_count, MAX_PATH_SEGMENTS);
+                return -1;
+            }
+
             // Skip to next '/' or end
             while (*p && *p != '/')
                 p++;
@@ -85,11 +94,11 @@ int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result)
 
 static trie_node_t *match_segments(trie_node_t *node,
                                    const tokenized_path_t *path,
-                                   int segment_idx,
+                                   uint8_t segment_idx,
                                    route_match_t *match,
-                                   int depth)
+                                   uint8_t depth)
 {
-    if (!node || depth > 100)
+    if (!node || depth > MAX_PATH_SEGMENTS)
         return NULL;
 
     // All segments processed
@@ -201,7 +210,7 @@ static void trie_node_free(trie_node_t *node)
         return;
 
     // Free all children
-    for (int i = 0; i < 128; i++)
+    for (uint8_t i = 0; i < 128; i++)
     {
         if (node->children[i])
         {
@@ -223,7 +232,7 @@ static void trie_node_free(trie_node_t *node)
     // Free middleware contexts
     if (node->is_end)
     {
-        for (int i = 0; i < 8; i++)
+        for (uint8_t i = 0; i < 8; i++)
         {
             if (node->middleware_ctx[i])
             {

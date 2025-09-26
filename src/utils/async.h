@@ -1,7 +1,8 @@
 #ifndef ECEWO_ASYNC_H
 #define ECEWO_ASYNC_H
 
-#include <uv.h>
+#include <stdbool.h>
+#include "uv.h"
 #include "../../vendors/arena.h"
 
 // Opaque task handle type
@@ -17,11 +18,11 @@ typedef void (*async_work_fn_t)(async_t *task, void *context);
 struct async_t
 {
     uv_work_t work;
-    void *context; // User provided context data
-    Arena *arena;  // Arena reference for error handling
-    int completed; // Flag indicating if task is completed
-    int result;    // 1 for success, 0 for failure
-    char *error;   // Error message
+    void *context;  // User provided context data
+    Arena *arena;   // Arena reference for error handling
+    bool completed; // Flag indicating if task is completed
+    bool result;    // 1 for success, 0 for failure
+    char *error;    // Error message
 
     // Task callbacks
     async_work_fn_t work_fn;          // Work to be done in thread pool

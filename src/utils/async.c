@@ -19,12 +19,12 @@ static void _async_after_work_cb(uv_work_t *req, int status)
     if (!task)
         return;
 
-    task->completed = 1;
+    task->completed = true;
 
     // Handle libuv errors
     if (status < 0)
     {
-        task->result = 0;
+        task->result = false;
 
         // Try to get arena from task for error allocation
         if (task->arena)
@@ -51,7 +51,7 @@ void ok(async_t *task)
 {
     if (!task)
         return;
-    task->result = 1;
+    task->result = true;
     task->error = NULL;
 }
 
@@ -61,7 +61,7 @@ void fail(async_t *task, const char *error_msg)
     if (!task)
         return;
 
-    task->result = 0;
+    task->result = false;
 
     if (error_msg)
     {
@@ -106,8 +106,8 @@ int task_internal(
     task->work.data = task;
     task->context = context;
     task->arena = arena; // Store arena reference for error handling
-    task->completed = 0;
-    task->result = 0;
+    task->completed = false;
+    task->result = false;
     task->error = NULL;
     task->work_fn = work_fn;
     task->handler = handler;

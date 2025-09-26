@@ -7,8 +7,8 @@
 
 // Global middleware (uses malloc since it's long-lived)
 MiddlewareHandler *global_middleware = NULL;
-int global_middleware_count = 0;
-int global_middleware_capacity = 0;
+uint16_t global_middleware_count = 0;
+uint16_t global_middleware_capacity = 0;
 
 // Add middleware to global chain
 void hook(MiddlewareHandler middleware_handler)
