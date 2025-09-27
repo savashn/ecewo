@@ -341,7 +341,7 @@ int route_trie_add(route_trie_t *trie,
                    RequestHandler handler,
                    void *middleware_ctx)
 {
-    if (!trie || !method || !path || !handler)
+    if (!trie || !path || !handler)
         return -1;
 
     // Write lock for thread safety

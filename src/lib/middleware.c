@@ -34,13 +34,13 @@ int next(Req *req, Res *res, Chain *chain)
 {
     if (!chain)
     {
-        printf("Error: NULL middleware chain\n");
+        fprintf(stderr, "Error: NULL middleware chain\n");
         return -1;
     }
 
     if (!req || !res)
     {
-        printf("Error: NULL request or response\n");
+        fprintf(stderr, "Error: NULL request or response\n");
         return -1;
     }
 
@@ -55,7 +55,7 @@ int next(Req *req, Res *res, Chain *chain)
         }
         else
         {
-            printf("Warning: NULL middleware handler at position %d\n", chain->current - 1);
+            fprintf(stderr, "Warning: NULL middleware handler at position %d\n", chain->current - 1);
             // Skip this middleware and try the next one
             return next(req, res, chain);
         }
@@ -91,7 +91,7 @@ void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_inf
 {
     if (!req || !res || !middleware_info)
     {
-        printf("ERROR: NULL request, response, or middleware info\n");
+        fprintf(stderr, "Error: NULL request, response, or middleware info\n");
         return;
     }
 
@@ -112,7 +112,7 @@ void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_inf
                                                        sizeof(MiddlewareHandler) * total_middleware_count);
     if (!combined_handlers)
     {
-        printf("Arena allocation failed for middleware handlers\n");
+        fprintf(stderr, "Arena allocation failed for middleware handlers\n");
         if (middleware_info->handler)
         {
             middleware_info->handler(req, res);
@@ -134,7 +134,7 @@ void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_inf
     Chain *chain = arena_alloc(req->arena, sizeof(Chain));
     if (!chain)
     {
-        printf("Arena allocation failed for middleware chain\n");
+        fprintf(stderr, "Arena allocation failed for middleware chain\n");
         if (middleware_info->handler)
         {
             middleware_info->handler(req, res);
@@ -153,7 +153,7 @@ void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_inf
     // Error handling
     if (result == -1)
     {
-        printf("ERROR: Middleware chain failed, calling handler directly as fallback\n");
+        fprintf(stderr, "Error: Middleware chain failed, calling handler directly as fallback\n");
         if (middleware_info->handler)
         {
             middleware_info->handler(req, res);
@@ -169,26 +169,26 @@ void register_route(llhttp_method_t method,
 {
     if (!handler)
     {
-        printf("Error: No handler provided for route: %s %s\n", method, path);
+        fprintf(stderr, "Error: No handler provided for route: %d %s\n", method, path);
         return;
     }
 
-    if (!method || !path)
+    if (!path)
     {
-        printf("Error: NULL method or path provided\n");
+        fprintf(stderr, "Error: NULL path provided\n");
         return;
     }
 
     if (!global_route_trie)
     {
-        printf("Error: Route trie not initialized\n");
+        fprintf(stderr, "Error: Route trie not initialized\n");
         return;
     }
 
     MiddlewareInfo *middleware_info = calloc(1, sizeof(MiddlewareInfo));
     if (!middleware_info)
     {
-        printf("Memory allocation failed for middleware info\n");
+        fprintf(stderr, "Memory allocation failed for middleware info\n");
         return;
     }
 
@@ -199,7 +199,7 @@ void register_route(llhttp_method_t method,
         middleware_info->middleware = malloc(sizeof(MiddlewareHandler) * middleware.count);
         if (!middleware_info->middleware)
         {
-            printf("Memory allocation failed for middleware handlers\n");
+            fprintf(stderr, "Memory allocation failed for middleware handlers\n");
             free(middleware_info);
             return;
         }
@@ -210,7 +210,7 @@ void register_route(llhttp_method_t method,
     int result = route_trie_add(global_route_trie, method, path, handler, middleware_info);
     if (result != 0)
     {
-        printf("Failed to add route to trie: %s %s\n", method, path);
+        fprintf(stderr, "Failed to add route to trie: %d %s\n", method, path);
         free_middleware_info(middleware_info);
         return;
     }
