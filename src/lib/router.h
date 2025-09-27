@@ -1,13 +1,12 @@
 #ifndef ECEWO_ROUTER_H
 #define ECEWO_ROUTER_H
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdint.h>
 #include "request.h"
-#include "uv.h"
 #include "../../vendors/arena.h"
+#include "../server/client.h"
 
 // HTTP Status Codes
 typedef enum
@@ -165,7 +164,7 @@ typedef struct MiddlewareInfo MiddlewareInfo;
 void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_info);
 
 // Function declarations
-int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len);
+int router(client_t *client, const char *request_data, size_t request_len);
 
 void set_header(Res *res, const char *name, const char *value);
 void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len);

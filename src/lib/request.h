@@ -32,9 +32,9 @@ typedef enum
 // HTTP parsing context structure to hold state during parsing
 typedef struct
 {
-    Arena *arena;               // Arena for this context's memory
-    llhttp_t parser;            // llhttp parser instance
-    llhttp_settings_t settings; // llhttp parser settings
+    Arena *arena;                // Arena for this context's memory
+    llhttp_t *parser;            // llhttp parser instance
+    llhttp_settings_t *settings; // llhttp parser settings
 
     // Dynamic URL parsing state
     char *url;           // Dynamic URL buffer
@@ -75,14 +75,10 @@ typedef struct
     const char *error_reason;  // Error description
 } http_context_t;
 
-// Function to initialize the http context
-void http_context_init(http_context_t *context, Arena *arena);
-
-// Function to cleanup the http context
-void http_context_free(http_context_t *context);
-
-// Reset context for parsing a new request (reuse existing buffers)
-void http_context_reset(http_context_t *context);
+void http_context_init(http_context_t *context,
+                       Arena *arena,
+                       llhttp_t *reused_parser,
+                       llhttp_settings_t *reused_settings);
 
 // Main parsing function
 parse_result_t http_parse_request(http_context_t *context, const char *data, size_t len);
@@ -98,6 +94,14 @@ void parse_query(Arena *arena, const char *query_string, request_t *query);
 
 // Get value by key from request_t structure
 const char *get_req(const request_t *request, const char *key);
+
+int on_url_cb(llhttp_t *parser, const char *at, size_t length);
+int on_header_field_cb(llhttp_t *parser, const char *at, size_t length);
+int on_header_value_cb(llhttp_t *parser, const char *at, size_t length);
+int on_method_cb(llhttp_t *parser, const char *at, size_t length);
+int on_body_cb(llhttp_t *parser, const char *at, size_t length);
+int on_headers_complete_cb(llhttp_t *parser);
+int on_message_complete_cb(llhttp_t *parser);
 
 // Utility functions for debugging
 void print_request_info(const http_context_t *context);

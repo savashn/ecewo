@@ -2,11 +2,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <stddef.h>
-#include <time.h>
-#include "uv.h"
-#include "llhttp.h"
 #include "route_trie.h"
 #include "middleware.h"
+
+// Forward declaration for client structure
+typedef struct client_s client_t;
 
 // Called when write operation is completed
 static void write_completion_cb(uv_write_t *req, int status)
@@ -21,9 +21,9 @@ static void write_completion_cb(uv_write_t *req, int status)
     {
         if (write_req->arena)
         {
-            Arena *arena = write_req->arena;
-            arena_free(arena);
-            free(arena);
+            Arena *request_arena = write_req->arena;
+            arena_free(request_arena);
+            free(request_arena);
         }
         else
         {
@@ -42,7 +42,7 @@ static void write_completion_cb(uv_write_t *req, int status)
 }
 
 // Sends error responses (400 or 500)
-static void send_error(Arena *arena, uv_tcp_t *client_socket, int error_code)
+static void send_error(Arena *request_arena, uv_tcp_t *client_socket, int error_code)
 {
     if (!client_socket)
         return;
@@ -64,10 +64,10 @@ static void send_error(Arena *arena, uv_tcp_t *client_socket, int error_code)
     const char *body = status_text;
     size_t body_len = strlen(body);
 
-    if (arena)
+    if (request_arena)
     {
         // Arena path
-        char *response = arena_sprintf(arena,
+        char *response = arena_sprintf(request_arena,
                                        "HTTP/1.1 %d %s\r\n"
                                        "Date: %s\r\n"
                                        "Content-Type: text/plain\r\n"
@@ -83,24 +83,24 @@ static void send_error(Arena *arena, uv_tcp_t *client_socket, int error_code)
 
         if (!response)
         {
-            arena_free(arena);
-            free(arena);
+            arena_free(request_arena);
+            free(request_arena);
             return;
         }
 
         size_t response_len = strlen(response);
 
-        write_req_t *write_req = arena_alloc(arena, sizeof(write_req_t));
+        write_req_t *write_req = arena_alloc(request_arena, sizeof(write_req_t));
         if (!write_req)
         {
-            arena_free(arena);
-            free(arena);
+            arena_free(request_arena);
+            free(request_arena);
             return;
         }
 
         memset(&write_req->req, 0, sizeof(uv_write_t));
         write_req->data = response;
-        write_req->arena = arena;
+        write_req->arena = request_arena;
         write_req->buf = uv_buf_init(response, (unsigned int)response_len);
 
         int res = uv_write(&write_req->req, (uv_stream_t *)client_socket,
@@ -108,8 +108,8 @@ static void send_error(Arena *arena, uv_tcp_t *client_socket, int error_code)
         if (res < 0)
         {
             fprintf(stderr, "Write error: %s\n", uv_strerror(res));
-            arena_free(arena);
-            free(arena);
+            arena_free(request_arena);
+            free(request_arena);
         }
     }
     else
@@ -169,22 +169,22 @@ static void send_error(Arena *arena, uv_tcp_t *client_socket, int error_code)
 
 // Separates URL into path and query string components
 // Example: /users/123?active=true -> path="/users/123", query="active=true"
-static int extract_path_and_query(Arena *arena, char *url_buf, char **path, char **query)
+static int extract_path_and_query(Arena *request_arena, char *url_buf, char **path, char **query)
 {
-    if (!arena || !url_buf || !path || !query)
+    if (!request_arena || !url_buf || !path || !query)
         return -1;
 
     char *qmark = strchr(url_buf, '?');
     if (qmark)
     {
         *qmark = '\0';
-        *path = arena_strdup(arena, url_buf);
-        *query = arena_strdup(arena, qmark + 1);
+        *path = arena_strdup(request_arena, url_buf);
+        *query = arena_strdup(request_arena, qmark + 1);
     }
     else
     {
-        *path = arena_strdup(arena, url_buf);
-        *query = arena_strdup(arena, "");
+        *path = arena_strdup(request_arena, url_buf);
+        *query = arena_strdup(request_arena, "");
     }
 
     if (!*path || !*query)
@@ -193,7 +193,7 @@ static int extract_path_and_query(Arena *arena, char *url_buf, char **path, char
     // If path is empty, treat it as root
     if ((*path)[0] == '\0')
     {
-        *path = arena_strdup(arena, "/");
+        *path = arena_strdup(request_arena, "/");
         if (!*path)
             return -1;
     }
@@ -202,15 +202,15 @@ static int extract_path_and_query(Arena *arena, char *url_buf, char **path, char
 
 // Extracts URL parameters from a previously matched route
 // Example: From route /users/:id matched with /users/123, extracts parameter id=123
-static int extract_url_params(Arena *arena, const route_match_t *match, request_t *url_params)
+static int extract_url_params(Arena *request_arena, const route_match_t *match, request_t *url_params)
 {
-    if (!arena || !match || !url_params)
+    if (!request_arena || !match || !url_params)
         return -1;
 
     if (url_params->capacity == 0)
     {
         url_params->capacity = match->param_count > 0 ? match->param_count : 1;
-        url_params->items = arena_alloc(arena, sizeof(request_item_t) * url_params->capacity);
+        url_params->items = arena_alloc(request_arena, sizeof(request_item_t) * url_params->capacity);
         if (!url_params->items)
         {
             url_params->capacity = 0;
@@ -226,8 +226,8 @@ static int extract_url_params(Arena *arena, const route_match_t *match, request_
 
     for (uint8_t i = 0; i < match->param_count && url_params->count < url_params->capacity; i++)
     {
-        char *key = arena_alloc(arena, match->params[i].key.len + 1);
-        char *value = arena_alloc(arena, match->params[i].value.len + 1);
+        char *key = arena_alloc(request_arena, match->params[i].key.len + 1);
+        char *value = arena_alloc(request_arena, match->params[i].value.len + 1);
 
         if (!key || !value)
         {
@@ -249,12 +249,12 @@ static int extract_url_params(Arena *arena, const route_match_t *match, request_
 }
 
 // Context initialization
-static void context_init(context_t *ctx, Arena *arena)
+static void context_init(context_t *ctx, Arena *request_arena)
 {
-    if (!ctx || !arena)
+    if (!ctx || !request_arena)
         return;
 
-    ctx->arena = arena;
+    ctx->arena = request_arena;
     ctx->entries = NULL;
     ctx->count = 0;
     ctx->capacity = 0;
@@ -343,17 +343,17 @@ void *get_context(Req *req, const char *key)
 }
 
 // Create and initialize Req
-static Req *create_req(Arena *arena, uv_tcp_t *client_socket)
+static Req *create_req(Arena *request_arena, uv_tcp_t *client_socket)
 {
-    if (!arena)
+    if (!request_arena)
         return NULL;
 
-    Req *req = arena_alloc(arena, sizeof(Req));
+    Req *req = arena_alloc(request_arena, sizeof(Req));
     if (!req)
         return NULL;
 
     memset(req, 0, sizeof(Req));
-    req->arena = arena;
+    req->arena = request_arena;
     req->client_socket = client_socket;
     req->method = NULL;
     req->path = NULL;
@@ -366,26 +366,26 @@ static Req *create_req(Arena *arena, uv_tcp_t *client_socket)
     memset(&req->params, 0, sizeof(request_t));
 
     // Initialize context
-    context_init(&req->ctx, arena);
+    context_init(&req->ctx, request_arena);
 
     return req;
 }
 
 // Create and initialize Res
-static Res *create_res(Arena *arena, uv_tcp_t *client_socket)
+static Res *create_res(Arena *request_arena, uv_tcp_t *client_socket)
 {
-    if (!arena)
+    if (!request_arena)
         return NULL;
 
-    Res *res = arena_alloc(arena, sizeof(Res));
+    Res *res = arena_alloc(request_arena, sizeof(Res));
     if (!res)
         return NULL;
 
     memset(res, 0, sizeof(Res));
-    res->arena = arena;
+    res->arena = request_arena;
     res->client_socket = client_socket;
     res->status = 200;
-    res->content_type = arena_strdup(arena, "text/plain");
+    res->content_type = arena_strdup(request_arena, "text/plain");
     res->body = NULL;
     res->body_len = 0;
     res->keep_alive = 1;
@@ -396,33 +396,19 @@ static Res *create_res(Arena *arena, uv_tcp_t *client_socket)
     return res;
 }
 
-// Create and initialize http_context_t using new API
-static http_context_t *create_http_context(Arena *arena)
-{
-    if (!arena)
-        return NULL;
-
-    http_context_t *context = arena_alloc(arena, sizeof(http_context_t));
-    if (!context)
-        return NULL;
-
-    // Use the new initialization function
-    http_context_init(context, arena);
-    return context;
-}
-
-static request_t copy_request_t(Arena *arena, const request_t *original)
+// Copy request_t from connection arena to request arena
+static request_t copy_request_t(Arena *request_arena, const request_t *original)
 {
     request_t copy;
     memset(&copy, 0, sizeof(request_t));
 
-    if (!arena || !original || original->count == 0)
+    if (!request_arena || !original || original->count == 0)
         return copy;
 
-    // Allocate items array in arena
+    // Allocate items array in request arena
     copy.capacity = original->count;
     copy.count = original->count;
-    copy.items = arena_alloc(arena, copy.capacity * sizeof(request_item_t));
+    copy.items = arena_alloc(request_arena, copy.capacity * sizeof(request_item_t));
 
     if (!copy.items)
     {
@@ -430,15 +416,14 @@ static request_t copy_request_t(Arena *arena, const request_t *original)
         return copy;
     }
 
-    // Copy each item using arena
+    // Copy each item using request arena
     for (uint32_t i = 0; i < original->count; i++)
     {
         if (original->items[i].key)
         {
-            copy.items[i].key = arena_strdup(arena, original->items[i].key);
+            copy.items[i].key = arena_strdup(request_arena, original->items[i].key);
             if (!copy.items[i].key)
             {
-                // Arena allocation failed - clear and return
                 memset(&copy, 0, sizeof(request_t));
                 return copy;
             }
@@ -450,7 +435,7 @@ static request_t copy_request_t(Arena *arena, const request_t *original)
 
         if (original->items[i].value)
         {
-            copy.items[i].value = arena_strdup(arena, original->items[i].value);
+            copy.items[i].value = arena_strdup(request_arena, original->items[i].value);
             if (!copy.items[i].value)
             {
                 // Arena allocation failed - clear and return
@@ -467,49 +452,50 @@ static request_t copy_request_t(Arena *arena, const request_t *original)
     return copy;
 }
 
-// Arena-aware request population
-static int populate_req_from_context(Req *req, http_context_t *context, const char *path)
+// Populate request from persistent context - copy from connection arena to request arena
+static int populate_req_from_context(Req *req, http_context_t *persistent_ctx, const char *path)
 {
-    if (!req || !req->arena || !context)
+    if (!req || !req->arena || !persistent_ctx)
         return -1;
 
-    Arena *arena = req->arena;
+    Arena *request_arena = req->arena;
 
-    // Copy method
-    if (context->method)
+    // Copy method from persistent context to request arena
+    if (persistent_ctx->method)
     {
-        req->method = arena_strdup(arena, context->method);
+        req->method = arena_strdup(request_arena, persistent_ctx->method);
         if (!req->method)
             return -1;
     }
 
-    // Copy path
+    // Copy path to request arena
     if (path)
     {
-        req->path = arena_strdup(arena, path);
+        req->path = arena_strdup(request_arena, path);
         if (!req->path)
             return -1;
     }
 
-    // Copy body
-    if (context->body && context->body_length > 0)
+    // Copy body from persistent context to request arena
+    if (persistent_ctx->body && persistent_ctx->body_length > 0)
     {
-        req->body = arena_alloc(arena, context->body_length + 1);
+        req->body = arena_alloc(request_arena, persistent_ctx->body_length + 1);
         if (!req->body)
             return -1;
-        arena_memcpy(req->body, context->body, context->body_length);
-        req->body[context->body_length] = '\0';
-        req->body_len = context->body_length;
+        arena_memcpy(req->body, persistent_ctx->body, persistent_ctx->body_length);
+        req->body[persistent_ctx->body_length] = '\0';
+        req->body_len = persistent_ctx->body_length;
     }
 
-    req->headers = copy_request_t(arena, &context->headers);
-    req->query = copy_request_t(arena, &context->query_params);
-    req->params = copy_request_t(arena, &context->url_params);
+    // Copy containers from connection arena to request arena
+    req->headers = copy_request_t(request_arena, &persistent_ctx->headers);
+    req->query = copy_request_t(request_arena, &persistent_ctx->query_params);
+    req->params = copy_request_t(request_arena, &persistent_ctx->url_params);
 
     return 0;
 }
 
-// Composes and sends the response (headers + body) using malloc for libuv data
+// Composes and sends the response
 void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len)
 {
     // Early validation
@@ -518,9 +504,9 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
 
     if (!res->client_socket)
     {
-        Arena *arena = res->arena;
-        arena_free(arena);
-        free(arena);
+        Arena *request_arena = res->arena;
+        arena_free(request_arena);
+        free(request_arena);
         return;
     }
 
@@ -559,7 +545,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         }
     }
 
-    // Allocate header string from arena
+    // Allocate header string from request arena
     char *all_headers = arena_alloc(res->arena, headers_size + 1);
     if (!all_headers)
     {
@@ -619,7 +605,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
 
     size_t total_len = (size_t)base_header_len + body_len;
 
-    // Allocate response buffer from arena
+    // Allocate response buffer from request arena
     char *response = arena_alloc(res->arena, total_len + 1);
     if (!response)
     {
@@ -657,7 +643,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         memcpy(response + written, body, body_len);
     }
 
-    // Allocate write request
+    // Allocate write request in request arena
     write_req_t *write_req = arena_alloc(res->arena, sizeof(write_req_t));
     if (!write_req)
     {
@@ -667,8 +653,8 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
 
     // Setup write request
     memset(write_req, 0, sizeof(write_req_t));
-    write_req->data = response;    // Arena memory pointer
-    write_req->arena = res->arena; // Transfer arena ownership
+    write_req->data = response;    // Request arena memory pointer
+    write_req->arena = res->arena; // Transfer request arena ownership
     write_req->buf = uv_buf_init(response, (unsigned int)total_len);
 
     // Final socket check
@@ -676,9 +662,9 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     {
         // Arena cleanup will be handled by callback if write succeeds
         // but we need to clean up here if we're not going to write
-        Arena *arena = res->arena;
-        arena_free(arena);
-        free(arena);
+        Arena *request_arena = res->arena;
+        arena_free(request_arena);
+        free(request_arena);
         return;
     }
 
@@ -689,183 +675,166 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     if (result < 0)
     {
         fprintf(stderr, "Write error: %s\n", uv_strerror(result));
-        Arena *arena = res->arena;
-        arena_free(arena);
-        free(arena);
+        Arena *request_arena = res->arena;
+        arena_free(request_arena);
+        free(request_arena);
         return;
     }
 }
 
-// Main router function - UPDATED to use new parsing API
-int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len)
+// Main router function
+int router(client_t *client, const char *request_data, size_t request_len)
 {
     // Early validation
-    if (!client_socket || !request_data || request_len == 0)
+    if (!client || !request_data || request_len == 0)
     {
-        if (client_socket)
-            send_error(NULL, client_socket, 400);
+        if (client && client->handle.data)
+            send_error(NULL, (uv_tcp_t *)&client->handle, 400);
         return 1;
     }
 
-    if (uv_is_closing((uv_handle_t *)client_socket))
+    if (uv_is_closing((uv_handle_t *)&client->handle))
         return 1;
 
-    // Create request arena on heap
-    Arena *arena = calloc(1, sizeof(Arena));
-    if (!arena)
+    // Get persistent context from client (connection arena)
+    http_context_t *persistent_ctx = &client->persistent_context;
+
+    // Create request arena (separate from connection arena)
+    Arena *request_arena = calloc(1, sizeof(Arena));
+    if (!request_arena)
     {
-        send_error(NULL, client_socket, 500);
+        send_error(NULL, (uv_tcp_t *)&client->handle, 500);
         return 1;
     }
 
-    // Initialize all resources
-    http_context_t *ctx = NULL;
+    // Initialize resources in request arena
     Req *req = NULL;
     Res *res = NULL;
     tokenized_path_t tokenized_path = {0};
 
-    // Create resources using heap arena
-    ctx = create_http_context(arena);
-    req = create_req(arena, client_socket);
-    res = create_res(arena, client_socket);
+    // Create resources using request arena
+    req = create_req(request_arena, (uv_tcp_t *)&client->handle);
+    res = create_res(request_arena, (uv_tcp_t *)&client->handle);
 
-    if (!ctx || !req || !res)
+    if (!req || !res)
     {
-        send_error(arena, client_socket, 500);
+        send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
         return 1;
     }
 
-    parse_result_t parse_result = http_parse_request(ctx, request_data, request_len);
+    // Parse request using persistent parser and context
+    parse_result_t parse_result = http_parse_request(persistent_ctx, request_data, request_len);
 
     switch (parse_result)
     {
     case PARSE_SUCCESS:
-        // Parsing completed successfully
         break;
 
     case PARSE_INCOMPLETE:
-        // Need more data - for single request parsing, this is usually an error
         fprintf(stderr, "HTTP parsing incomplete - need more data\n");
-        send_error(arena, client_socket, 400);
+        send_error(request_arena, (uv_tcp_t *)&client->handle, 400);
         return 1;
 
     case PARSE_OVERFLOW:
-        // Size limits exceeded
         fprintf(stderr, "HTTP parsing failed: size limits exceeded\n");
-        if (ctx->error_reason)
-        {
-            fprintf(stderr, " - %s\n", ctx->error_reason);
-        }
-        send_error(arena, client_socket, 413); // Payload Too Large
+        if (persistent_ctx->error_reason)
+            fprintf(stderr, " - %s\n", persistent_ctx->error_reason);
+        send_error(request_arena, (uv_tcp_t *)&client->handle, 413);
         return 1;
 
     case PARSE_ERROR:
     default:
-        // Parse error
         fprintf(stderr, "HTTP parsing failed: %s\n", parse_result_to_string(parse_result));
-        if (ctx->error_reason)
-        {
-            fprintf(stderr, " - %s\n", ctx->error_reason);
-        }
-        send_error(arena, client_socket, 400);
+        if (persistent_ctx->error_reason)
+            fprintf(stderr, " - %s\n", persistent_ctx->error_reason);
+        send_error(request_arena, (uv_tcp_t *)&client->handle, 400);
         return 1;
     }
 
-    // Check if we need to finish parsing (for requests without Content-Length)
-    if (http_message_needs_eof(ctx))
+    // Check if we need to finish parsing
+    if (http_message_needs_eof(persistent_ctx))
     {
-        parse_result_t finish_result = http_finish_parsing(ctx);
+        parse_result_t finish_result = http_finish_parsing(persistent_ctx);
         if (finish_result != PARSE_SUCCESS)
         {
             fprintf(stderr, "HTTP finish parsing failed: %s\n",
                     parse_result_to_string(finish_result));
-            if (ctx->error_reason)
-            {
-                fprintf(stderr, " - %s\n", ctx->error_reason);
-            }
-            send_error(arena, client_socket, 400);
+            if (persistent_ctx->error_reason)
+                fprintf(stderr, " - %s\n", persistent_ctx->error_reason);
+            send_error(request_arena, (uv_tcp_t *)&client->handle, 400);
             return 1;
         }
     }
 
-    res->keep_alive = ctx->keep_alive;
+    res->keep_alive = persistent_ctx->keep_alive;
 
-    // Extract path and query
+    // Extract path and query in request arena
     char *path = NULL;
     char *query = NULL;
-    if (extract_path_and_query(arena, ctx->url, &path, &query) != 0)
+    if (extract_path_and_query(request_arena, persistent_ctx->url, &path, &query) != 0)
     {
-        send_error(arena, client_socket, 500);
+        send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
         return 1;
     }
 
     if (!path)
     {
-        send_error(arena, client_socket, 400);
+        send_error(request_arena, (uv_tcp_t *)&client->handle, 400);
         return 1;
     }
 
-    // Parse query parameters (this was already done in on_message_complete callback)
-    // but we need to make sure it's available in the context
-    // parse_query(arena, query, &ctx->query_params); // Already done in callback
-
     // Route matching validation
-    if (!global_route_trie || !ctx->method)
+    if (!global_route_trie || !persistent_ctx->method)
     {
-        printf("ERROR: Missing route trie (%p) or method (%s)\n",
-               global_route_trie, ctx->method ? ctx->method : "NULL");
+        fprintf(stderr, "ERROR: Missing route trie (%p) or method (%s)\n",
+                (void *)global_route_trie,
+                persistent_ctx->method ? persistent_ctx->method : "NULL");
 
         // 404 but still success response: Return based on keep_alive
         bool keep_alive = res->keep_alive;
-
         const char *not_found_msg = "404 Not Found";
         reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
-
         return keep_alive ? 0 : 1;
     }
 
-    // Tokenize path
-    if (tokenize_path(arena, path, &tokenized_path) != 0)
+    // Tokenize path in request arena
+    if (tokenize_path(request_arena, path, &tokenized_path) != 0)
     {
-        send_error(arena, client_socket, 500);
+        send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
         return 1;
     }
 
     // Route matching
     route_match_t match;
-    if (!route_trie_match(global_route_trie, &ctx->parser, &tokenized_path, &match))
+    if (!route_trie_match(global_route_trie, persistent_ctx->parser, &tokenized_path, &match))
     {
-        // 404 but still success response: Return based on keep_alive
         bool keep_alive = res->keep_alive;
-
         const char *not_found_msg = "404 Not Found";
         reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
-
         return keep_alive ? 0 : 1;
     }
 
-    if (extract_url_params(arena, &match, &ctx->url_params) != 0)
+    // Extract URL parameters in request arena
+    if (extract_url_params(request_arena, &match, &persistent_ctx->url_params) != 0)
     {
-        send_error(arena, client_socket, 500);
+        send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
         return 1;
     }
 
-    if (populate_req_from_context(req, ctx, path) != 0)
+    // Populate request from persistent context (copy to request arena)
+    if (populate_req_from_context(req, persistent_ctx, path) != 0)
     {
-        send_error(arena, client_socket, 500);
+        send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
         return 1;
     }
 
     if (!match.handler)
     {
-        send_error(arena, client_socket, 500);
+        send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
         return 1;
     }
 
     // Success path - call handler
-
-    // Calls chain if there is a middleware
-    // otherwise, calls the handler directly
     if (match.middleware_ctx)
     {
         MiddlewareInfo *middleware_info = (MiddlewareInfo *)match.middleware_ctx;
@@ -873,7 +842,6 @@ int router(uv_tcp_t *client_socket, const char *request_data, size_t request_len
     }
     else
     {
-        // No middleware, call handler directly
         match.handler(req, res);
     }
 

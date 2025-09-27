@@ -123,7 +123,7 @@ static int ensure_buffer_capacity(Arena *arena, char **buffer, size_t *capacity,
 }
 
 // llhttp callback for URL
-static int on_url_cb(llhttp_t *parser, const char *at, size_t length)
+int on_url_cb(llhttp_t *parser, const char *at, size_t length)
 {
     http_context_t *context;
     int result;
@@ -162,7 +162,7 @@ static int on_url_cb(llhttp_t *parser, const char *at, size_t length)
 }
 
 // llhttp callback for headers field
-static int on_header_field_cb(llhttp_t *parser, const char *at, size_t length)
+int on_header_field_cb(llhttp_t *parser, const char *at, size_t length)
 {
     http_context_t *context;
     size_t i;
@@ -222,7 +222,7 @@ static int on_header_field_cb(llhttp_t *parser, const char *at, size_t length)
 }
 
 // Enhanced array capacity management
-static int ensure_array_capacity(Arena *arena, request_t *array)
+int ensure_array_capacity(Arena *arena, request_t *array)
 {
     int new_capacity, i;
     size_t old_size, new_size;
@@ -273,7 +273,7 @@ static int ensure_array_capacity(Arena *arena, request_t *array)
 }
 
 // Enhanced header value callback
-static int on_header_value_cb(llhttp_t *parser, const char *at, size_t length)
+int on_header_value_cb(llhttp_t *parser, const char *at, size_t length)
 {
     http_context_t *context;
     char *value;
@@ -331,7 +331,7 @@ static int on_header_value_cb(llhttp_t *parser, const char *at, size_t length)
 }
 
 // llhttp callback for method
-static int on_method_cb(llhttp_t *parser, const char *at, size_t length)
+int on_method_cb(llhttp_t *parser, const char *at, size_t length)
 {
     http_context_t *context;
     size_t i;
@@ -381,7 +381,7 @@ static int on_method_cb(llhttp_t *parser, const char *at, size_t length)
 }
 
 // llhttp callback for body
-static int on_body_cb(llhttp_t *parser, const char *at, size_t length)
+int on_body_cb(llhttp_t *parser, const char *at, size_t length)
 {
     http_context_t *context;
     int result;
@@ -413,7 +413,7 @@ static int on_body_cb(llhttp_t *parser, const char *at, size_t length)
 }
 
 // Callback when headers are complete
-static int on_headers_complete_cb(llhttp_t *parser)
+int on_headers_complete_cb(llhttp_t *parser)
 {
     http_context_t *context;
 
@@ -434,7 +434,7 @@ static int on_headers_complete_cb(llhttp_t *parser)
 }
 
 // Callback when message is complete
-static int on_message_complete_cb(llhttp_t *parser)
+int on_message_complete_cb(llhttp_t *parser)
 {
     http_context_t *context;
     char *query_start;
@@ -459,34 +459,23 @@ static int on_message_complete_cb(llhttp_t *parser)
     return HPE_OK;
 }
 
-// Initialize HTTP context
-void http_context_init(http_context_t *context, Arena *arena)
+void http_context_init(http_context_t *context,
+                       Arena *arena,
+                       llhttp_t *reused_parser,
+                       llhttp_settings_t *reused_settings)
 {
-    if (!context || !arena)
+    if (!context || !arena || !reused_parser || !reused_settings)
         return;
 
     memset(context, 0, sizeof(http_context_t));
     context->arena = arena;
 
-    // Initialize llhttp parser
-    llhttp_settings_init(&context->settings);
+    // Use external parser and settings
+    context->parser = reused_parser;
+    context->settings = reused_settings;
 
-    // Set up callbacks
-    context->settings.on_url = on_url_cb;
-    context->settings.on_header_field = on_header_field_cb;
-    context->settings.on_header_value = on_header_value_cb;
-    context->settings.on_method = on_method_cb;
-    context->settings.on_body = on_body_cb;
-    context->settings.on_headers_complete = on_headers_complete_cb;
-    context->settings.on_message_complete = on_message_complete_cb;
-
-    llhttp_init(&context->parser, HTTP_REQUEST, &context->settings);
-    context->parser.data = context;
-
-    // Enable stricter parsing for security
-    llhttp_set_lenient_headers(&context->parser, 0);
-    llhttp_set_lenient_chunked_length(&context->parser, 0);
-    llhttp_set_lenient_keep_alive(&context->parser, 0);
+    // Link parser to context
+    context->parser->data = context;
 
     // Initialize buffers
     context->url_capacity = 512;
@@ -542,77 +531,6 @@ void http_context_init(http_context_t *context, Arena *arena)
     context->error_reason = NULL;
 }
 
-// Reset context for reuse
-void http_context_reset(http_context_t *context)
-{
-    if (!context)
-        return;
-
-    // Reset parser state
-    llhttp_reset(&context->parser);
-
-    // Reset lengths but keep buffers
-    context->url_length = 0;
-    if (context->url)
-        context->url[0] = '\0';
-
-    context->method_length = 0;
-    if (context->method)
-        context->method[0] = '\0';
-
-    context->header_field_length = 0;
-    if (context->current_header_field)
-        context->current_header_field[0] = '\0';
-
-    context->body_length = 0;
-    if (context->body)
-        context->body[0] = '\0';
-
-    // Reset arrays
-    context->headers.count = 0;
-    context->query_params.count = 0;
-    context->url_params.count = 0;
-
-    // Reset flags
-    context->message_complete = 0;
-    context->headers_complete = 0;
-    context->keep_alive = 1;
-    context->http_major = 0;
-    context->http_minor = 0;
-    context->status_code = 0;
-    context->last_error = HPE_OK;
-    context->error_reason = NULL;
-}
-
-// Cleanup HTTP context
-void http_context_free(http_context_t *context)
-{
-    if (!context)
-        return;
-
-    // Clear all pointers - arena handles memory deallocation
-    context->arena = NULL;
-    context->url = NULL;
-    context->method = NULL;
-    context->current_header_field = NULL;
-    context->body = NULL;
-
-    context->headers.items = NULL;
-    context->headers.count = 0;
-    context->headers.capacity = 0;
-
-    context->query_params.items = NULL;
-    context->query_params.count = 0;
-    context->query_params.capacity = 0;
-
-    context->url_params.items = NULL;
-    context->url_params.count = 0;
-    context->url_params.capacity = 0;
-
-    // Zero out the entire structure
-    memset(context, 0, sizeof(http_context_t));
-}
-
 // Main parsing function
 parse_result_t http_parse_request(http_context_t *context, const char *data, size_t len)
 {
@@ -621,11 +539,11 @@ parse_result_t http_parse_request(http_context_t *context, const char *data, siz
     if (!context || !data || len == 0)
         return PARSE_ERROR;
 
-    err = llhttp_execute(&context->parser, data, len);
+    err = llhttp_execute(context->parser, data, len);
 
     // Store error information
     context->last_error = err;
-    context->error_reason = llhttp_get_error_reason(&context->parser);
+    context->error_reason = llhttp_get_error_reason(context->parser);
 
     switch (err)
     {
@@ -655,7 +573,7 @@ bool http_message_needs_eof(const http_context_t *context)
     if (!context)
         return 0;
 
-    return llhttp_message_needs_eof(&context->parser) != 0;
+    return llhttp_message_needs_eof(context->parser) != 0;
 }
 
 // Finish parsing when EOF is reached
@@ -666,10 +584,10 @@ parse_result_t http_finish_parsing(http_context_t *context)
     if (!context)
         return PARSE_ERROR;
 
-    err = llhttp_finish(&context->parser);
+    err = llhttp_finish(context->parser);
 
     context->last_error = err;
-    context->error_reason = llhttp_get_error_reason(&context->parser);
+    context->error_reason = llhttp_get_error_reason(context->parser);
 
     switch (err)
     {

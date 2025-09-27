@@ -5,28 +5,13 @@
 #include <time.h>
 #include <inttypes.h>
 #include "server.h"
+#include "client.h"
 #include "../lib/route_trie.h"
-
-#define READ_BUFFER_SIZE 16384
-#define MAX_CONNECTIONS 10000
-#define LISTEN_BACKLOG 511
-#define IDLE_TIMEOUT_SECONDS 120  // 2 minutes idle timeout
-#define CLEANUP_INTERVAL_MS 60000 // Check every minute
+#include "../lib/request.h"
 
 // ============================================================================
 // INTERNAL STRUCTURES
 // ============================================================================
-
-typedef struct client_s
-{
-    uv_tcp_t handle;
-    uv_buf_t read_buf;
-    char buffer[READ_BUFFER_SIZE];
-    bool closing;
-    time_t last_activity;    // Only field needed for idle tracking
-    bool keep_alive_enabled; // Track if this connection uses keep-alive
-    struct client_s *next;   // Linked list for easy iteration
-} client_t;
 
 typedef struct timer_data_s
 {
@@ -50,8 +35,8 @@ static struct
 
     shutdown_callback_t shutdown_callback;
 
-    client_t *client_list_head; // Head of client linked list
-    uv_timer_t *cleanup_timer;  // Single timer for all cleanup
+    client_t *client_list_head;
+    uv_timer_t *cleanup_timer;
 
     bool server_closed;
 } g_server = {0};
@@ -120,14 +105,14 @@ static void cleanup_idle_connections(uv_timer_t *handle)
 
     while (current)
     {
-        client_t *next = current->next; // Always save next first
+        client_t *next = current->next;
 
         if (current->keep_alive_enabled && !current->closing)
         {
             time_t idle_time = now - current->last_activity;
             if (idle_time > IDLE_TIMEOUT_SECONDS)
             {
-                close_client(current); // This removes from list
+                close_client(current);
             }
         }
         current = next;
@@ -150,7 +135,7 @@ static int start_cleanup_timer(void)
         return -1;
     }
 
-    // Start periodic cleanup (every 30 seconds)
+    // Start periodic cleanup
     if (uv_timer_start(g_server.cleanup_timer, cleanup_idle_connections,
                        CLEANUP_INTERVAL_MS, CLEANUP_INTERVAL_MS) != 0)
     {
@@ -171,6 +156,166 @@ static void stop_cleanup_timer(void)
         uv_close((uv_handle_t *)g_server.cleanup_timer, (uv_close_cb)free);
         g_server.cleanup_timer = NULL;
     }
+}
+
+// ============================================================================
+// CLIENT LIFECYCLE MANAGEMENT
+// ============================================================================
+
+// Initialize connection arena and persistent context
+static int client_connection_init(client_t *client)
+{
+    if (!client)
+        return -1;
+
+    // Create connection arena
+    client->connection_arena = calloc(1, sizeof(Arena));
+    if (!client->connection_arena)
+        return -1;
+
+    // Initialize persistent context in connection arena
+    http_context_t *ctx = arena_alloc(client->connection_arena, sizeof(http_context_t));
+    if (!ctx)
+    {
+        arena_free(client->connection_arena);
+        free(client->connection_arena);
+        client->connection_arena = NULL;
+        return -1;
+    }
+
+    // Copy to persistent context
+    memcpy(&client->persistent_context, ctx, sizeof(http_context_t));
+
+    return 0;
+}
+
+// Initialize parser (one-time setup)
+static void client_parser_init(client_t *client)
+{
+    if (!client || client->parser_initialized)
+        return;
+
+    // Initialize settings
+    llhttp_settings_init(&client->persistent_settings);
+
+    // Set up callbacks
+    client->persistent_settings.on_url = on_url_cb;
+    client->persistent_settings.on_header_field = on_header_field_cb;
+    client->persistent_settings.on_header_value = on_header_value_cb;
+    client->persistent_settings.on_method = on_method_cb;
+    client->persistent_settings.on_body = on_body_cb;
+    client->persistent_settings.on_headers_complete = on_headers_complete_cb;
+    client->persistent_settings.on_message_complete = on_message_complete_cb;
+
+    // Initialize parser
+    llhttp_init(&client->persistent_parser, HTTP_REQUEST, &client->persistent_settings);
+
+    // Enable strict parsing
+    llhttp_set_lenient_headers(&client->persistent_parser, 0);
+    llhttp_set_lenient_chunked_length(&client->persistent_parser, 0);
+    llhttp_set_lenient_keep_alive(&client->persistent_parser, 0);
+
+    client->parser_initialized = true;
+}
+
+// Reset persistent context for new request
+static void client_context_reset(client_t *client)
+{
+    if (!client || !client->connection_arena)
+        return;
+
+    // Reset context fields but keep the context structure
+    http_context_t *ctx = &client->persistent_context;
+
+    // Reset lengths and flags
+    ctx->url_length = 0;
+    ctx->method_length = 0;
+    ctx->body_length = 0;
+    ctx->header_field_length = 0;
+
+    // Reset containers
+    ctx->headers.count = 0;
+    ctx->query_params.count = 0;
+    ctx->url_params.count = 0;
+
+    // Reset flags
+    ctx->message_complete = 0;
+    ctx->headers_complete = 0;
+    ctx->keep_alive = 1;
+    ctx->last_error = HPE_OK;
+    ctx->error_reason = NULL;
+
+    // Clear buffers if they exist
+    if (ctx->url)
+        ctx->url[0] = '\0';
+    if (ctx->method)
+        ctx->method[0] = '\0';
+    if (ctx->body)
+        ctx->body[0] = '\0';
+    if (ctx->current_header_field)
+        ctx->current_header_field[0] = '\0';
+
+    // Reset parser
+    llhttp_reset(&client->persistent_parser);
+}
+
+// Initialize persistent context with connection arena
+static void client_context_init(client_t *client)
+{
+    if (!client || !client->connection_arena)
+        return;
+
+    http_context_t *ctx = &client->persistent_context;
+
+    // Basic setup
+    memset(ctx, 0, sizeof(http_context_t));
+    ctx->arena = client->connection_arena;
+    ctx->parser = &client->persistent_parser;
+    ctx->settings = &client->persistent_settings;
+
+    // Link parser to context
+    client->persistent_parser.data = ctx;
+
+    // Initialize buffers in connection arena
+    ctx->url_capacity = 512;
+    ctx->url = arena_alloc(client->connection_arena, ctx->url_capacity);
+    if (ctx->url)
+        ctx->url[0] = '\0';
+
+    ctx->method_capacity = 32;
+    ctx->method = arena_alloc(client->connection_arena, ctx->method_capacity);
+    if (ctx->method)
+        ctx->method[0] = '\0';
+
+    ctx->header_field_capacity = 128;
+    ctx->current_header_field = arena_alloc(client->connection_arena, ctx->header_field_capacity);
+    if (ctx->current_header_field)
+        ctx->current_header_field[0] = '\0';
+
+    ctx->body_capacity = 1024;
+    ctx->body = arena_alloc(client->connection_arena, ctx->body_capacity);
+    if (ctx->body)
+        ctx->body[0] = '\0';
+
+    // Initialize arrays in connection arena
+    ctx->headers.capacity = 32;
+    ctx->headers.items = arena_alloc(client->connection_arena,
+                                     ctx->headers.capacity * sizeof(request_item_t));
+    if (ctx->headers.items)
+    {
+        memset(ctx->headers.items, 0, ctx->headers.capacity * sizeof(request_item_t));
+    }
+
+    // Initialize empty containers
+    memset(&ctx->query_params, 0, sizeof(request_t));
+    memset(&ctx->url_params, 0, sizeof(request_t));
+
+    // Default settings
+    ctx->keep_alive = 1;
+    ctx->message_complete = 0;
+    ctx->headers_complete = 0;
+    ctx->last_error = HPE_OK;
+    ctx->error_reason = NULL;
 }
 
 // ============================================================================
@@ -232,7 +377,6 @@ static void server_cleanup(void)
         return;
     }
 
-    // Stop cleanup timer first
     stop_cleanup_timer();
 
     // Cleanup router system internally
@@ -291,7 +435,6 @@ int server_init(void)
     }
 
     g_server.initialized = 1;
-
     atexit(server_cleanup);
 
     return SERVER_OK;
@@ -376,7 +519,7 @@ void server_run(void)
 
     printf("Press Ctrl+C to stop the server\n");
 
-    // Heart of the web server - simple event loop
+    // Heart of the web server
     uv_run(g_server.loop, UV_RUN_DEFAULT);
 
     // Automatic cleanup when loop ends
@@ -555,6 +698,14 @@ static void on_client_closed(uv_handle_t *handle)
     {
         remove_client_from_list(client);
         g_server.active_connections--;
+
+        // Connection arena cleanup
+        if (client->connection_arena)
+        {
+            arena_free(client->connection_arena);
+            free(client->connection_arena);
+        }
+
         free(client);
     }
 }
@@ -580,9 +731,7 @@ static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
     client_t *client = (client_t *)stream->data;
 
     if (!client || client->closing)
-    {
         return;
-    }
 
     if (g_server.shutdown_requested)
     {
@@ -597,17 +746,27 @@ static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
     }
 
     if (nread == 0)
-    {
         return; // EAGAIN/EWOULDBLOCK
-    }
 
     // Update activity time
     client->last_activity = time(NULL);
 
-    // Process through router
+    // Initialize parser and context on first use
+    if (!client->parser_initialized)
+    {
+        client_parser_init(client);
+        client_context_init(client);
+    }
+    else
+    {
+        // Reset context for subsequent requests
+        client_context_reset(client);
+    }
+
+    // Process through router with persistent parser and context
     if (buf && buf->base)
     {
-        int should_close = router(&client->handle, buf->base, (size_t)nread);
+        int should_close = router(client, buf->base, (size_t)nread);
 
         if (should_close)
         {
@@ -615,7 +774,6 @@ static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
         }
         else
         {
-            // Keep-alive: mark as keep-alive enabled
             client->keep_alive_enabled = true;
         }
     }
@@ -644,17 +802,29 @@ static void on_connection(uv_stream_t *server, int status)
 
     client_t *client = calloc(1, sizeof(client_t));
     if (!client)
-    {
         return;
-    }
 
     // Initialize client
     client->last_activity = time(NULL);
     client->keep_alive_enabled = false;
     client->next = NULL;
+    client->parser_initialized = false;
+    client->connection_arena = NULL;
+
+    // Initialize connection arena and persistent context
+    if (client_connection_init(client) != 0)
+    {
+        free(client);
+        return;
+    }
 
     if (uv_tcp_init(g_server.loop, &client->handle) != 0)
     {
+        if (client->connection_arena)
+        {
+            arena_free(client->connection_arena);
+            free(client->connection_arena);
+        }
         free(client);
         return;
     }
