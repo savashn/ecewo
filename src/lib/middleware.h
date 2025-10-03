@@ -17,6 +17,7 @@ struct Chain
     uint16_t count;               // Number of handlers in the chain
     uint16_t current;             // Current position in the middleware chain
     RequestHandler route_handler; // The final route handler
+    handler_type_t handler_type;  // Sync or async execution
 };
 
 typedef struct MiddlewareInfo
@@ -24,6 +25,7 @@ typedef struct MiddlewareInfo
     MiddlewareHandler *middleware;
     uint16_t middleware_count;
     RequestHandler handler;
+    handler_type_t handler_type; // Track if handler is async
 } MiddlewareInfo;
 
 typedef struct
@@ -54,7 +56,24 @@ int next(Req *req, Res *res, Chain *chain);
 void register_route(llhttp_method_t method,
                     const char *path,
                     MiddlewareArray middleware,
-                    RequestHandler handler);
+                    RequestHandler handler,
+                    handler_type_t type);
+
+static inline void register_sync_route(llhttp_method_t method,
+                                       const char *path,
+                                       MiddlewareArray middleware,
+                                       RequestHandler handler)
+{
+    register_route(method, path, middleware, handler, HANDLER_SYNC);
+}
+
+static inline void register_async_route(llhttp_method_t method,
+                                        const char *path,
+                                        MiddlewareArray middleware,
+                                        RequestHandler handler)
+{
+    register_route(method, path, middleware, handler, HANDLER_ASYNC);
+}
 
 void reset_middleware(void);
 

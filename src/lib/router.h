@@ -159,6 +159,25 @@ typedef struct
     void *middleware_ctx;
 } Router;
 
+typedef enum
+{
+    HANDLER_SYNC = 0, // Execute in main thread (default behavior)
+    HANDLER_ASYNC = 1 // Execute in thread pool
+} handler_type_t;
+
+// Async handler context for thread pool execution
+typedef struct
+{
+    uv_work_t work_req;
+    RequestHandler handler;
+    Req *req;
+    Res *res;
+    bool completed;
+    const char *error_message;
+} async_handler_context_t;
+
+int execute_async_handler(RequestHandler handler, Req *req, Res *res);
+
 // Forward declaration from middleware.ch
 typedef struct MiddlewareInfo MiddlewareInfo;
 void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_info);

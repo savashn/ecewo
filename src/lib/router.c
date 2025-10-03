@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include "route_trie.h"
 #include "middleware.h"
+#include "../server/server.h"
 
 // Forward declaration for client structure
 typedef struct client_s client_t;
@@ -834,20 +835,127 @@ int router(client_t *client, const char *request_data, size_t request_len)
         return 1;
     }
 
-    // Success path - call handler
-    if (match.middleware_ctx)
+    // ============================================================================
+    // ASYNC/SYNC HANDLER EXECUTION
+    // ============================================================================
+
+    // Check if this is an async handler
+    MiddlewareInfo *middleware_info = (MiddlewareInfo *)match.middleware_ctx;
+    handler_type_t handler_type = HANDLER_SYNC; // Default to sync
+
+    // Determine handler type from middleware info
+    if (middleware_info)
     {
-        MiddlewareInfo *middleware_info = (MiddlewareInfo *)match.middleware_ctx;
-        execute_middleware_chain(req, res, middleware_info);
+        handler_type = middleware_info->handler_type;
+    }
+
+    if (handler_type == HANDLER_ASYNC)
+    {
+        // ========================================================================
+        // ASYNCHRONOUS EXECUTION (Thread Pool)
+        // ========================================================================
+
+        if (middleware_info)
+        {
+            // TODO: Full async middleware chain support
+            // For now, execute middleware synchronously then handler async
+            // This is a simplified implementation that covers most use cases
+
+            // Execute global and route-specific middleware synchronously
+            int total_middleware_count = global_middleware_count + middleware_info->middleware_count;
+
+            if (total_middleware_count > 0)
+            {
+                // Allocate combined middleware handlers
+                MiddlewareHandler *combined_handlers = arena_alloc(req->arena,
+                                                                   sizeof(MiddlewareHandler) * total_middleware_count);
+                if (!combined_handlers)
+                {
+                    send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
+                    return 1;
+                }
+
+                // Copy global middleware handlers first
+                arena_memcpy(combined_handlers, global_middleware, sizeof(MiddlewareHandler) * global_middleware_count);
+
+                // Copy route-specific middleware handlers
+                if (middleware_info->middleware_count > 0 && middleware_info->middleware)
+                {
+                    arena_memcpy(combined_handlers + global_middleware_count, middleware_info->middleware,
+                                 sizeof(MiddlewareHandler) * middleware_info->middleware_count);
+                }
+
+                // Create middleware chain context
+                Chain *chain = arena_alloc(req->arena, sizeof(Chain));
+                if (!chain)
+                {
+                    send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
+                    return 1;
+                }
+
+                chain->handlers = combined_handlers;
+                chain->count = total_middleware_count;
+                chain->current = 0;
+                chain->route_handler = middleware_info->handler;
+                chain->handler_type = handler_type;
+
+                // Execute middleware chain (will end with async handler execution)
+                int result = next(req, res, chain);
+                if (result == -1)
+                {
+                    // Middleware chain failed, try handler directly
+                    if (execute_async_handler(middleware_info->handler, req, res) != 0)
+                    {
+                        send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
+                        return 1;
+                    }
+                }
+            }
+            else
+            {
+                // No middleware, execute handler directly in thread pool
+                if (execute_async_handler(middleware_info->handler, req, res) != 0)
+                {
+                    send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
+                    return 1;
+                }
+            }
+        }
+        else
+        {
+            // No middleware info, execute handler directly in thread pool
+            if (execute_async_handler(match.handler, req, res) != 0)
+            {
+                send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
+                return 1;
+            }
+        }
+
+        // Return immediately - async handler will complete later
+        // Arena cleanup will be handled by async callback
+        // Connection handling based on keep_alive setting
+        return res->keep_alive ? 0 : 1;
     }
     else
     {
-        match.handler(req, res);
-    }
+        // ========================================================================
+        // SYNCHRONOUS EXECUTION (Main Thread) - Original Behavior
+        // ========================================================================
 
-    // SUCCESS: Return based on keep_alive setting
-    // 0 = keep connection open, 1 = close connection
-    return res->keep_alive ? 0 : 1;
+        if (middleware_info)
+        {
+            execute_middleware_chain(req, res, middleware_info);
+        }
+        else
+        {
+            match.handler(req, res);
+        }
+
+        // SUCCESS: Return based on keep_alive setting
+        // Arena cleanup handled by write_completion_cb
+        // 0 = keep connection open, 1 = close connection
+        return res->keep_alive ? 0 : 1;
+    }
 }
 
 // Adds a header
@@ -895,4 +1003,90 @@ void set_header(Res *res, const char *name, const char *value)
     }
 
     res->header_count++;
+}
+
+static void async_handler_work(uv_work_t *req)
+{
+    async_handler_context_t *ctx = (async_handler_context_t *)req->data;
+
+    if (!ctx || !ctx->handler || !ctx->req || !ctx->res)
+    {
+        if (ctx)
+        {
+            ctx->error_message = "Invalid async handler context";
+            ctx->completed = false;
+        }
+        return;
+    }
+
+    // Check if server is shutting down
+    if (!server_is_running())
+    {
+        ctx->error_message = "Server is shutting down";
+        ctx->completed = false;
+        return;
+    }
+
+    // Execute handler in thread pool
+    ctx->handler(ctx->req, ctx->res);
+    ctx->completed = true;
+    ctx->error_message = NULL;
+}
+
+static void async_handler_after_work(uv_work_t *req, int status)
+{
+    async_handler_context_t *ctx = (async_handler_context_t *)req->data;
+
+    if (!ctx)
+        return;
+
+    // Check libuv work status
+    if (status < 0)
+    {
+        fprintf(stderr, "Async handler work failed: %s\n", uv_strerror(status));
+        // Direkt erişim
+        send_error(ctx->req->arena, ctx->req->client_socket, 500);
+        return;
+    }
+
+    // Check handler execution status
+    if (!ctx->completed || ctx->error_message)
+    {
+        fprintf(stderr, "Handler execution failed: %s\n",
+                ctx->error_message ? ctx->error_message : "Unknown error");
+        // Direkt erişim
+        send_error(ctx->req->arena, ctx->req->client_socket, 500);
+        return;
+    }
+
+    // Success: response should have been sent by handler
+    // Arena cleanup is handled by write_completion_cb
+}
+
+int execute_async_handler(RequestHandler handler, Req *req, Res *res)
+{
+    if (!handler || !req || !res)
+        return -1;
+
+    // Create context from arena
+    async_handler_context_t *ctx = arena_alloc(req->arena, sizeof(async_handler_context_t));
+    if (!ctx)
+        return -1;
+
+    // Initialize - minimal fields
+    ctx->work_req.data = ctx;
+    ctx->handler = handler;
+    ctx->req = req;
+    ctx->res = res;
+    ctx->completed = false;
+    ctx->error_message = NULL;
+
+    // Queue work in thread pool
+    int result = uv_queue_work(
+        uv_default_loop(),
+        &ctx->work_req,
+        async_handler_work,
+        async_handler_after_work);
+
+    return result == 0 ? 0 : -1;
 }

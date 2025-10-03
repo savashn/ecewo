@@ -99,7 +99,7 @@ if(NOT TARGET ecewo::ecewo)
         src/lib/router.c
         src/lib/middleware.c
         src/lib/route_trie.c
-        src/utils/async.c
+        src/utils/task.c
         vendors/arena.c
     )
 

@@ -65,8 +65,18 @@ int next(Req *req, Res *res, Chain *chain)
         // All middleware executed, call the route handler
         if (chain->route_handler)
         {
-            chain->route_handler(req, res);
-            return 1; // Successfully executed the route handler
+            // Check if handler should run async or sync
+            if (chain->handler_type == HANDLER_ASYNC)
+            {
+                // Execute handler asynchronously
+                return execute_async_handler(chain->route_handler, req, res);
+            }
+            else
+            {
+                // Execute handler synchronously
+                chain->route_handler(req, res);
+                return 1; // Successfully executed the route handler
+            }
         }
         return 0; // No route handler
     }
@@ -102,7 +112,15 @@ void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_inf
     {
         if (middleware_info->handler)
         {
-            middleware_info->handler(req, res);
+            // Check handler type and execute accordingly
+            if (middleware_info->handler_type == HANDLER_ASYNC)
+            {
+                execute_async_handler(middleware_info->handler, req, res);
+            }
+            else
+            {
+                middleware_info->handler(req, res);
+            }
         }
         return;
     }
@@ -115,7 +133,15 @@ void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_inf
         fprintf(stderr, "Arena allocation failed for middleware handlers\n");
         if (middleware_info->handler)
         {
-            middleware_info->handler(req, res);
+            // Fallback: execute handler directly
+            if (middleware_info->handler_type == HANDLER_ASYNC)
+            {
+                execute_async_handler(middleware_info->handler, req, res);
+            }
+            else
+            {
+                middleware_info->handler(req, res);
+            }
         }
         return;
     }
@@ -137,7 +163,15 @@ void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_inf
         fprintf(stderr, "Arena allocation failed for middleware chain\n");
         if (middleware_info->handler)
         {
-            middleware_info->handler(req, res);
+            // Fallback: execute handler directly
+            if (middleware_info->handler_type == HANDLER_ASYNC)
+            {
+                execute_async_handler(middleware_info->handler, req, res);
+            }
+            else
+            {
+                middleware_info->handler(req, res);
+            }
         }
         return;
     }
@@ -146,6 +180,7 @@ void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_inf
     chain->count = total_middleware_count;
     chain->current = 0;
     chain->route_handler = middleware_info->handler;
+    chain->handler_type = middleware_info->handler_type;
 
     // Start middleware chain execution
     int result = next(req, res, chain);
@@ -156,7 +191,14 @@ void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_inf
         fprintf(stderr, "Error: Middleware chain failed, calling handler directly as fallback\n");
         if (middleware_info->handler)
         {
-            middleware_info->handler(req, res);
+            if (middleware_info->handler_type == HANDLER_ASYNC)
+            {
+                execute_async_handler(middleware_info->handler, req, res);
+            }
+            else
+            {
+                middleware_info->handler(req, res);
+            }
         }
     }
 }
@@ -165,7 +207,8 @@ void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_inf
 void register_route(llhttp_method_t method,
                     const char *path,
                     MiddlewareArray middleware,
-                    RequestHandler handler)
+                    RequestHandler handler,
+                    handler_type_t type)
 {
     if (!handler)
     {
@@ -193,6 +236,7 @@ void register_route(llhttp_method_t method,
     }
 
     middleware_info->handler = handler;
+    middleware_info->handler_type = type; // Store handler type
 
     if (middleware.count > 0 && middleware.handlers)
     {
