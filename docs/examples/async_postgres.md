@@ -2,7 +2,7 @@
 
 For asynchronous database queries, Ecewo supports [libpq](https://www.postgresql.org/docs/current/libpq.html) — the official PostgreSQL client library, which includes asynchronous support.
 
-If you are using PostgreSQL, it is recommended to use [pquv](https://github.com/savashn/pquv) for async PostgreSQL queries. It basically combines libpq and libuv.
+If you are using PostgreSQL, it is recommended to use [ecewo-postgres](https://github.com/savashn/ecewo-packages/tree/main/postgres) for async PostgreSQL queries. It basically combines libpq and libuv for Ecewo.
 
 If you’re using another database, such as SQLite, you may still use the Ecewo's async API for performance-critical big queries.
 
@@ -24,14 +24,11 @@ target_link_libraries(server PRIVATE
 )
 ```
 
-3. Copy the `pquv.c` and `pquv.h` files from [the repository](https://github.com/savashn/pquv), paste them into your existing project anmd make the CMake configuration. Alternatively, if you have already installed [Ecewo-CLI](https://github.com/savashn/ecewo-cli), just run:
+3. Copy the `ecewo-postgres.c` and `ecewo-postgres.h` files from [the repository](https://github.com/savashn/ecewo-packages/tree/main/postgres), paste them into your existing project and make the CMake configuration.
 
-```
-ecewo install pquv
-ecewo rebuild dev
-```
+## Configuration
 
-First of all, we need to configure and connect to our Postgres.
+First of all, we need to configure and connect to our database.
 
 ```c
 // db.h
@@ -61,12 +58,11 @@ PGconn *db = NULL;
 
 static int create_tables(void)
 {
-    const char *query = 
-        "CREATE TABLE IF NOT EXISTS users ("
+    const char *query =
+        "CREATE TABLE IF NOT EXISTS persons ("
         "  id SERIAL PRIMARY KEY, "
         "  name TEXT NOT NULL, "
-        "  username TEXT UNIQUE NOT NULL, "
-        "  password TEXT NOT NULL"
+        "  surname TEXT NOT NULL"
         ");";
 
     PGresult *res = PQexec(db, query);
@@ -83,15 +79,19 @@ static int create_tables(void)
     return 0;
 }
 
-// Forward declaration
-void db_close(void);
+void db_close(void)
+{
+    if (db)
+    {
+        PQfinish(db);
+        db = NULL;
+        printf("Database connection closed.\n");
+    }
+}
 
 int db_init(void)
 {
-    static char conninfo[512];
-    snprintf(conninfo,
-             sizeof(conninfo),
-             "host=db_host port=db_port dbname=db_name user=db_user password=db_password");
+    const char *conninfo = "host=db_host port=db_port dbname=db_name user=db_user password=db_password";
 
     db = PQconnectdb(conninfo);
     if (PQstatus(db) != CONNECTION_OK)
@@ -123,17 +123,21 @@ int db_init(void)
 
     return 0;
 }
-
-void db_close(void)
-{
-    if (db)
-    {
-        PQfinish(db);
-        db = NULL;
-        printf("Database connection closed.\n");
-    }
-}
 ```
+
+## Usage
+
+Now let's write an example async query. Here's what we are going to do step by step:
+
+1. We'll get a `name` and `surname` from request query
+2. Check if the `name` and `surname` already exists
+3. If they don't, we'll insert.
+
+> [!TIP]
+>
+> In this example, we take the parameters from `req->query` instead of `req->body`. Because it will be simplier to show an example considering using an external library for JSON parsing.
+
+First, create a `handlers.h` file to declare the handler. Because we are going to need this handler in `main.c` file to register it in a route.
 
 ```c
 // handlers.h
@@ -143,12 +147,149 @@ void db_close(void)
 
 #include "ecewo.h"
 
-// Our example handler
-void get_all_users(Req *req, Res *res);
+void create_person_handler(Req *req, Res *res);
 
 #endif
 ```
 
+Now, let's write the handler.
+
+```c
+// create_person_handler.c
+
+#include "ecewo.h"
+#include "ecewo-postgres.h"
+#include "db.h"
+#include <stdio.h>
+
+// Callback structure
+typedef struct
+{
+    Res *res;
+    const char *name;
+    const char *surname;
+} ctx_t;
+
+// Forward declarations
+static void on_query_person(PGquery *pg, PGresult *result, void *data);
+static void on_person_created(PGquery *pg, PGresult *result, void *data);
+
+// Main handler
+void create_person_handler(Req *req, Res *res)
+{
+    const char *name = get_query(req, "name");
+    const char *surname = get_query(req, "surname");
+
+    ctx_t *ctx = ecewo_alloc(req, sizeof(ctx_t));
+    if (!ctx)
+    {
+        send_text(res, 500, "Context allocation failed");
+        return;
+    }
+
+    ctx->res = res;
+    ctx->name = name;
+    ctx->surname = surname;
+
+    // Create async PostgreSQL context
+    PGquery *pg = query_create(res, db, ctx);
+    if (!pg)
+    {
+        send_text(res, 500, "Database connection error");
+        return;
+    }
+
+    const char *select_sql = "SELECT 1 FROM persons WHERE name = $1 AND surname = $2";
+    const char *params[] = {ctx->name, ctx->surname};
+
+    // FIRST QUERY: Check if the person exists
+    int query_result = query_queue(pg, select_sql, 2, params, on_query_person, ctx);
+    if (query_result != 0)
+    {
+        printf("ERROR: Failed to queue query, result=%d\n", query_result);
+        send_text(res, 500, "Failed to queue query");
+        return;
+    }
+
+    // Start execution
+    int exec_result = query_execute(pg);
+    if (exec_result != 0)
+    {
+        printf("ERROR: Failed to execute, result=%d\n", exec_result);
+        send_text(res, 500, "Failed to execute query");
+        return;
+    }
+}
+
+// Callback function that processes the query result
+static void on_query_person(PGquery *pg, PGresult *result, void *data)
+{
+    ctx_t *ctx = (ctx_t *)data;
+
+    if (!result)
+    {
+        printf("ERROR: Result is NULL\n");
+        send_text(ctx->res, 500, "Result not found");
+        return;
+    }
+
+    ExecStatusType status = PQresultStatus(result);
+
+    if (status != PGRES_TUPLES_OK)
+    {
+        printf("on_query_person: DB check failed: %s\n", PQresultErrorMessage(result));
+        send_text(ctx->res, 500, "Database check failed");
+        return;
+    }
+
+    if (PQntuples(result) > 0)
+    {
+        printf("on_query_person: This person already exists\n");
+        send_text(ctx->res, 409, "This person already exists");
+        return;
+    }
+
+    const char *insert_params[2] = {
+        ctx->name,
+        ctx->surname,
+    };
+
+    const char *insert_sql =
+        "INSERT INTO persons "
+        "(name, surname) "
+        "VALUES ($1, $2); ";
+
+    if (query_queue(pg, insert_sql, 2, insert_params, on_person_created, ctx) != 0)
+    {
+        send_text(ctx->res, 500, "Failed to queue insert query");
+        return;
+    }
+
+    // No need to call pquv_execute() again
+    // query_queue() will run automatically
+
+    printf("on_query_person: Insert operation queued\n");
+}
+
+static void on_person_created(PGquery *pg, PGresult *result, void *data)
+{
+    ctx_t *ctx = (ctx_t *)data;
+
+    ExecStatusType status = PQresultStatus(result);
+
+    if (status != PGRES_COMMAND_OK)
+    {
+        printf("on_person_created: Person insert failed: %s\n", PQresultErrorMessage(result));
+        send_text(ctx->res, 500, "Person insert failed");
+        return;
+    }
+
+    printf("on_person_created: Person created successfully\n");
+    send_text(ctx->res, 201, "Person created successfully");
+}
+```
+
+## Register The Route and Start The Server
 ```c
 // main.c
 
@@ -156,6 +297,7 @@ void get_all_users(Req *req, Res *res);
 #include "db.h"
 #include <stdio.h>
 
+// For shutdown_hook()
 void cleanup_my_app()
 {
     db_close();
@@ -176,8 +318,8 @@ int main(void)
         return 1;
     }
 
-    // We access the handler from handlers.h
-    get("/all-users", get_all_users);
+    // Register the handler
+    get("/person", create_person_handler);
 
     shutdown_hook(cleanup_my_app);
 
@@ -192,118 +334,10 @@ int main(void)
 }
 ```
 
-Now we can write our first async database operation, which is `get_all_users()`.
+Let's test it! Send a `GET` request to this URL:
 
-## Usage
-
-```c
-// get_all_users.c
-
-#include "handlers.h"
-#include "cJSON.h"
-#include "pquv.h"
-#include <stdio.h>
-
-// Callback structure to hold request/response context
-typedef struct
-{
-    Res *res;
-} ctx_t;
-
-// Forward declaration
-static void users_result_callback(pg_async_t *pg, PGresult *result, void *data);
-
-// Handler
-void get_all_users_async(Req *req, Res *res)
-{
-    const char *sql = "SELECT id, name, username FROM users;";
-
-    // Create context to pass to callback
-    ctx_t *ctx = ecewo_alloc(req, sizeof(*ctx)); // use ecewo_alloc, no malloc/calloc
-    if (!ctx)
-    {
-        send_text(res, 500, "Memory allocation failed");
-        return;
-    }
-
-    // Copy Res to arena
-    ctx->res = res;
-
-    // Create async PostgreSQL context
-    pg_async_t *pg = pquv_create(db, ctx);
-    if (!pg)
-    {
-        send_text(res, 500, "Failed to create async context");
-        return;
-    }
-
-    // Queue the query
-    int result = pquv_queue(pg, sql, 0, NULL, users_result_callback, ctx);
-    if (result != 0)
-    {
-        send_text(res, 500, "Failed to queue query");
-        return;
-    }
-
-    // Start execution (this will return immediately)
-    result = pquv_execute(pg);
-    if (result != 0)
-    {
-        printf("get_all_users_async: Failed to execute query\n");
-        send_text(res, 500, "Failed to execute query");
-        return;
-    }
-}
-
-// Callback function that processes the query result
-static void users_result_callback(pg_async_t *pg, PGresult *result, void *data)
-{
-    ctx_t *ctx = (ctx_t *)data;
-
-    if (!ctx || !ctx->res)
-    {
-        printf("Invalid context\n");
-        return;
-    }
-
-    // Check result status
-    ExecStatusType status = PQresultStatus(result);
-    if (status != PGRES_TUPLES_OK)
-    {
-        printf("Query failed: %s\n", PQresultErrorMessage(result));
-        send_text(ctx->res, 500, "DB select failed");
-        return;
-    }
-
-    int rows = PQntuples(result);
-    cJSON *json_array = cJSON_CreateArray();
-
-    for (int i = 0; i < rows; i++)
-    {
-        int id = atoi(PQgetvalue(result, i, 0));
-        const char *name = PQgetvalue(result, i, 1);
-        const char *username = PQgetvalue(result, i, 2);
-
-        cJSON *user_json = cJSON_CreateObject();
-        cJSON_AddNumberToObject(user_json, "id", id);
-        cJSON_AddStringToObject(user_json, "name", name);
-        cJSON_AddStringToObject(user_json, "username", username);
-
-        cJSON_AddItemToArray(json_array, user_json);
-    }
-
-    char *json_string = cJSON_PrintUnformatted(json_array);
-    send_json(ctx->res, 200, json_string);
-
-    // Cleanup
-    cJSON_Delete(json_array);
-    free(json_string);
-
-    printf("users_result_callback: Response sent successfully\n");
-
-    // If you want to continue the querying,
-    // you should basicaly write a new `pquv_queue()` here
-    // it will queue the new query immediately
-    // no need to call pquv_execute() again
-}
 ```
+http://localhost:3000/person?name=john&surname=doe
+```
+
+Check out the `Persons` table in the Postgres and you'll see a person has been added.
