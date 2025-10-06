@@ -4,17 +4,6 @@ First, we need to add [dotenv-c](https://github.com/Isty001/dotenv-c) to our pro
 
 ## Installation
 
-### Using [Ecewo-CLI](https://github.com/savashn/ecewo-cli)
-
-```
-ecewo install dotenv
-ecewo build dev
-```
-
-And create a `.env` file in the root directory.
-
-### Manually
-
 Create a `.env` file in the root directory. Then, copy the [dotenv.c](https://github.com/Isty001/dotenv-c/blob/master/src/dotenv.c) and [dotenv.h](https://github.com/Isty001/dotenv-c/blob/master/src/dotenv.h) files from the repository and paste them into `vendors/` folder. Make sure `dotenv.c` is part of the CMake build configuration.
 
 ## Usage

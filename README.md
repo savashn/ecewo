@@ -10,25 +10,25 @@
 
 Inspired by [Express.js](https://expressjs.com/). It’s minimalist, unopinionated, and easy-to-use (in a C kind of way).
 
-<hr />
-
-> **This is a hobby project that I'm developing to improve my programming skills. So it might not be production-ready, and it doesn't have to be.**
-
 ## Table of Contents
 
-- [Quick Start](#quick-start)
 - [Requirements](#requirements)
+- [Quick Start](#quick-start)
 - [Benchmarks](#benchmarks)
 - [Documentation](#documentation)
 - [Example App](#example-app)
 - [License](#license)
+
+## Requirements
+
+- A C compiler
+- CMake version 3.14 or higher
 
 ## Quick Start
 
 **main.c:**
 ```c
 #include "ecewo.h"
-#include <stdlib.h>
 #include <stdio.h>
 
 void hello_world(Req *req, Res *res)
@@ -87,11 +87,6 @@ target_link_libraries(server PRIVATE ecewo)
 ```shell
 mkdir build && cd build && cmake .. && cmake --build .
 ```
-
-## Requirements
-
-- A C compiler
-- CMake version 3.14 or higher
 
 ## Benchmarks
 

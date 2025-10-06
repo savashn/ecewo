@@ -1,19 +1,21 @@
-We need a database if we are building a backend service. This documentation shows how to use SQLite.
+# Using SQLite
+
+## Table of Contents
+
+1. [Installation](#installation)
+    1. [Example Folder Structure](#example-folder-structure)
+    2. [Configure Database](#configure-database)
+2. [Usage](#usage)
+    1. [Inserting Data](#inserting-data)
+    2. [Querying Data](#querying-data)
+    3. [Initialization](#initialization)
+    4. [Run](#run)
 
 ## Installation
 
-### Using [Ecewo-CLI](https://github.com/savashn/ecewo-cli)
-
-```
-ecewo install sqlite
-ecewo build dev
-```
-
-### Manually
-
 Install SQLite3 amalgamation zip file from the [official page](https://www.sqlite.org/download.html), then add the `sqlite3.c` and `sqlite3.h` files into `vendors/` folder. Make sure `sqlite3.c` is part of the CMake build configuration.
 
-Or, you can download [sqlite3.c](https://github.com/rhuijben/sqlite-amalgamation/blob/master/sqlite3.c) and [sqlite3.h](https://github.com/rhuijben/sqlite-amalgamation/blob/master/sqlite3.h) files directly from an unofficial [sqlite-amalgamation mirror](https://github.com/rhuijben/sqlite-amalgamation). If you prefere this, be sure it's up to date.
+Or, you can download [sqlite3.c](https://github.com/rhuijben/sqlite-amalgamation/blob/master/sqlite3.c) and [sqlite3.h](https://github.com/rhuijben/sqlite-amalgamation/blob/master/sqlite3.h) files directly from an unofficial [sqlite-amalgamation mirror](https://github.com/rhuijben/sqlite-amalgamation). If you prefer this, be sure it's up to date.
 
 ### Example Folder Structure
 
@@ -33,7 +35,7 @@ your-project/
     └── main.c              # Main application entry point
 ```
 
-## Configure Database
+### Configure Database
 
 Let's make the configuration of database:
 
@@ -46,7 +48,7 @@ Let's make the configuration of database:
 sqlite3 *db = NULL;
 
 // Create a user table
-int create_table()
+int create_table(void)
 {
     const char *create_table =
         "CREATE TABLE IF NOT EXISTS users ("
@@ -72,7 +74,7 @@ int create_table()
 }
 
 // Connection
-int db_init()
+int db_init(void)
 {
     int rc = sqlite3_open("sql.db", &db);
 
@@ -107,6 +109,8 @@ int db_init();
 
 Now, we need to write two handlers. One for querying and one for inserting data.
 
+## Usage
+
 ### Inserting Data
 
 We already created a 'Users' table in the previously chapter. Now we will add a user to it. Let's begin with writing our POST handler:
@@ -131,7 +135,7 @@ void add_user(Req *req, Res *res);
 #include "cJSON.h"
 #include "sqlite3.h"
 
-extern sqlite3 *db; // THIS IS IMPORTANT TO USE THE DATABASE
+extern sqlite3 *db;
 
 // Function to add a user to the database
 void add_user(Req *req, Res *res)
@@ -200,31 +204,6 @@ void add_user(Req *req, Res *res)
 
     // If everything is successful, return a 201 Created response
     send_text(res, 201, "User created!");
-}
-```
-
-```c
-// src/main.c
-
-#include "server.h"
-#include "handlers/handlers.h"
-#include "db/db.h"
-
-void destroy_app(void) {
-    reset_router();
-    sqlite3_close(db);
-}
-
-int main(void)
-{
-    init_router();
-    db_init();
-
-    post("/user", add_user);
-
-    shutdown_hook(destroy_app);
-    ecewo(3000);
-    return 0;
 }
 ```
 
@@ -310,6 +289,7 @@ void get_all_users(Req *req, Res *res)
 
 #include "ecewo.h"
 #include "db/db.h"
+#include <stdio.h>
 
 void destroy_app(void) {
     sqlite3_close(db);
@@ -329,8 +309,10 @@ int main(void)
         return 1;
     }
 
-    get("/users", get_all_users);
-    post("/user", add_user);
+    // Register with worker
+    // Because SQLite does not have async API
+    get_worker("/users", get_all_users);
+    post_worker("/user", add_user);
 
     shutdown_hook(destroy_app);
 
@@ -348,11 +330,6 @@ int main(void)
 ### Run
 
 Let's rebuild our server and then test:
-
-```
-ecewo build dev
-ecewo run
-```
 
 If everything went OK, a `db.sql` file containing a `users` table will be created in your root directory. Now we can use `POSTMAN` or something else to send requests.
 

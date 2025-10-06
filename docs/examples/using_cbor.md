@@ -1,26 +1,12 @@
----
-title: Using CBOR
-description: Minimalist and easy-to-use C web framework
----
+# Using CBOR
 
-Ecewo supports CBOR responses out of the box. Let's make an `add_user` and `get_all_users` example that we've already done with `cJSON` and `SQLite3` in [Using A Database](/examples/using-a-database/) chapter, but we'll implement with [TinyCBOR](https://github.com/intel/tinycbor) this time.
+Ecewo supports `CBOR` responses out of the box. Let's make an `add_user` and `get_all_users` example that we've already done with [cJSON](https://github.com/DaveGamble/cJSON) and [SQLite3](https://sqlite.org/) in [Using SQLite](/docs/examples/using_sqlite.md) chapter, but we'll implement with [TinyCBOR](https://github.com/intel/tinycbor) this time.
 
 ## Installation
 
-### Using [Ecewo-CLI](https://github.com/savashn/ecewo-cli)
-
-```
-ecewo install cbor
-ecewo rebuild dev
-```
-
-### Manually
-
 Add this code block into your `CMakeLists.txt` file:
 
-```
-// CMakeLists.txt
-
+```cmake
 FetchContent_Declare(
   tinycbor
   GIT_REPOSITORY https://github.com/intel/tinycbor.git

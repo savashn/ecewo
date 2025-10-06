@@ -4,15 +4,6 @@ We'll use [cJSON](https://github.com/DaveGamble/cJSON) to work with JSON objects
 
 ## Installation
 
-### Using [Ecewo-CLI](https://github.com/savashn/ecewo-cli)
-
-```
-ecewo install cjson
-ecewo build dev
-```
-
-### Manually
-
 Copy [cJSON.c](https://github.com/DaveGamble/cJSON/blob/master/cJSON.c) and [cJSON.h](https://github.com/DaveGamble/cJSON/blob/master/cJSON.h) files from the repository, and paste them into `vendors/` folder. Make sure `cJSON.c` is part of the CMake build configuration.
 
 ## Usage
