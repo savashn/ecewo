@@ -196,7 +196,6 @@ if(NOT TARGET ecewo::ecewo)
             -Wall 
             -Wextra 
             -std=c99
-            -fvisibility=hidden     # Hide symbols by default
         )
 
         target_compile_options(ecewo PUBLIC
@@ -281,37 +280,12 @@ if(NOT TARGET ecewo::ecewo)
         )
     endif()
 
-    # Symbol Visibility and API Export
-    if(ECEWO_BUILD_SHARED)
-        # For shared library, define API export symbols
-        if(WIN32)
-            target_compile_definitions(ecewo PRIVATE ECEWO_BUILDING_DLL)
-            target_compile_definitions(ecewo PUBLIC ECEWO_DLL)
-            target_compile_definitions(ecewo PRIVATE 
-                ECEWO_API=__declspec\(dllexport\)
-            )
-        else()
-            target_compile_options(ecewo PRIVATE -fvisibility=hidden)
-            target_compile_definitions(ecewo PRIVATE 
-                ECEWO_API=__attribute__\(\(visibility\(\"default\"\)\)\)
-            )
-        endif()
-    else()
-        # For static library, no special API decorations needed
-        if(NOT WIN32)
-            target_compile_options(ecewo PRIVATE -fvisibility=hidden)
-        endif()
-        target_compile_definitions(ecewo PRIVATE ECEWO_API=)
-    endif()
-
     # Target Properties
     set_target_properties(ecewo PROPERTIES
         OUTPUT_NAME ecewo
         VERSION ${PROJECT_VERSION}
         SOVERSION ${PROJECT_VERSION_MAJOR}
         EXPORT_NAME ecewo
-        C_VISIBILITY_PRESET hidden      # Hide symbols by default
-        VISIBILITY_INLINES_HIDDEN ON    # Hide inline symbols
     )
     
     # Apply LTO to the library if enabled
