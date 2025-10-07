@@ -14,6 +14,10 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
+if(UNIX)
+    add_compile_definitions(_GNU_SOURCE)
+endif()
+
 # Build Type Validation
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Choose the type of build" FORCE)
@@ -21,7 +25,7 @@ endif()
 
 # Options - Only set if not already defined (FetchContent compatibility)
 if(NOT DEFINED ECEWO_BUILD_SHARED)
-    option(ECEWO_BUILD_SHARED "Build shared library instead of static" ON)
+    option(ECEWO_BUILD_SHARED "Build shared library instead of static" OFF)
 endif()
 
 # Production Optimizations Setup
@@ -308,6 +312,7 @@ if(NOT TARGET ecewo::ecewo)
 
     # Target Properties
     set_target_properties(ecewo PROPERTIES
+        OUTPUT_NAME ecewo
         VERSION ${PROJECT_VERSION}
         SOVERSION ${PROJECT_VERSION_MAJOR}
         EXPORT_NAME ecewo

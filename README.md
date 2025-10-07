@@ -70,9 +70,6 @@ FetchContent_Declare(
     GIT_TAG v2.0.0
 )
 
-# Recommended: Force static build (remove this line for shared build)
-set(ECEWO_BUILD_SHARED OFF CACHE BOOL "Build shared library" FORCE)
-
 FetchContent_MakeAvailable(ecewo)
 
 add_executable(server
