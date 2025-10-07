@@ -8,6 +8,19 @@
 
 #define MAX_PATH_SEGMENTS 128
 
+// Supported HTTP methods
+typedef enum
+{
+    METHOD_INDEX_DELETE = 0,
+    METHOD_INDEX_GET = 1,
+    METHOD_INDEX_HEAD = 2,
+    METHOD_INDEX_POST = 3,
+    METHOD_INDEX_PUT = 4,
+    METHOD_INDEX_OPTIONS = 5,
+    METHOD_INDEX_PATCH = 6,
+    METHOD_COUNT = 7
+} http_method_index_t;
+
 // Path segment structure for pre-tokenized paths
 typedef struct
 {
@@ -27,13 +40,13 @@ typedef struct
 
 typedef struct trie_node
 {
-    struct trie_node *children[128];  // ASCII characters
-    struct trie_node *param_child;    // For :param segments
-    struct trie_node *wildcard_child; // For * wildcard
-    char *param_name;                 // Name of parameter if this is a param node
-    bool is_end;                      // Marks end of a route
-    RequestHandler handlers[47];      // Handlers for different HTTP methods (see the llhttp_method struct)
-    void *middleware_ctx[47];         // Middleware context for each method
+    struct trie_node *children[128];       // ASCII characters
+    struct trie_node *param_child;         // For :param segments
+    struct trie_node *wildcard_child;      // For * wildcard
+    char *param_name;                      // Name of parameter if this is a param node
+    bool is_end;                           // Marks end of a route
+    RequestHandler handlers[METHOD_COUNT]; // Handlers for different HTTP methods
+    void *middleware_ctx[METHOD_COUNT];    // Middleware context for each method
 } trie_node_t;
 
 typedef struct
@@ -64,6 +77,31 @@ typedef struct
     param_match_t params[32];
     uint8_t param_count;
 } route_match_t;
+
+// Convert llhttp_method_t to internal index
+// Returns -1 for unsupported methods
+static inline int method_to_index(llhttp_method_t method)
+{
+    switch (method)
+    {
+    case HTTP_DELETE:
+        return METHOD_INDEX_DELETE;
+    case HTTP_GET:
+        return METHOD_INDEX_GET;
+    case HTTP_HEAD:
+        return METHOD_INDEX_HEAD;
+    case HTTP_POST:
+        return METHOD_INDEX_POST;
+    case HTTP_PUT:
+        return METHOD_INDEX_PUT;
+    case HTTP_OPTIONS:
+        return METHOD_INDEX_OPTIONS;
+    case HTTP_PATCH:
+        return METHOD_INDEX_PATCH;
+    default:
+        return -1;
+    }
+}
 
 // Path tokenization functions
 int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result);

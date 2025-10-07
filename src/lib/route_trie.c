@@ -233,7 +233,7 @@ static void trie_node_free(trie_node_t *node)
     // Free middleware contexts
     if (node->is_end)
     {
-        for (uint8_t i = 0; i < 8; i++)
+        for (uint8_t i = 0; i < METHOD_COUNT; i++)
         {
             if (node->middleware_ctx[i])
             {
@@ -265,6 +265,13 @@ bool route_trie_match(route_trie_t *trie,
         return false;
 
     llhttp_method_t method = llhttp_get_method(parser);
+    int method_idx = method_to_index(method);
+
+    // Unsupported method check
+    if (method_idx < 0)
+    {
+        return false;
+    }
 
     uv_rwlock_rdlock(&trie->lock);
 
@@ -297,10 +304,10 @@ bool route_trie_match(route_trie_t *trie,
     }
 
     // Extract handler if found
-    if (matched_node && matched_node->handlers[method])
+    if (matched_node && matched_node->handlers[method_idx])
     {
-        match->handler = matched_node->handlers[method];
-        match->middleware_ctx = matched_node->middleware_ctx[method];
+        match->handler = matched_node->handlers[method_idx];
+        match->middleware_ctx = matched_node->middleware_ctx[method_idx];
         uv_rwlock_rdunlock(&trie->lock);
         return true;
     }
@@ -343,6 +350,14 @@ int route_trie_add(route_trie_t *trie,
 {
     if (!trie || !path || !handler)
         return -1;
+
+    // Convert method to index
+    int method_idx = method_to_index(method);
+    if (method_idx < 0)
+    {
+        fprintf(stderr, "Unsupported HTTP method: %d\n", method);
+        return -1;
+    }
 
     // Write lock for thread safety
     uv_rwlock_wrlock(&trie->lock);
@@ -452,8 +467,8 @@ int route_trie_add(route_trie_t *trie,
 
     // Mark as end node and store handler
     current->is_end = true;
-    current->handlers[method] = handler;
-    current->middleware_ctx[method] = middleware_ctx;
+    current->handlers[method_idx] = handler;
+    current->middleware_ctx[method_idx] = middleware_ctx;
     trie->route_count++;
 
     uv_rwlock_wrunlock(&trie->lock);
