@@ -143,12 +143,6 @@ if(NOT TARGET ecewo::ecewo)
         $<INSTALL_INTERFACE:include/ecewo>
     )
 
-    # Private Include Directories
-    target_include_directories(ecewo PRIVATE
-        ${CMAKE_BINARY_DIR}/_deps/libuv-src/src
-        ${CMAKE_BINARY_DIR}/_deps/llhttp-src/src
-    )
-
     # Link Libraries - Match ecewo's library type
     if(ECEWO_BUILD_SHARED)
         # Shared ecewo uses shared dependencies
@@ -323,41 +317,6 @@ if(NOT TARGET ecewo::ecewo)
     # Apply LTO to the library if enabled
     if(CMAKE_BUILD_TYPE STREQUAL "Release" AND CMAKE_INTERPROCEDURAL_OPTIMIZATION)
         set_property(TARGET ecewo PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-    endif()
-
-    # Installation Rules (only if this is the main project)
-    if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-        include(GNUInstallDirs)
-        
-        # Install the library
-        install(TARGETS ecewo
-            EXPORT ecewoTargets
-            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-            INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-        )
-        
-        # Install header files
-        install(DIRECTORY src/
-            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ecewo
-            FILES_MATCHING PATTERN "*.h"
-        )
-        
-        # Install llhttp headers (needed for public API) with safety check
-        if(TARGET llhttp_static AND DEFINED llhttp_SOURCE_DIR)
-            install(DIRECTORY ${llhttp_SOURCE_DIR}/include/
-                DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ecewo
-                FILES_MATCHING PATTERN "*.h"
-            )
-        endif()
-        
-        # Install export targets
-        install(EXPORT ecewoTargets
-            FILE ecewoTargets.cmake
-            NAMESPACE ecewo::
-            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ecewo
-        )
     endif()
 
 endif()
