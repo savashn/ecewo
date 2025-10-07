@@ -60,38 +60,32 @@ FetchContent_Declare(
     GIT_SHALLOW TRUE
 )
 
-# Configure libuv to match ecewo's library type
-if(ECEWO_BUILD_SHARED)
-    set(LIBUV_BUILD_SHARED ON CACHE BOOL "Build shared libuv for shared ecewo" FORCE)
-    message(STATUS "  - Configuring libuv as SHARED library")
-else()
-    set(LIBUV_BUILD_SHARED OFF CACHE BOOL "Build static libuv for static ecewo" FORCE)
-    message(STATUS "  - Configuring libuv as STATIC library")
-endif()
-
-FetchContent_MakeAvailable(libuv)
-
 # Fetch llhttp
 FetchContent_Declare(
     llhttp
     URL "https://github.com/nodejs/llhttp/archive/refs/tags/release/v9.3.0.tar.gz"
 )
 
+# Configure libuv and llhttp to match ecewo's library type
 if(ECEWO_BUILD_SHARED)
+    set(LIBUV_BUILD_SHARED ON CACHE BOOL "" FORCE)
     set(LLHTTP_BUILD_SHARED_LIBS ON CACHE INTERNAL "" FORCE)
     set(LLHTTP_BUILD_STATIC_LIBS OFF CACHE INTERNAL "" FORCE)
     set(BUILD_SHARED_LIBS ON CACHE INTERNAL "" FORCE)
     set(BUILD_STATIC_LIBS OFF CACHE INTERNAL "" FORCE)
+    message(STATUS "  - Configuring libuv as SHARED library")
     message(STATUS "  - Configuring llhttp as SHARED library")
 else()
+    set(LIBUV_BUILD_SHARED OFF CACHE BOOL "" FORCE)
     set(LLHTTP_BUILD_SHARED_LIBS OFF CACHE INTERNAL "" FORCE)
     set(LLHTTP_BUILD_STATIC_LIBS ON CACHE INTERNAL "" FORCE)
     set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "" FORCE)
     set(BUILD_STATIC_LIBS ON CACHE INTERNAL "" FORCE)
+    message(STATUS "  - Configuring libuv as STATIC library")
     message(STATUS "  - Configuring llhttp as STATIC library")
 endif()
 
-FetchContent_MakeAvailable(llhttp)
+FetchContent_MakeAvailable(libuv llhttp)
 
 # Prevent multiple inclusion when used as a subdirectory
 if(NOT TARGET ecewo::ecewo)
