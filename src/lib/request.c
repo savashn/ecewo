@@ -3,7 +3,6 @@
 #include <string.h>
 #include <limits.h>
 #include <ctype.h>
-#include "ecewo.h"
 #include "request.h"
 
 #define MIN_BUFFER_SIZE 64

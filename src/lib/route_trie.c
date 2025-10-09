@@ -2,7 +2,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <inttypes.h>
-#include "ecewo.h"
 #include "route_trie.h"
 #include "middleware.h"
 

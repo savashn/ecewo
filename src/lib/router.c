@@ -2,12 +2,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <stddef.h>
-#include "ecewo.h"
 #include "router.h"
 #include "route_trie.h"
 #include "middleware.h"
 #include "server.h"
-#include "arena.h"
 
 // Forward declaration for client structure
 typedef struct client_s client_t;

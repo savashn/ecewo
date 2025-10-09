@@ -10,7 +10,6 @@
 #include "route_trie.h"
 #include "request.h"
 #include "middleware.h"
-#include "arena.h"
 
 // ============================================================================
 // INTERNAL STRUCTURES

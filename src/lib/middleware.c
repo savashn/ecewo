@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include "middleware.h"
 #include "route_trie.h"
-#include "arena.h"
 
 // Global middleware (uses malloc since it's long-lived)
 MiddlewareHandler *global_middleware = NULL;
