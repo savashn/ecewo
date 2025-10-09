@@ -17,6 +17,10 @@ typedef struct uv_tcp_s uv_tcp_t;
 
 typedef struct Arena Arena;
 
+typedef struct Req Req;
+typedef struct Res Res;
+typedef struct Chain Chain;
+
 // Context entry
 typedef struct
 {
@@ -85,8 +89,6 @@ struct Res
     uint16_t header_count;
     uint16_t header_capacity;
 };
-
-typedef struct Chain Chain;
 
 // HTTP Status Codes
 typedef enum
