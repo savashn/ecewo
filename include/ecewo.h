@@ -8,30 +8,85 @@
 #include <time.h>
 
 // ============================================================================
-// FORWARD DECLARATIONS
+// PUBLIC TYPES AND FORWARD DECLARATIONS
 // ============================================================================
 
 typedef struct uv_loop_s uv_loop_t;
 typedef struct uv_timer_s uv_timer_t;
 typedef struct uv_tcp_s uv_tcp_t;
 
-// ============================================================================
-// FORWARD DECLARATIONS - Arena
-// ============================================================================
-
 typedef struct Arena Arena;
 
-// ============================================================================
-// FORWARD DECLARATIONS
-// ============================================================================
+// Context entry
+typedef struct
+{
+    char *key;
+    void *data;
+    size_t size;
+} context_entry_t;
 
-typedef struct Req Req;
-typedef struct Res Res;
+// Context
+typedef struct
+{
+    context_entry_t *entries;
+    uint32_t count;
+    uint32_t capacity;
+    Arena *arena;
+} context_t;
+
+// Request item
+typedef struct
+{
+    char *key;
+    char *value;
+} request_item_t;
+
+// Request structure
+typedef struct
+{
+    request_item_t *items;
+    uint16_t count;
+    uint16_t capacity;
+} request_t;
+
+// Request structure
+struct Req
+{
+    Arena *arena;
+    uv_tcp_t *client_socket;
+    char *method;
+    char *path;
+    char *body;
+    size_t body_len;
+    request_t headers;
+    request_t query;
+    request_t params;
+    context_t ctx; // Middleware context
+};
+
+// HTTP Header structure
+typedef struct
+{
+    char *name;
+    char *value;
+} http_header_t;
+
+// Response structure
+struct Res
+{
+    Arena *arena;
+    uv_tcp_t *client_socket;
+    uint16_t status;
+    char *content_type;
+    void *body;
+    size_t body_len;
+    bool keep_alive;
+    http_header_t *headers;
+    uint16_t header_count;
+    uint16_t header_capacity;
+};
+
 typedef struct Chain Chain;
-
-// ============================================================================
-// PUBLIC TYPES
-// ============================================================================
 
 // HTTP Status Codes
 typedef enum
@@ -111,10 +166,6 @@ typedef enum
 
 typedef void (*RequestHandler)(Req *req, Res *res);
 
-// ============================================================================
-// PUBLIC TYPES
-// ============================================================================
-
 typedef int (*MiddlewareHandler)(Req *req, Res *res, Chain *chain);
 
 typedef struct
@@ -129,10 +180,6 @@ typedef struct
         .count = sizeof((MiddlewareHandler[]){__VA_ARGS__}) / sizeof(MiddlewareHandler)})
 
 #define NO_MW ((MiddlewareArray){.handlers = NULL, .count = 0})
-
-// ============================================================================
-// PUBLIC TYPES
-// ============================================================================
 
 typedef enum
 {
@@ -149,10 +196,6 @@ typedef enum
 
 typedef void (*shutdown_callback_t)(void);
 typedef void (*timer_callback_t)(void *user_data);
-
-// ============================================================================
-// PUBLIC TYPES
-// ============================================================================
 
 typedef struct task_s Task;
 typedef void (*result_handler_t)(void *context, char *error);
