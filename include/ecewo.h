@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
+#include "arena.h"
 
 // ============================================================================
 // PUBLIC TYPES AND FORWARD DECLARATIONS
@@ -14,8 +15,6 @@
 typedef struct uv_loop_s uv_loop_t;
 typedef struct uv_timer_s uv_timer_t;
 typedef struct uv_tcp_s uv_tcp_t;
-
-typedef struct Arena Arena;
 
 typedef struct Req Req;
 typedef struct Res Res;
