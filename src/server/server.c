@@ -6,7 +6,6 @@
 #include <inttypes.h>
 #include "ecewo.h"
 #include "server.h"
-#include "server.h"
 #include "route_trie.h"
 #include "request.h"
 #include "middleware.h"
@@ -19,7 +18,7 @@ typedef struct timer_data_s
 {
     timer_callback_t callback;
     void *user_data;
-    int is_interval;
+    bool is_interval;
 } timer_data_t;
 
 // Global server state
@@ -578,14 +577,14 @@ static void timer_callback(uv_timer_t *handle)
     }
 }
 
-uv_timer_t *set_timeout(timer_callback_t callback, uint64_t delay_ms, void *user_data)
+Timer *set_timeout(timer_callback_t callback, uint64_t delay_ms, void *user_data)
 {
     if (!g_server.initialized || !callback)
     {
         return NULL;
     }
 
-    uv_timer_t *timer = malloc(sizeof(uv_timer_t));
+    Timer *timer = malloc(sizeof(Timer));
     timer_data_t *data = malloc(sizeof(timer_data_t));
 
     if (!timer || !data)
@@ -597,7 +596,7 @@ uv_timer_t *set_timeout(timer_callback_t callback, uint64_t delay_ms, void *user
 
     data->callback = callback;
     data->user_data = user_data;
-    data->is_interval = 0;
+    data->is_interval = false;
 
     if (uv_timer_init(g_server.loop, timer) != 0)
     {
@@ -618,14 +617,14 @@ uv_timer_t *set_timeout(timer_callback_t callback, uint64_t delay_ms, void *user
     return timer;
 }
 
-uv_timer_t *set_interval(timer_callback_t callback, uint64_t interval_ms, void *user_data)
+Timer *set_interval(timer_callback_t callback, uint64_t interval_ms, void *user_data)
 {
     if (!g_server.initialized || !callback)
     {
         return NULL;
     }
 
-    uv_timer_t *timer = malloc(sizeof(uv_timer_t));
+    Timer *timer = malloc(sizeof(Timer));
     timer_data_t *data = malloc(sizeof(timer_data_t));
 
     if (!timer || !data)
@@ -637,7 +636,7 @@ uv_timer_t *set_interval(timer_callback_t callback, uint64_t interval_ms, void *
 
     data->callback = callback;
     data->user_data = user_data;
-    data->is_interval = 1;
+    data->is_interval = true;
 
     if (uv_timer_init(g_server.loop, timer) != 0)
     {
@@ -658,7 +657,7 @@ uv_timer_t *set_interval(timer_callback_t callback, uint64_t interval_ms, void *
     return timer;
 }
 
-void clear_timer(uv_timer_t *timer)
+void clear_timer(Timer *timer)
 {
     if (!timer)
         return;
@@ -669,6 +668,7 @@ void clear_timer(uv_timer_t *timer)
     if (data)
     {
         free(data);
+        timer->data = NULL;
     }
 
     uv_close((uv_handle_t *)timer, (uv_close_cb)free);

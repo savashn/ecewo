@@ -16,6 +16,8 @@ typedef struct uv_loop_s uv_loop_t;
 typedef struct uv_timer_s uv_timer_t;
 typedef struct uv_tcp_s uv_tcp_t;
 
+typedef uv_timer_t Timer;
+
 typedef struct Req Req;
 typedef struct Res Res;
 typedef struct Chain Chain;
@@ -218,9 +220,9 @@ uv_loop_t *get_loop(void);
 // Timer Functions
 // ============================================================================
 
-uv_timer_t *set_timeout(timer_callback_t callback, uint64_t delay_ms, void *user_data);
-uv_timer_t *set_interval(timer_callback_t callback, uint64_t interval_ms, void *user_data);
-void clear_timer(uv_timer_t *timer);
+Timer *set_timeout(timer_callback_t callback, uint64_t delay_ms, void *user_data);
+Timer *set_interval(timer_callback_t callback, uint64_t interval_ms, void *user_data);
+void clear_timer(Timer *timer);
 
 // ============================================================================
 // Request Functions
