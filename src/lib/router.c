@@ -6,7 +6,7 @@
 #include "router.h"
 #include "route_trie.h"
 #include "middleware.h"
-#include "client.h"
+#include "server.h"
 
 // Forward declaration for client structure
 typedef struct client_s client_t;

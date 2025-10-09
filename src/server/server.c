@@ -6,9 +6,11 @@
 #include <inttypes.h>
 #include "ecewo.h"
 #include "server.h"
-#include "client.h"
+#include "server.h"
 #include "route_trie.h"
 #include "request.h"
+#include "middleware.h"
+#include "arena.h"
 
 // ============================================================================
 // INTERNAL STRUCTURES

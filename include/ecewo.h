@@ -259,17 +259,8 @@ int task(Arena *arena, void *context, work_handler_t work_fn, result_handler_t r
     task((context)->res->arena, (context), (work_fn), (result_fn))
 
 // ============================================================================
-// Route Registration (Internal declarations for macros)
+// Route Registration
 // ============================================================================
-
-// HTTP method enums
-#define HTTP_DELETE 0
-#define HTTP_GET 1
-#define HTTP_HEAD 2
-#define HTTP_POST 3
-#define HTTP_PUT 4
-#define HTTP_OPTIONS 5
-#define HTTP_PATCH 6
 
 // Internal functions (used by macros below)
 void register_sync_route(int method, const char *path, MiddlewareArray middleware, RequestHandler handler);
