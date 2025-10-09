@@ -126,15 +126,20 @@ if(NOT TARGET ecewo::ecewo)
     endif()
 
     # Include Directories
-    target_include_directories(ecewo PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vendors>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
-        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/_deps/libuv-src/include>
-        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/_deps/llhttp-src/include>
-        $<INSTALL_INTERFACE:include>
-        $<INSTALL_INTERFACE:include/ecewo>
+    # PUBLIC: Only include/ for users
+    # PRIVATE: Internal headers
+    target_include_directories(ecewo 
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+            $<INSTALL_INTERFACE:include>
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/lib
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/server
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/utils
+            ${CMAKE_CURRENT_SOURCE_DIR}/vendors
+            ${CMAKE_BINARY_DIR}/_deps/libuv-src/include
+            ${CMAKE_BINARY_DIR}/_deps/llhttp-src/include
     )
 
     # Link Libraries - Match ecewo's library type

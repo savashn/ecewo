@@ -1,16 +1,12 @@
 #ifndef ECEWO_MIDDLEWARE_H
 #define ECEWO_MIDDLEWARE_H
 
+#include "ecewo.h"
 #include "router.h"
+#include "llhttp.h"
 #include <stdint.h>
 
-// Forward declaration of Chain structure
-typedef struct Chain Chain;
-
-// Function pointer type for middleware
-typedef int (*MiddlewareHandler)(Req *req, Res *res, Chain *chain);
-
-// Structure to store middleware chain context
+// Chain structure
 struct Chain
 {
     MiddlewareHandler *handlers;  // Array of middleware handlers
@@ -25,21 +21,8 @@ typedef struct MiddlewareInfo
     MiddlewareHandler *middleware;
     uint16_t middleware_count;
     RequestHandler handler;
-    handler_type_t handler_type; // Track if handler is async
+    handler_type_t handler_type;
 } MiddlewareInfo;
-
-typedef struct
-{
-    MiddlewareHandler *handlers;
-    size_t count;
-} MiddlewareArray;
-
-#define use(...)                                        \
-    ((MiddlewareArray){                                 \
-        .handlers = (MiddlewareHandler[]){__VA_ARGS__}, \
-        .count = sizeof((MiddlewareHandler[]){__VA_ARGS__}) / sizeof(MiddlewareHandler)})
-
-#define NO_MW ((MiddlewareArray){.handlers = NULL, .count = 0})
 
 #define INITIAL_MW_CAPACITY 4
 
@@ -47,39 +30,15 @@ typedef struct
 extern MiddlewareHandler *global_middleware;
 extern uint16_t global_middleware_count;
 
-// Function to add global middleware
-void hook(MiddlewareHandler middleware_handler);
-
-// Function to execute the next middleware or route handler in the chain
-int next(Req *req, Res *res, Chain *chain);
-
+// Internal functions
 void register_route(llhttp_method_t method,
                     const char *path,
                     MiddlewareArray middleware,
                     RequestHandler handler,
                     handler_type_t type);
 
-static inline void register_sync_route(llhttp_method_t method,
-                                       const char *path,
-                                       MiddlewareArray middleware,
-                                       RequestHandler handler)
-{
-    register_route(method, path, middleware, handler, HANDLER_SYNC);
-}
-
-static inline void register_async_route(llhttp_method_t method,
-                                        const char *path,
-                                        MiddlewareArray middleware,
-                                        RequestHandler handler)
-{
-    register_route(method, path, middleware, handler, HANDLER_ASYNC);
-}
-
 void reset_middleware(void);
-
 void free_middleware_info(MiddlewareInfo *info);
-
-// The main function that runs middleware chain
 void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_info);
 
 #endif

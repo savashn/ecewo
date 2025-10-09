@@ -1,24 +1,12 @@
 #ifndef ECEWO_REQUEST_H
 #define ECEWO_REQUEST_H
 
+#include "ecewo.h"
+#include "router.h"
+#include "llhttp.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "llhttp.h"
-#include "../../vendors/arena.h"
-
-typedef struct
-{
-    char *key;
-    char *value;
-} request_item_t;
-
-typedef struct
-{
-    request_item_t *items;
-    uint16_t count;
-    uint16_t capacity;
-} request_t;
 
 // Parse result enumeration
 typedef enum
@@ -29,7 +17,7 @@ typedef enum
     PARSE_OVERFLOW = -2   // Buffer overflow or size limit exceeded
 } parse_result_t;
 
-// HTTP parsing context structure to hold state during parsing
+// HTTP parsing context structure
 typedef struct
 {
     Arena *arena;                // Arena for this context's memory
@@ -75,6 +63,7 @@ typedef struct
     const char *error_reason;  // Error description
 } http_context_t;
 
+// Internal functions
 void http_context_init(http_context_t *context,
                        Arena *arena,
                        llhttp_t *reused_parser,
@@ -92,9 +81,7 @@ parse_result_t http_finish_parsing(http_context_t *context);
 // Parse the query string into request_t structure
 void parse_query(Arena *arena, const char *query_string, request_t *query);
 
-// Get value by key from request_t structure
-const char *get_req(const request_t *request, const char *key);
-
+// Callbacks
 int on_url_cb(llhttp_t *parser, const char *at, size_t length);
 int on_header_field_cb(llhttp_t *parser, const char *at, size_t length);
 int on_header_value_cb(llhttp_t *parser, const char *at, size_t length);

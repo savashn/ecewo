@@ -1,10 +1,13 @@
 #ifndef ROUTE_TRIE_H
 #define ROUTE_TRIE_H
 
+#include "ecewo.h"
+#include "router.h"
+#include "llhttp.h"
+#include "uv.h"
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include "router.h"
 
 #define MAX_PATH_SEGMENTS 128
 
@@ -21,7 +24,7 @@ typedef enum
     METHOD_COUNT = 7
 } http_method_index_t;
 
-// Path segment structure for pre-tokenized paths
+// Path segment structure
 typedef struct
 {
     const char *start;
@@ -30,7 +33,7 @@ typedef struct
     bool is_wildcard; // true if this segment is *
 } path_segment_t;
 
-// Tokenized path to avoid re-parsing
+// Tokenized path
 typedef struct
 {
     path_segment_t *segments;
@@ -38,6 +41,7 @@ typedef struct
     uint8_t capacity;
 } tokenized_path_t;
 
+// Trie node
 typedef struct trie_node
 {
     struct trie_node *children[128];       // ASCII characters
@@ -78,6 +82,8 @@ typedef struct
     uint8_t param_count;
 } route_match_t;
 
+// Internal functions
+
 // Convert llhttp_method_t to internal index
 // Returns -1 for unsupported methods
 static inline int method_to_index(llhttp_method_t method)
@@ -103,23 +109,17 @@ static inline int method_to_index(llhttp_method_t method)
     }
 }
 
-// Path tokenization functions
 int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result);
-
-// Now takes tokenized path instead of raw string
 bool route_trie_match(route_trie_t *trie,
                       llhttp_t *parser,
                       const tokenized_path_t *tokenized_path,
                       route_match_t *match);
-
-// Existing functions remain same
 route_trie_t *route_trie_create(void);
 int route_trie_add(route_trie_t *trie,
                    llhttp_method_t method,
                    const char *path,
                    RequestHandler handler,
                    void *middleware_ctx);
-
 void route_trie_free(route_trie_t *trie);
 
 #endif

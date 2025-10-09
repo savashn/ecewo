@@ -1,11 +1,12 @@
 #ifndef ECEWO_CLIENT_H
 #define ECEWO_CLIENT_H
 
-#include <stdbool.h>
-#include <time.h>
+#include "ecewo.h"
+#include "request.h"
 #include "uv.h"
 #include "llhttp.h"
-#include "../../vendors/arena.h"
+#include <stdbool.h>
+#include <time.h>
 
 #define READ_BUFFER_SIZE 16384
 #define MAX_CONNECTIONS 10000

@@ -4,10 +4,11 @@
 #include <signal.h>
 #include <time.h>
 #include <inttypes.h>
+#include "ecewo.h"
 #include "server.h"
 #include "client.h"
-#include "../lib/route_trie.h"
-#include "../lib/request.h"
+#include "route_trie.h"
+#include "request.h"
 
 // ============================================================================
 // INTERNAL STRUCTURES

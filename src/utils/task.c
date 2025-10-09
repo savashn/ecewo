@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include "ecewo.h"
 #include "task.h"
 
 // Thread pool work callback

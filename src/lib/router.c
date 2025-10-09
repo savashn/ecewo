@@ -2,9 +2,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <stddef.h>
+#include "ecewo.h"
+#include "router.h"
 #include "route_trie.h"
 #include "middleware.h"
-#include "../server/server.h"
+#include "client.h"
 
 // Forward declaration for client structure
 typedef struct client_s client_t;
@@ -1089,4 +1091,60 @@ int execute_async_handler(RequestHandler handler, Req *req, Res *res)
         async_handler_after_work);
 
     return result == 0 ? 0 : -1;
+}
+
+const char *get_param(const Req *req, const char *key)
+{
+    return req ? get_req(&req->params, key) : NULL;
+}
+
+const char *get_query(const Req *req, const char *key)
+{
+    return req ? get_req(&req->query, key) : NULL;
+}
+
+const char *get_header(const Req *req, const char *key)
+{
+    return req ? get_req(&req->headers, key) : NULL;
+}
+
+void redirect(Res *res, int status, const char *url)
+{
+    if (!res || !url)
+        return;
+
+    set_header(res, "Location", url);
+
+    const char *message;
+    size_t message_len;
+
+    switch (status)
+    {
+    case MOVED_PERMANENTLY:
+        message = "Moved Permanently";
+        message_len = 17;
+        break;
+    case FOUND:
+        message = "Found";
+        message_len = 5;
+        break;
+    case SEE_OTHER:
+        message = "See Other";
+        message_len = 9;
+        break;
+    case TEMPORARY_REDIRECT:
+        message = "Temporary Redirect";
+        message_len = 18;
+        break;
+    case PERMANENT_REDIRECT:
+        message = "Permanent Redirect";
+        message_len = 18;
+        break;
+    default:
+        message = "Redirect";
+        message_len = 8;
+        break;
+    }
+
+    reply(res, status, "text/plain", message, message_len);
 }

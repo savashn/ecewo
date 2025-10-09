@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include "middleware.h"
 #include "route_trie.h"
-#include "../../vendors/arena.h"
+#include "arena.h"
 
 // Global middleware (uses malloc since it's long-lived)
 MiddlewareHandler *global_middleware = NULL;
@@ -258,6 +258,17 @@ void register_route(llhttp_method_t method,
         free_middleware_info(middleware_info);
         return;
     }
+}
+
+// Public API implementations
+void register_sync_route(int method, const char *path, MiddlewareArray middleware, RequestHandler handler)
+{
+    register_route((llhttp_method_t)method, path, middleware, handler, HANDLER_SYNC);
+}
+
+void register_async_route(int method, const char *path, MiddlewareArray middleware, RequestHandler handler)
+{
+    register_route((llhttp_method_t)method, path, middleware, handler, HANDLER_ASYNC);
 }
 
 void reset_middleware(void)

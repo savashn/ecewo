@@ -3,8 +3,8 @@
 #include <string.h>
 #include <limits.h>
 #include <ctype.h>
+#include "ecewo.h"
 #include "request.h"
-#include "../../vendors/arena.h"
 
 #define MIN_BUFFER_SIZE 64
 #define GROWTH_FACTOR 1.5
