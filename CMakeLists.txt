@@ -93,7 +93,7 @@ if(NOT TARGET ecewo::ecewo)
     # Source Files
     set(ECEWO_SRC_FILES
         src/server/server.c
-        src/lib/request.c
+        src/server/request.c
         src/lib/router.c
         src/lib/middleware.c
         src/lib/route_trie.c

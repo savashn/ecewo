@@ -257,11 +257,6 @@ static inline void send_json(Res *res, int status, const char *body)
     reply(res, status, "application/json", body, strlen(body));
 }
 
-static inline void send_cbor(Res *res, int status, const char *body, size_t body_len)
-{
-    reply(res, status, "application/cbor", body, body_len);
-}
-
 // ============================================================================
 // Memory Functions (Arena)
 // ============================================================================

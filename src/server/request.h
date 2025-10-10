@@ -2,7 +2,6 @@
 #define ECEWO_REQUEST_H
 
 #include "ecewo.h"
-#include "router.h"
 #include "llhttp.h"
 #include <stdbool.h>
 #include <stdint.h>
