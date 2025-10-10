@@ -7,9 +7,6 @@
 #include "middleware.h"
 #include "server.h"
 
-// Forward declaration for client structure
-typedef struct client_s client_t;
-
 // Called when write operation is completed
 static void write_completion_cb(uv_write_t *req, int status)
 {

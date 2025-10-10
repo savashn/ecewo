@@ -375,4 +375,12 @@ static inline void route_async_with_mw(int method, const char *path, MiddlewareA
 #define del_worker(...) \
     ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_async_with_mw, route_async_no_mw)(0, __VA_ARGS__)
 
+// ============================================================================
+// DEVELOPMENT FUNCTIONS
+// ============================================================================
+
+void increment_async_work(void);
+void decrement_async_work(void);
+int get_pending_async_work(void);
+
 #endif
