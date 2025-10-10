@@ -1038,15 +1038,34 @@ static void async_handler_after_work(uv_work_t *req, int status)
 {
     async_handler_context_t *ctx = (async_handler_context_t *)req->data;
 
+    decrement_async_work();
+
     if (!ctx)
+        return;
+
+    if (!server_is_running())
+        return;
+
+    if (!ctx->req || !ctx->res || !ctx->req->arena || !ctx->req->client_socket)
+    {
+        fprintf(stderr, "Async handler: Invalid context after work\n");
+        return;
+    }
+
+    if (uv_is_closing((uv_handle_t *)ctx->req->client_socket))
         return;
 
     // Check libuv work status
     if (status < 0)
     {
         fprintf(stderr, "Async handler work failed: %s\n", uv_strerror(status));
-        // Direkt erişim
-        send_error(ctx->req->arena, ctx->req->client_socket, 500);
+
+        if (server_is_running() &&
+            uv_is_writable((uv_stream_t *)ctx->req->client_socket))
+        {
+            send_error(ctx->req->arena, ctx->req->client_socket, 500);
+        }
+
         return;
     }
 
@@ -1055,8 +1074,13 @@ static void async_handler_after_work(uv_work_t *req, int status)
     {
         fprintf(stderr, "Handler execution failed: %s\n",
                 ctx->error_message ? ctx->error_message : "Unknown error");
-        // Direkt erişim
-        send_error(ctx->req->arena, ctx->req->client_socket, 500);
+
+        if (server_is_running() &&
+            uv_is_writable((uv_stream_t *)ctx->req->client_socket))
+        {
+            send_error(ctx->req->arena, ctx->req->client_socket, 500);
+        }
+
         return;
     }
 
@@ -1068,6 +1092,12 @@ int execute_async_handler(RequestHandler handler, Req *req, Res *res)
 {
     if (!handler || !req || !res)
         return -1;
+
+    if (!server_is_running())
+    {
+        send_error(req->arena, req->client_socket, 503); // Service Unavailable
+        return -1;
+    }
 
     // Create context from arena
     async_handler_context_t *ctx = arena_alloc(req->arena, sizeof(async_handler_context_t));
@@ -1082,6 +1112,8 @@ int execute_async_handler(RequestHandler handler, Req *req, Res *res)
     ctx->completed = false;
     ctx->error_message = NULL;
 
+    increment_async_work();
+
     // Queue work in thread pool
     int result = uv_queue_work(
         uv_default_loop(),
@@ -1089,7 +1121,13 @@ int execute_async_handler(RequestHandler handler, Req *req, Res *res)
         async_handler_work,
         async_handler_after_work);
 
-    return result == 0 ? 0 : -1;
+    if (result != 0)
+    {
+        decrement_async_work();
+        return -1;
+    }
+
+    return 0;
 }
 
 const char *get_param(const Req *req, const char *key)

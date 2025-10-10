@@ -33,4 +33,8 @@ typedef struct client_s
     bool parser_initialized;
 } client_t;
 
+void increment_async_work(void);
+void decrement_async_work(void);
+int get_pending_async_work(void);
+
 #endif

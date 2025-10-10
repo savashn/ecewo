@@ -28,6 +28,7 @@ static struct
     bool running;
     bool shutdown_requested;
     int active_connections;
+    int pending_async_work;
 
     uv_loop_t *loop;
     uv_tcp_t *server;
@@ -157,6 +158,26 @@ static void stop_cleanup_timer(void)
         uv_close((uv_handle_t *)g_server.cleanup_timer, (uv_close_cb)free);
         g_server.cleanup_timer = NULL;
     }
+}
+
+// ============================================================================
+// ASYNC WORK TRACKING
+// ============================================================================
+
+void increment_async_work(void)
+{
+    g_server.pending_async_work++;
+}
+
+void decrement_async_work(void)
+{
+    if (g_server.pending_async_work > 0)
+        g_server.pending_async_work--;
+}
+
+int get_pending_async_work(void)
+{
+    return g_server.pending_async_work;
 }
 
 // ============================================================================
@@ -326,49 +347,84 @@ static void client_context_init(client_t *client)
 static void server_shutdown(void)
 {
     if (g_server.shutdown_requested)
-    {
         return;
-    }
+
+    printf("Starting graceful shutdown...\n");
 
     g_server.shutdown_requested = 1;
     g_server.running = 0;
 
-    // Call user cleanup
+    // User cleanup
     if (g_server.shutdown_callback)
     {
         g_server.shutdown_callback();
     }
 
-    // Stop cleanup timer first
+    // Cleanup timer'ı durdur
     stop_cleanup_timer();
 
-    // Stop signal handlers
+    // Signal handler'ları durdur
     uv_signal_stop(&g_server.sigint_handle);
     uv_signal_stop(&g_server.sigterm_handle);
 
-    // Close all connections and timers
+    // Önce yeni bağlantıları reddet
+    if (g_server.server && !uv_is_closing((uv_handle_t *)g_server.server))
+    {
+        uv_close((uv_handle_t *)g_server.server, on_server_closed);
+    }
+
+    // Tüm async işlemlerin bitmesini bekle
+    printf("Waiting for %d async operations to complete...\n",
+           get_pending_async_work());
+
+    int wait_iterations = 0;
+    const int MAX_WAIT_ITERATIONS = 100; // 10 saniye (100ms * 100)
+
+    while (get_pending_async_work() > 0 && wait_iterations < MAX_WAIT_ITERATIONS)
+    {
+        uv_run(g_server.loop, UV_RUN_NOWAIT);
+
+// 100ms bekle
+#ifdef _WIN32
+        Sleep(100);
+#else
+        usleep(100000);
+#endif
+
+        wait_iterations++;
+
+        if (wait_iterations % 10 == 0)
+        {
+            printf("Still waiting for %d async operations...\n",
+                   get_pending_async_work());
+        }
+    }
+
+    if (get_pending_async_work() > 0)
+    {
+        printf("Warning: Force closing with %d pending operations\n",
+               get_pending_async_work());
+    }
+
+    // Şimdi client'ları kapat
+    printf("Closing %d active connections...\n", g_server.active_connections);
     uv_walk(g_server.loop, close_walk_cb, NULL);
 
-    // Wait for connections to close
-    int wait_count = 0;
-    while (g_server.active_connections > 0)
+    // Connection'ların kapanmasını bekle
+    wait_iterations = 0;
+    while (g_server.active_connections > 0 && wait_iterations < MAX_WAIT_ITERATIONS)
     {
         uv_run(g_server.loop, UV_RUN_ONCE);
-        wait_count++;
+        wait_iterations++;
 
-        // Progress report every 10 iterations
-        if (wait_count % 10 == 0)
+        if (wait_iterations % 10 == 0)
         {
             printf("Waiting for %d connections to close...\n",
                    g_server.active_connections);
         }
     }
 
-    // Close server handle
-    if (g_server.server && !uv_is_closing((uv_handle_t *)g_server.server))
-    {
-        uv_close((uv_handle_t *)g_server.server, on_server_closed);
-    }
+    printf("Graceful shutdown completed\n");
 }
 
 static void server_cleanup(void)
