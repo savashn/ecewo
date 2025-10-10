@@ -921,6 +921,14 @@ static void close_walk_cb(uv_handle_t *handle, void *arg)
             close_client(client);
         }
     }
+    else if (handle->type == UV_POLL)
+    {
+        uv_poll_stop((uv_poll_t *)handle);
+        if (!uv_is_closing(handle))
+        {
+            uv_close(handle, NULL);
+        }
+    }
     else if (handle->type == UV_TIMER && handle != (uv_handle_t *)g_server.cleanup_timer)
     {
         // Application timer (not our cleanup timer)
