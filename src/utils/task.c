@@ -39,6 +39,9 @@ static void task_completion_cb(uv_work_t *req, int status)
     {
         task->result_fn(task->context, task->error);
     }
+
+    // Decrement after completion
+    decrement_async_work();
 }
 
 // Creates and executes an async task
@@ -70,6 +73,9 @@ int task(
     task->work_fn = work_fn;
     task->result_fn = res_handler;
 
+    // Track async work
+    increment_async_work();
+
     // Queue work in libuv thread pool
     int result = uv_queue_work(
         uv_default_loop(),
@@ -80,6 +86,8 @@ int task(
     if (result != 0)
     {
         fprintf(stderr, "Failed to queue task: %s\n", uv_strerror(result));
+        // Rollback on failure
+        decrement_async_work();
         return result;
     }
 

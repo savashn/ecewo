@@ -681,6 +681,130 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     }
 }
 
+static void async_handler_after_work(uv_work_t *req, int status)
+{
+    async_handler_context_t *ctx = (async_handler_context_t *)req->data;
+
+    decrement_async_work();
+
+    if (!ctx)
+        return;
+
+    if (!server_is_running())
+        return;
+
+    if (!ctx->req || !ctx->res || !ctx->req->arena || !ctx->req->client_socket)
+    {
+        fprintf(stderr, "Async handler: Invalid context after work\n");
+        return;
+    }
+
+    if (uv_is_closing((uv_handle_t *)ctx->req->client_socket))
+        return;
+
+    // Check libuv work status
+    if (status < 0)
+    {
+        fprintf(stderr, "Async handler work failed: %s\n", uv_strerror(status));
+
+        if (server_is_running() &&
+            uv_is_writable((uv_stream_t *)ctx->req->client_socket))
+        {
+            send_error(ctx->req->arena, ctx->req->client_socket, 500);
+        }
+
+        return;
+    }
+
+    // Check handler execution status
+    if (!ctx->completed || ctx->error_message)
+    {
+        fprintf(stderr, "Handler execution failed: %s\n",
+                ctx->error_message ? ctx->error_message : "Unknown error");
+
+        if (server_is_running() &&
+            uv_is_writable((uv_stream_t *)ctx->req->client_socket))
+        {
+            send_error(ctx->req->arena, ctx->req->client_socket, 500);
+        }
+
+        return;
+    }
+
+    // Success: response should have been sent by handler
+    // Arena cleanup is handled by write_completion_cb
+}
+
+static void async_handler_work(uv_work_t *req)
+{
+    async_handler_context_t *ctx = (async_handler_context_t *)req->data;
+
+    if (!ctx || !ctx->handler || !ctx->req || !ctx->res)
+    {
+        if (ctx)
+        {
+            ctx->error_message = "Invalid async handler context";
+            ctx->completed = false;
+        }
+        return;
+    }
+
+    // Check if server is shutting down
+    if (!server_is_running())
+    {
+        ctx->error_message = "Server is shutting down";
+        ctx->completed = false;
+        return;
+    }
+
+    // Execute handler in thread pool
+    ctx->handler(ctx->req, ctx->res);
+    ctx->completed = true;
+    ctx->error_message = NULL;
+}
+
+int execute_async_handler(RequestHandler handler, Req *req, Res *res)
+{
+    if (!handler || !req || !res)
+        return -1;
+
+    if (!server_is_running())
+    {
+        send_error(req->arena, req->client_socket, 503); // Service Unavailable
+        return -1;
+    }
+
+    // Create context from arena
+    async_handler_context_t *ctx = arena_alloc(req->arena, sizeof(async_handler_context_t));
+    if (!ctx)
+        return -1;
+
+    // Initialize - minimal fields
+    ctx->work_req.data = ctx;
+    ctx->handler = handler;
+    ctx->req = req;
+    ctx->res = res;
+    ctx->completed = false;
+    ctx->error_message = NULL;
+
+    increment_async_work();
+
+    // Queue work in thread pool
+    int result = uv_queue_work(
+        uv_default_loop(),
+        &ctx->work_req,
+        async_handler_work,
+        async_handler_after_work);
+
+    if (result != 0)
+    {
+        decrement_async_work();
+        return -1;
+    }
+
+    return 0;
+}
+
 // Main router function
 int router(client_t *client, const char *request_data, size_t request_len)
 {
@@ -1001,130 +1125,6 @@ void set_header(Res *res, const char *name, const char *value)
     }
 
     res->header_count++;
-}
-
-static void async_handler_work(uv_work_t *req)
-{
-    async_handler_context_t *ctx = (async_handler_context_t *)req->data;
-
-    if (!ctx || !ctx->handler || !ctx->req || !ctx->res)
-    {
-        if (ctx)
-        {
-            ctx->error_message = "Invalid async handler context";
-            ctx->completed = false;
-        }
-        return;
-    }
-
-    // Check if server is shutting down
-    if (!server_is_running())
-    {
-        ctx->error_message = "Server is shutting down";
-        ctx->completed = false;
-        return;
-    }
-
-    // Execute handler in thread pool
-    ctx->handler(ctx->req, ctx->res);
-    ctx->completed = true;
-    ctx->error_message = NULL;
-}
-
-static void async_handler_after_work(uv_work_t *req, int status)
-{
-    async_handler_context_t *ctx = (async_handler_context_t *)req->data;
-
-    decrement_async_work();
-
-    if (!ctx)
-        return;
-
-    if (!server_is_running())
-        return;
-
-    if (!ctx->req || !ctx->res || !ctx->req->arena || !ctx->req->client_socket)
-    {
-        fprintf(stderr, "Async handler: Invalid context after work\n");
-        return;
-    }
-
-    if (uv_is_closing((uv_handle_t *)ctx->req->client_socket))
-        return;
-
-    // Check libuv work status
-    if (status < 0)
-    {
-        fprintf(stderr, "Async handler work failed: %s\n", uv_strerror(status));
-
-        if (server_is_running() &&
-            uv_is_writable((uv_stream_t *)ctx->req->client_socket))
-        {
-            send_error(ctx->req->arena, ctx->req->client_socket, 500);
-        }
-
-        return;
-    }
-
-    // Check handler execution status
-    if (!ctx->completed || ctx->error_message)
-    {
-        fprintf(stderr, "Handler execution failed: %s\n",
-                ctx->error_message ? ctx->error_message : "Unknown error");
-
-        if (server_is_running() &&
-            uv_is_writable((uv_stream_t *)ctx->req->client_socket))
-        {
-            send_error(ctx->req->arena, ctx->req->client_socket, 500);
-        }
-
-        return;
-    }
-
-    // Success: response should have been sent by handler
-    // Arena cleanup is handled by write_completion_cb
-}
-
-int execute_async_handler(RequestHandler handler, Req *req, Res *res)
-{
-    if (!handler || !req || !res)
-        return -1;
-
-    if (!server_is_running())
-    {
-        send_error(req->arena, req->client_socket, 503); // Service Unavailable
-        return -1;
-    }
-
-    // Create context from arena
-    async_handler_context_t *ctx = arena_alloc(req->arena, sizeof(async_handler_context_t));
-    if (!ctx)
-        return -1;
-
-    // Initialize - minimal fields
-    ctx->work_req.data = ctx;
-    ctx->handler = handler;
-    ctx->req = req;
-    ctx->res = res;
-    ctx->completed = false;
-    ctx->error_message = NULL;
-
-    increment_async_work();
-
-    // Queue work in thread pool
-    int result = uv_queue_work(
-        uv_default_loop(),
-        &ctx->work_req,
-        async_handler_work,
-        async_handler_after_work);
-
-    if (result != 0)
-    {
-        decrement_async_work();
-        return -1;
-    }
-
-    return 0;
 }
 
 const char *get_param(const Req *req, const char *key)
