@@ -16,7 +16,9 @@ Inspired by [Express.js](https://expressjs.com/). It’s minimalist, unopinionat
 - [Quick Start](#quick-start)
 - [Benchmarks](#benchmarks)
 - [Documentation](#documentation)
+- [Ecosystem](#ecosystem)
 - [Example App](#example-app)
+- [Contributing](#contributing)
 - [License](#license)
 
 ## Requirements
@@ -103,9 +105,25 @@ Lower is better.
 
 Refer to the [docs](/docs/) for usage.
 
+## Ecosystem
+
+- [ecewo-postgres](https://github.com/savashn/ecewo-packages/tree/main/ecewo-postgres) for async PostgreSQL integration.
+- [ecewo-cookie](https://github.com/savashn/ecewo-packages/tree/main/ecewo-cookie) for cookie management.
+- [ecewo-session](https://github.com/savashn/ecewo-packages/tree/main/ecewo-session) for session management.
+- [ecewo-fs](https://github.com/savashn/ecewo-packages/tree/main/ecewo-fs) for file operations.
+- [ecewo-static](https://github.com/savashn/ecewo-packages/tree/main/ecewo-static) for static file serving.
+- [ecewo-cors](https://github.com/savashn/ecewo-packages/tree/main/ecewo-cors) for CORS implementation.
+- [ecewo-helmet](https://github.com/savashn/ecewo-packages/tree/main/ecewo-helmet) for automaticaly setting safety headers.
+
+Check out the [List of Useful External Libraries](/docs/13.external_libraries.md) page for more.
+
 ## Example App
 
 [Here](https://github.com/savashn/ecewo-example) is an example blog app built with Ecewo and PostgreSQL.
+
+## Contributing
+
+Contributions are welcome. Please feel free to submit a pull requests or open issues for feature requests or bugs.
 
 ## License
 
