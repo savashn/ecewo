@@ -303,9 +303,9 @@ int task(Arena *arena, void *context, work_handler_t work_fn, result_handler_t r
 // Route Registration
 // ============================================================================
 
-// Internal functions (used by macros below)
-void register_sync_route(int method, const char *path, MiddlewareArray middleware, RequestHandler handler);
-void register_async_route(int method, const char *path, MiddlewareArray middleware, RequestHandler handler);
+// Forward declarations for internal functions (implementation in middleware.c)
+extern void register_sync_route(int method, const char *path, MiddlewareArray middleware, RequestHandler handler);
+extern void register_async_route(int method, const char *path, MiddlewareArray middleware, RequestHandler handler);
 
 // ============================================================================
 // Synchronous Route Macros

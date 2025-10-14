@@ -350,11 +350,11 @@ void hook(MiddlewareHandler middleware_handler)
 // ROUTE REGISTRATION
 // ============================================================================
 
-void register_route(llhttp_method_t method,
-                    const char *path,
-                    MiddlewareArray middleware,
-                    RequestHandler handler,
-                    handler_type_t type)
+static void register_route(llhttp_method_t method,
+                           const char *path,
+                           MiddlewareArray middleware,
+                           RequestHandler handler,
+                           handler_type_t type)
 {
     if (!handler || !path || !global_route_trie)
     {
@@ -393,6 +393,16 @@ void register_route(llhttp_method_t method,
         free_middleware_info(middleware_info);
         return;
     }
+}
+
+void register_sync_route(int method, const char *path, MiddlewareArray middleware, RequestHandler handler)
+{
+    register_route((llhttp_method_t)method, path, middleware, handler, HANDLER_SYNC);
+}
+
+void register_async_route(int method, const char *path, MiddlewareArray middleware, RequestHandler handler)
+{
+    register_route((llhttp_method_t)method, path, middleware, handler, HANDLER_ASYNC);
 }
 
 // Global middleware cleanup - server shutdown

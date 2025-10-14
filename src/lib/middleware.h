@@ -33,22 +33,9 @@ extern uint16_t global_middleware_count;
 // Execution function that manages both sync and async
 int execute_handler_with_middleware(Req *req, Res *res, MiddlewareInfo *middleware_info);
 
-// Internal functions
-void register_route(llhttp_method_t method,
-                    const char *path,
-                    MiddlewareArray middleware,
-                    RequestHandler handler,
-                    handler_type_t type);
-
-static inline void register_sync_route(int method, const char *path, MiddlewareArray middleware, RequestHandler handler)
-{
-    register_route((llhttp_method_t)method, path, middleware, handler, HANDLER_SYNC);
-}
-
-static inline void register_async_route(int method, const char *path, MiddlewareArray middleware, RequestHandler handler)
-{
-    register_route((llhttp_method_t)method, path, middleware, handler, HANDLER_ASYNC);
-}
+// Internal function declarations
+void register_sync_route(int method, const char *path, MiddlewareArray middleware, RequestHandler handler);
+void register_async_route(int method, const char *path, MiddlewareArray middleware, RequestHandler handler);
 
 void reset_middleware(void);
 void free_middleware_info(MiddlewareInfo *info);
