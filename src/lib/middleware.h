@@ -30,6 +30,9 @@ typedef struct MiddlewareInfo
 extern MiddlewareHandler *global_middleware;
 extern uint16_t global_middleware_count;
 
+// Execution function that manages both sync and async
+int execute_handler_with_middleware(Req *req, Res *res, MiddlewareInfo *middleware_info);
+
 // Internal functions
 void register_route(llhttp_method_t method,
                     const char *path,
@@ -37,8 +40,17 @@ void register_route(llhttp_method_t method,
                     RequestHandler handler,
                     handler_type_t type);
 
+static inline void register_sync_route(int method, const char *path, MiddlewareArray middleware, RequestHandler handler)
+{
+    register_route((llhttp_method_t)method, path, middleware, handler, HANDLER_SYNC);
+}
+
+static inline void register_async_route(int method, const char *path, MiddlewareArray middleware, RequestHandler handler)
+{
+    register_route((llhttp_method_t)method, path, middleware, handler, HANDLER_ASYNC);
+}
+
 void reset_middleware(void);
 void free_middleware_info(MiddlewareInfo *info);
-void execute_middleware_chain(Req *req, Res *res, MiddlewareInfo *middleware_info);
 
 #endif

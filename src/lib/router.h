@@ -31,19 +31,7 @@ typedef enum
     HANDLER_ASYNC = 1
 } handler_type_t;
 
-// Async handler context for thread pool execution
-typedef struct
-{
-    uv_work_t work_req;
-    RequestHandler handler;
-    Req *req;
-    Res *res;
-    bool completed;
-    const char *error_message;
-} async_handler_context_t;
-
 // Internal functions
-int execute_async_handler(RequestHandler handler, Req *req, Res *res);
 int router(client_t *client, const char *request_data, size_t request_len);
 const char *get_req(const request_t *request, const char *key);
 

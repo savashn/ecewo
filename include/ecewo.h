@@ -174,7 +174,7 @@ typedef int (*MiddlewareHandler)(Req *req, Res *res, Chain *chain);
 typedef struct
 {
     MiddlewareHandler *handlers;
-    size_t count;
+    uint16_t count;
 } MiddlewareArray;
 
 #define use(...)                                        \
