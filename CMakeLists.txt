@@ -23,7 +23,7 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Choose the type of build" FORCE)
 endif()
 
-# Options - Only set if not already defined (FetchContent compatibility)
+# Options - Only set if not already defined
 if(NOT DEFINED ECEWO_BUILD_SHARED)
     option(ECEWO_BUILD_SHARED "Build shared library instead of static" OFF)
 endif()
@@ -116,7 +116,7 @@ if(NOT TARGET ecewo::ecewo)
     # Create alias for namespace consistency
     add_library(ecewo::ecewo ALIAS ecewo)
 
-    # Platform-specific definitions (target-specific, not global)
+    # Platform-specific definitions
     if(WIN32)
         target_compile_definitions(ecewo PRIVATE PLATFORM_WINDOWS)
     elseif(APPLE)
@@ -126,13 +126,10 @@ if(NOT TARGET ecewo::ecewo)
     endif()
 
     # Include Directories
-    # PUBLIC: Only include/ for users
-    # PRIVATE: Internal headers
     target_include_directories(ecewo 
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
             $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/_deps/libuv-src/include>
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vendors>
             $<INSTALL_INTERFACE:include>
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/src/lib
@@ -268,13 +265,9 @@ if(NOT TARGET ecewo::ecewo)
         message(STATUS "  - Security hardening enabled")
     endif()
 
-    # Memory Optimizations
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
         target_compile_definitions(ecewo PRIVATE
-            NDEBUG                   # Disable assertions
-            ECEWO_OPTIMIZE_FOR_SPEED=1
-            ECEWO_INLINE_HOT_PATHS=1
-            ECEWO_CACHE_LINE_SIZE=64  # Modern CPU cache line size
+            NDEBUG
         )
     endif()
 
