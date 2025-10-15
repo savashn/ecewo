@@ -62,7 +62,7 @@ int main(void)
 **CMakeLists.txt:**
 ```cmake
 cmake_minimum_required(VERSION 3.14)
-project(my_project VERSION 1.0.0 LANGUAGES C)
+project(myproject VERSION 1.0.0 LANGUAGES C)
 
 include(FetchContent)
 
@@ -74,11 +74,11 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(ecewo)
 
-add_executable(server
+add_executable(${PROJECT_NAME}
     main.c
 )
 
-target_link_libraries(server PRIVATE ecewo)
+target_link_libraries(${PROJECT_NAME} PRIVATE ecewo)
 ```
 
 **Build:**
@@ -114,8 +114,6 @@ Refer to the [docs](/docs/) for usage.
 - [ecewo-static](https://github.com/savashn/ecewo-packages/tree/main/ecewo-static) for static file serving.
 - [ecewo-cors](https://github.com/savashn/ecewo-packages/tree/main/ecewo-cors) for CORS implementation.
 - [ecewo-helmet](https://github.com/savashn/ecewo-packages/tree/main/ecewo-helmet) for automaticaly setting safety headers.
-
-Check out the [List of Useful External Libraries](/docs/13.external_libraries.md) page for more.
 
 ## Example App
 
