@@ -107,13 +107,13 @@ Refer to the [docs](/docs/) for usage.
 
 ## Ecosystem
 
-- [ecewo-postgres](https://github.com/savashn/ecewo-packages/tree/main/ecewo-postgres) for async PostgreSQL integration.
-- [ecewo-cookie](https://github.com/savashn/ecewo-packages/tree/main/ecewo-cookie) for cookie management.
-- [ecewo-session](https://github.com/savashn/ecewo-packages/tree/main/ecewo-session) for session management.
-- [ecewo-fs](https://github.com/savashn/ecewo-packages/tree/main/ecewo-fs) for file operations.
-- [ecewo-static](https://github.com/savashn/ecewo-packages/tree/main/ecewo-static) for static file serving.
-- [ecewo-cors](https://github.com/savashn/ecewo-packages/tree/main/ecewo-cors) for CORS implementation.
-- [ecewo-helmet](https://github.com/savashn/ecewo-packages/tree/main/ecewo-helmet) for automaticaly setting safety headers.
+- [ecewo-postgres](https://github.com/savashn/ecewo-modules/tree/main/ecewo-postgres) for async PostgreSQL integration.
+- [ecewo-cookie](https://github.com/savashn/ecewo-modules/tree/main/ecewo-cookie) for cookie management.
+- [ecewo-session](https://github.com/savashn/ecewo-modules/tree/main/ecewo-session) for session management.
+- [ecewo-fs](https://github.com/savashn/ecewo-modules/tree/main/ecewo-fs) for file operations.
+- [ecewo-static](https://github.com/savashn/ecewo-modules/tree/main/ecewo-static) for static file serving.
+- [ecewo-cors](https://github.com/savashn/ecewo-modules/tree/main/ecewo-cors) for CORS implementation.
+- [ecewo-helmet](https://github.com/savashn/ecewo-modules/tree/main/ecewo-helmet) for automaticaly setting safety headers.
 
 ## Example App
 
