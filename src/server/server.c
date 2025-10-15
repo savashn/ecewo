@@ -349,8 +349,6 @@ static void server_shutdown(void)
     if (g_server.shutdown_requested)
         return;
 
-    printf("Starting graceful shutdown...\n");
-
     g_server.shutdown_requested = 1;
     g_server.running = 0;
 
@@ -368,9 +366,6 @@ static void server_shutdown(void)
     {
         uv_close((uv_handle_t *)g_server.server, on_server_closed);
     }
-
-    printf("Waiting for %d async operations to complete...\n",
-           get_pending_async_work());
 
     int wait_iterations = 0;
     const int MAX_WAIT_ITERATIONS = 100;
@@ -396,7 +391,6 @@ static void server_shutdown(void)
                get_pending_async_work());
     }
 
-    printf("Closing %d active connections...\n", g_server.active_connections);
     uv_walk(g_server.loop, close_walk_cb, NULL);
 
     wait_iterations = 0;
@@ -411,8 +405,6 @@ static void server_shutdown(void)
                    g_server.active_connections);
         }
     }
-
-    printf("Graceful shutdown completed\n");
 }
 
 static void server_cleanup(void)
@@ -445,7 +437,6 @@ static void server_cleanup(void)
     }
 
     memset(&g_server, 0, sizeof(g_server));
-    printf("Server cleanup completed\n");
 }
 
 int server_init(void)
@@ -561,8 +552,6 @@ void server_run(void)
         fprintf(stderr, "Error: Server not initialized or not listening\n");
         return;
     }
-
-    printf("Press Ctrl+C to stop the server\n");
 
     // Heart of the web server
     uv_run(g_server.loop, UV_RUN_DEFAULT);
