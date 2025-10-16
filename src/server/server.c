@@ -353,19 +353,21 @@ static void server_shutdown(void)
     g_server.running = 0;
 
     if (g_server.shutdown_callback)
-    {
         g_server.shutdown_callback();
-    }
 
     stop_cleanup_timer();
 
     uv_signal_stop(&g_server.sigint_handle);
     uv_signal_stop(&g_server.sigterm_handle);
 
+    if (!uv_is_closing((uv_handle_t *)&g_server.sigint_handle))
+        uv_close((uv_handle_t *)&g_server.sigint_handle, NULL);
+
+    if (!uv_is_closing((uv_handle_t *)&g_server.sigterm_handle))
+        uv_close((uv_handle_t *)&g_server.sigterm_handle, NULL);
+
     if (g_server.server && !uv_is_closing((uv_handle_t *)g_server.server))
-    {
         uv_close((uv_handle_t *)g_server.server, on_server_closed);
-    }
 
     int wait_iterations = 0;
     const int MAX_WAIT_ITERATIONS = 100;
@@ -410,9 +412,10 @@ static void server_shutdown(void)
 static void server_cleanup(void)
 {
     if (!g_server.initialized)
-    {
         return;
-    }
+
+    if (!g_server.shutdown_requested)
+        server_shutdown();
 
     stop_cleanup_timer();
 
