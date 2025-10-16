@@ -93,13 +93,12 @@ Here are 'Hello World' benchmark results for several frameworks compared to Ecew
 
 Lower is better.
 
-| Framework  | Average   | Median   | Max     | P90      | P95     |
-|------------|-----------|----------|---------|----------|---------|
-| Ecewo      | 0.440ms   | 0.504ms  | 7.73ms  | 1.0ms    | 1.26ms  |
-| Axum       | 0.507ms   | 0.509ms  | 10.78ms | 1.04ms   | 1.54ms  |
-| Go         | 0.939ms   | 0.716ms  | 51.09ms | 1.8ms    | 2.39ms  |
-| Dotnet     | 1.01ms    | 0.736ms  | 55.15ms | 2ms      | 2.74ms  |
-| Express.js | 1.59ms    | 1.35ms   | 9ms     | 2.96ms   | 3.53ms  |
+| Framework  | Average | Median  | Max     | P90    | P95    |
+| ---------- | ------- | ------- | ------- | ------ | ------ |
+| Ecewo      | 0.387ms | 0.152ms | 7.23ms  | 0.99ms | 1.09ms |
+| Axum       | 0.442ms | 0.505ms | 5.61ms  | 1.01ms | 1.21ms |
+| Go         | 0.958ms | 0.725ms | 12.62ms | 1.97ms | 2.48ms |
+| Express.js | 1.85ms  | 1.58ms  | 11.05ms | 3.48ms | 4.27ms |
 
 ## Documentation
 
@@ -107,13 +106,13 @@ Refer to the [docs](/docs/) for usage.
 
 ## Ecosystem
 
-- [ecewo-postgres](https://github.com/savashn/ecewo-modules/tree/main/ecewo-postgres) for async PostgreSQL integration.
-- [ecewo-cookie](https://github.com/savashn/ecewo-modules/tree/main/ecewo-cookie) for cookie management.
-- [ecewo-session](https://github.com/savashn/ecewo-modules/tree/main/ecewo-session) for session management.
-- [ecewo-fs](https://github.com/savashn/ecewo-modules/tree/main/ecewo-fs) for file operations.
-- [ecewo-static](https://github.com/savashn/ecewo-modules/tree/main/ecewo-static) for static file serving.
-- [ecewo-cors](https://github.com/savashn/ecewo-modules/tree/main/ecewo-cors) for CORS implementation.
-- [ecewo-helmet](https://github.com/savashn/ecewo-modules/tree/main/ecewo-helmet) for automaticaly setting safety headers.
+- [ecewo-postgres](https://github.com/savashn/ecewo-modules/tree/main/postgres) for async PostgreSQL integration.
+- [ecewo-cookie](https://github.com/savashn/ecewo-modules/tree/main/cookie) for cookie management.
+- [ecewo-session](https://github.com/savashn/ecewo-modules/tree/main/session) for session management.
+- [ecewo-fs](https://github.com/savashn/ecewo-modules/tree/main/fs) for file operations.
+- [ecewo-static](https://github.com/savashn/ecewo-modules/tree/main/static) for static file serving.
+- [ecewo-cors](https://github.com/savashn/ecewo-modules/tree/main/cors) for CORS implementation.
+- [ecewo-helmet](https://github.com/savashn/ecewo-modules/tree/main/helmet) for automaticaly setting safety headers.
 
 ## Example App
 
