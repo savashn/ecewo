@@ -129,6 +129,7 @@ if(NOT TARGET ecewo::ecewo)
     target_include_directories(ecewo 
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vendors>
             $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/_deps/libuv-src/include>
             $<INSTALL_INTERFACE:include>
         PRIVATE
