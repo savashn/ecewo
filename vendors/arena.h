@@ -45,6 +45,7 @@
 #endif // ARENA_BACKEND
 
 typedef struct Region Region;
+typedef struct Arena Arena;
 
 struct Region {
     Region *next;
@@ -53,9 +54,9 @@ struct Region {
     uintptr_t data[];
 };
 
-typedef struct {
+struct Arena {
     Region *begin, *end;
-} Arena;
+};
 
 typedef struct  {
     Region *region;
