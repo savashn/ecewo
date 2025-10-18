@@ -12,9 +12,6 @@ env:
   BUILD_TYPE: Release
 
 jobs:
-  # ============================================================================
-  # BUILD AND TEST - Linux
-  # ============================================================================
   linux-build-test:
     name: Linux (Ubuntu Latest)
     runs-on: ubuntu-latest
@@ -48,26 +45,66 @@ jobs:
         name: linux-test-results
         path: build/Testing/Temporary/
 
-  # ============================================================================
-  # BUILD AND TEST - macOS
-  # ============================================================================
   macos-build-test:
     name: macOS (Latest)
     runs-on: macos-latest
+    timeout-minutes: 30
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+    
+    - name: Cache CMake dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          build/_deps
+        key: ${{ runner.os }}-cmake-deps-${{ hashFiles('**/CMakeLists.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-cmake-deps-
+        
     - name: Install dependencies
       run: |
         brew install cmake
     
+    - name: Configure network for GitHub access
+      run: |
+        echo "Resolving GitHub IPs..."
+        nslookup github.com || true
+        
+        echo "Testing GitHub connectivity..."
+        curl -I https://github.com 2>&1 | head -n 5 || true
+        
+        sudo dscacheutil -flushcache
+        sudo killall -HUP mDNSResponder 2>/dev/null || true
+        
+        sleep 2
+        curl -I https://github.com 2>&1 | head -n 5 || echo "Warning: GitHub connectivity issues"
+    
     - name: Configure CMake
       run: |
-        cmake -B build \
-          -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
-          -DECEWO_BUILD_TESTS=ON \
+        MAX_ATTEMPTS=3
+        ATTEMPT=0
+        
+        until [ $ATTEMPT -ge $MAX_ATTEMPTS ]; do
+          ATTEMPT=$((ATTEMPT+1))
+          echo "Attempt $ATTEMPT of $MAX_ATTEMPTS..."
+          
+          if cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
+            -DECEWO_BUILD_TESTS=ON; then
+            echo "CMake configuration successful!"
+            exit 0
+          fi
+          
+          if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+            echo "CMake failed, waiting 15 seconds before retry..."
+            sleep 15
+          fi
+        done
+        
+        echo "CMake configuration failed after $MAX_ATTEMPTS attempts"
+        exit 1
     
     - name: Build
       run: cmake --build build --config ${{env.BUILD_TYPE}} -j$(sysctl -n hw.ncpu)
@@ -75,10 +112,14 @@ jobs:
     - name: Run tests
       working-directory: build
       run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure --verbose
+    
+    - name: Upload test results
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: macos-test-results
+        path: build/Testing/Temporary/
 
-  # ============================================================================
-  # BUILD AND TEST - Windows
-  # ============================================================================
   windows-build-test:
     name: Windows (Latest)
     runs-on: windows-latest
@@ -101,9 +142,6 @@ jobs:
       working-directory: build
       run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure --verbose
 
-  # ============================================================================
-  # MEMORY LEAK CHECK (Linux only)
-  # ============================================================================
   memory-check:
     name: Memory Leak Check (Valgrind)
     runs-on: ubuntu-latest
