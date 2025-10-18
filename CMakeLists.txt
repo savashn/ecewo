@@ -306,3 +306,10 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     endif()
     message(STATUS "===============================================")
 endif()
+
+option(ECEWO_BUILD_TESTS "Build tests" OFF)
+
+if(ECEWO_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

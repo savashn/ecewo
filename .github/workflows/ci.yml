@@ -1,0 +1,137 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  # ============================================================================
+  # BUILD AND TEST - Linux
+  # ============================================================================
+  linux-build-test:
+    name: Linux (Ubuntu Latest)
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential
+    
+    - name: Configure CMake
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
+          -DECEWO_BUILD_TESTS=ON \
+    
+    - name: Build
+      run: cmake --build build --config ${{env.BUILD_TYPE}} -j$(nproc)
+    
+    - name: Run tests
+      working-directory: build
+      run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure --verbose
+    
+    - name: Upload test results
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-test-results
+        path: build/Testing/Temporary/
+
+  # ============================================================================
+  # BUILD AND TEST - macOS
+  # ============================================================================
+  macos-build-test:
+    name: macOS (Latest)
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies
+      run: |
+        brew install cmake
+    
+    - name: Configure CMake
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
+          -DECEWO_BUILD_TESTS=ON \
+    
+    - name: Build
+      run: cmake --build build --config ${{env.BUILD_TYPE}} -j$(sysctl -n hw.ncpu)
+    
+    - name: Run tests
+      working-directory: build
+      run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure --verbose
+
+  # ============================================================================
+  # BUILD AND TEST - Windows
+  # ============================================================================
+  windows-build-test:
+    name: Windows (Latest)
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Configure CMake
+      run: |
+        cmake -B build ^
+          -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} ^
+          -DECEWO_BUILD_TESTS=ON
+      shell: cmd
+    
+    - name: Build
+      run: cmake --build build --config ${{env.BUILD_TYPE}} --parallel
+    
+    - name: Run tests
+      working-directory: build
+      run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure --verbose
+
+  # ============================================================================
+  # MEMORY LEAK CHECK (Linux only)
+  # ============================================================================
+  memory-check:
+    name: Memory Leak Check (Valgrind)
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential valgrind
+    
+    - name: Configure CMake (Debug)
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DECEWO_BUILD_TESTS=ON
+    
+    - name: Build
+      run: cmake --build build --config Debug
+    
+    - name: Run Valgrind on tests
+      working-directory: build
+      run: |
+        for test in test_*; do
+          if [ -x "$test" ] && [ "$test" != "test_server_integration" ]; then
+            echo "Running valgrind on $test"
+            valgrind --leak-check=full --error-exitcode=1 --show-leak-kinds=all ./$test
+          fi
+        done
