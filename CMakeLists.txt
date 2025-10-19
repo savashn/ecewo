@@ -90,12 +90,12 @@ FetchContent_MakeAvailable(libuv llhttp)
 if(NOT TARGET ecewo::ecewo)
 
     set(ECEWO_SOURCES
-        src/server/server.c
-        src/server/request.c
-        src/lib/router.c
-        src/lib/middleware.c
-        src/lib/route-trie.c
-        src/utils/task.c
+        src/server.c
+        src/request.c
+        src/router.c
+        src/middleware.c
+        src/route-trie.c
+        src/task.c
         vendors/arena.c
     )
 
@@ -212,9 +212,7 @@ if(NOT TARGET ecewo::ecewo)
             $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/_deps/libuv-src/include>
             $<INSTALL_INTERFACE:include>
         PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/lib
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/server
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/utils
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
             ${CMAKE_CURRENT_SOURCE_DIR}/vendors
             ${CMAKE_CURRENT_SOURCE_DIR}/config
             ${CMAKE_BINARY_DIR}/_deps/llhttp-src/include
