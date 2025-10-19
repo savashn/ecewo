@@ -1,0 +1,12 @@
+#ifndef ECEWO_CONFIG_H
+#define ECEWO_CONFIG_H
+
+#cmakedefine ECEWO_HAS_COOKIE
+#cmakedefine ECEWO_HAS_SESSION
+#cmakedefine ECEWO_HAS_CORS
+#cmakedefine ECEWO_HAS_HELMET
+#cmakedefine ECEWO_HAS_FS
+#cmakedefine ECEWO_HAS_STATIC
+#cmakedefine ECEWO_HAS_POSTGRES
+
+#endif
