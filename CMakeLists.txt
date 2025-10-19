@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
+project(ecewo VERSION 2.1.0 LANGUAGES C)
 
 if(POLICY CMP0135)
     cmake_policy(SET CMP0135 NEW) # DOWNLOAD_EXTRACT_TIMESTAMP
@@ -6,8 +7,6 @@ endif()
 if(POLICY CMP0092)
     cmake_policy(SET CMP0092 NEW) # Don't add /W3 by default
 endif()
-
-project(ecewo VERSION 2.0.0 LANGUAGES C)
 
 # C Standard
 set(CMAKE_C_STANDARD 99)
