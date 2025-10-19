@@ -53,7 +53,7 @@ void hello_world_cbor(Req *req, Res *res)
     size_t len = cbor_encoder_get_buffer_size(&encoder, buffer);
 
     // Send the CBOR response with status code 200
-    send_cbor(res, 200, buffer, len);
+    reply(res, 200, "application/cbor", buffer, len);
 }
 
 int main(void)

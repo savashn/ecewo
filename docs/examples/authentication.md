@@ -9,7 +9,7 @@
 
 ```c
 #include "ecewo.h"
-#include "session.h"
+#include "ecewo/session.h"
 #include "cJSON.h"
 
 // Example user info (it must be saved in a database)
