@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "middleware.h"
-#include "route_trie.h"
+#include "route-trie.h"
 #include "server.h"
 
 MiddlewareHandler *global_middleware = NULL;

@@ -78,7 +78,6 @@ typedef struct
     uint8_t param_count;
 } route_match_t;
 
-// Convert llhttp_method_t to internal index
 // Returns -1 for unsupported methods
 static inline int method_to_index(llhttp_method_t method)
 {

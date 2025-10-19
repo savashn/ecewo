@@ -6,7 +6,7 @@
 #include <inttypes.h>
 #include "ecewo.h"
 #include "server.h"
-#include "route_trie.h"
+#include "route-trie.h"
 #include "request.h"
 #include "middleware.h"
 #include "arena.h"

@@ -28,8 +28,6 @@ typedef enum
     HANDLER_ASYNC = 1
 } handler_type_t;
 
-extern global_route_trie;
-
 int router(client_t *client, const char *request_data, size_t request_len);
 const char *get_req(const request_t *request, const char *key);
 
