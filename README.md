@@ -10,6 +10,8 @@
 
 Inspired by [Express.js](https://expressjs.com/). It’s minimalist, unopinionated, and easy-to-use (in a C kind of way).
 
+> **This is a hobby project that I'm developing to improve my programming skills. So it might not be production-ready, and it doesn't have to be.**
+
 ## Table of Contents
 
 - [Requirements](#requirements)
