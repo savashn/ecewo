@@ -26,14 +26,11 @@ typedef struct MiddlewareInfo
 
 #define INITIAL_MW_CAPACITY 4
 
-// Global middleware array
 extern MiddlewareHandler *global_middleware;
 extern uint16_t global_middleware_count;
 
-// Execution function that manages both sync and async
 int execute_handler_with_middleware(Req *req, Res *res, MiddlewareInfo *middleware_info);
 
-// Internal function declarations
 void register_sync_route(int method, const char *path, MiddlewareArray middleware, RequestHandler handler);
 void register_async_route(int method, const char *path, MiddlewareArray middleware, RequestHandler handler);
 

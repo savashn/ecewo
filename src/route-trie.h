@@ -11,7 +11,6 @@
 
 #define MAX_PATH_SEGMENTS 128
 
-// Supported HTTP methods
 typedef enum
 {
     METHOD_INDEX_DELETE = 0,
@@ -24,16 +23,14 @@ typedef enum
     METHOD_COUNT = 7
 } http_method_index_t;
 
-// Path segment structure
 typedef struct
 {
     const char *start;
     size_t len;
-    bool is_param;    // true if this segment is :param
-    bool is_wildcard; // true if this segment is *
+    bool is_param;
+    bool is_wildcard;
 } path_segment_t;
 
-// Tokenized path
 typedef struct
 {
     path_segment_t *segments;
@@ -41,7 +38,6 @@ typedef struct
     uint8_t capacity;
 } tokenized_path_t;
 
-// Trie node
 typedef struct trie_node
 {
     struct trie_node *children[128];       // ASCII characters
@@ -81,8 +77,6 @@ typedef struct
     param_match_t params[32];
     uint8_t param_count;
 } route_match_t;
-
-// Internal functions
 
 // Convert llhttp_method_t to internal index
 // Returns -1 for unsupported methods

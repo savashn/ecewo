@@ -62,25 +62,19 @@ typedef struct
     const char *error_reason;  // Error description
 } http_context_t;
 
-// Internal functions
 void http_context_init(http_context_t *context,
                        Arena *arena,
                        llhttp_t *reused_parser,
                        llhttp_settings_t *reused_settings);
 
-// Main parsing function
 parse_result_t http_parse_request(http_context_t *context, const char *data, size_t len);
 
-// Check if the message needs EOF to complete (for requests without Content-Length)
 bool http_message_needs_eof(const http_context_t *context);
 
-// Finish parsing when EOF is reached
 parse_result_t http_finish_parsing(http_context_t *context);
 
-// Parse the query string into request_t structure
 void parse_query(Arena *arena, const char *query_string, request_t *query);
 
-// Callbacks
 int on_url_cb(llhttp_t *parser, const char *at, size_t length);
 int on_header_field_cb(llhttp_t *parser, const char *at, size_t length);
 int on_header_value_cb(llhttp_t *parser, const char *at, size_t length);
@@ -89,8 +83,7 @@ int on_body_cb(llhttp_t *parser, const char *at, size_t length);
 int on_headers_complete_cb(llhttp_t *parser);
 int on_message_complete_cb(llhttp_t *parser);
 
-// Utility functions for debugging
-void print_request_info(const http_context_t *context);
+// Utility function for debugging
 const char *parse_result_to_string(parse_result_t result);
 
 #endif

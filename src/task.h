@@ -4,7 +4,6 @@
 #include "ecewo.h"
 #include "uv.h"
 
-// Internal task structure
 struct task_s
 {
     uv_work_t work; // libuv requirement

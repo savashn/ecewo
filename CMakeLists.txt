@@ -94,7 +94,7 @@ if(NOT TARGET ecewo::ecewo)
         src/server/request.c
         src/lib/router.c
         src/lib/middleware.c
-        src/lib/route_trie.c
+        src/lib/route-trie.c
         src/utils/task.c
         vendors/arena.c
     )

@@ -5,7 +5,6 @@
 #include "route_trie.h"
 #include "server.h"
 
-// Global middleware (uses malloc since it's long-lived)
 MiddlewareHandler *global_middleware = NULL;
 uint16_t global_middleware_count = 0;
 uint16_t global_middleware_capacity = 0;
@@ -26,7 +25,6 @@ typedef struct
 // ASYNC CALLBACKS
 // ============================================================================
 
-// Helper function for middleware chain execution
 int next(Req *req, Res *res, Chain *chain)
 {
     if (!chain || !req || !res)
@@ -35,10 +33,8 @@ int next(Req *req, Res *res, Chain *chain)
         return -1;
     }
 
-    // Check if we have more middleware to execute
     if (chain->current < chain->count)
     {
-        // Execute the next middleware in the chain
         MiddlewareHandler next_middleware = chain->handlers[chain->current++];
         if (next_middleware)
         {
@@ -47,19 +43,17 @@ int next(Req *req, Res *res, Chain *chain)
         else
         {
             fprintf(stderr, "Warning: NULL middleware handler at position %d\n", chain->current - 1);
-            // Skip this middleware and try the next one
             return next(req, res, chain);
         }
     }
     else
     {
-        // All middleware executed, call the route handler
         if (chain->route_handler)
         {
             chain->route_handler(req, res);
-            return 1; // Successfully executed
+            return 1;
         }
-        return 0; // No route handler
+        return 0;
     }
 }
 
@@ -70,14 +64,12 @@ static int execute_sync(Req *req, Res *res, MiddlewareInfo *middleware_info)
 
     int total_middleware_count = global_middleware_count + middleware_info->middleware_count;
 
-    // If there is no middleware, call the handler directly
     if (total_middleware_count == 0)
     {
         middleware_info->handler(req, res);
         return 0;
     }
 
-    // Allocate memory for combined middleware handlers
     MiddlewareHandler *combined_handlers = arena_alloc(
         req->arena,
         sizeof(MiddlewareHandler) * total_middleware_count);
@@ -85,15 +77,13 @@ static int execute_sync(Req *req, Res *res, MiddlewareInfo *middleware_info)
     if (!combined_handlers)
     {
         fprintf(stderr, "Arena allocation failed for middleware handlers\n");
-        middleware_info->handler(req, res); // Fallback
+        middleware_info->handler(req, res);
         return -1;
     }
 
-    // Copy global middleware handlers first
     arena_memcpy(combined_handlers, global_middleware,
                  sizeof(MiddlewareHandler) * global_middleware_count);
 
-    // Copy route-specific middleware handlers
     if (middleware_info->middleware_count > 0 && middleware_info->middleware)
     {
         arena_memcpy(combined_handlers + global_middleware_count,
@@ -101,12 +91,11 @@ static int execute_sync(Req *req, Res *res, MiddlewareInfo *middleware_info)
                      sizeof(MiddlewareHandler) * middleware_info->middleware_count);
     }
 
-    // Create middleware chain context
     Chain *chain = arena_alloc(req->arena, sizeof(Chain));
     if (!chain)
     {
         fprintf(stderr, "Arena allocation failed for middleware chain\n");
-        middleware_info->handler(req, res); // Fallback
+        middleware_info->handler(req, res);
         return -1;
     }
 
@@ -116,7 +105,6 @@ static int execute_sync(Req *req, Res *res, MiddlewareInfo *middleware_info)
     chain->route_handler = middleware_info->handler;
     chain->handler_type = middleware_info->handler_type;
 
-    // Start middleware chain execution
     int result = next(req, res, chain);
 
     if (result == -1)
@@ -150,7 +138,6 @@ static void async_execution_after_work(uv_work_t *req, int status)
     if (uv_is_closing((uv_handle_t *)ctx->req->client_socket))
         return;
 
-    // Check libuv work status
     if (status < 0)
     {
         fprintf(stderr, "Async execution work failed: %s\n", uv_strerror(status));
@@ -162,7 +149,6 @@ static void async_execution_after_work(uv_work_t *req, int status)
         return;
     }
 
-    // Check handler execution status
     if (!ctx->completed || ctx->error_message)
     {
         fprintf(stderr, "Handler execution failed: %s\n",
@@ -200,7 +186,6 @@ static void async_execution_work(uv_work_t *req)
         return;
     }
 
-    // Create chain on thread pool)
     Chain chain = {
         .handlers = ctx->middleware_handlers,
         .count = ctx->middleware_count,
@@ -208,12 +193,10 @@ static void async_execution_work(uv_work_t *req)
         .route_handler = ctx->handler,
         .handler_type = HANDLER_ASYNC};
 
-    // Start the chain
     int result = next(ctx->req, ctx->res, &chain);
 
     if (result == -1)
     {
-        // Middleware chain terminated (error response already sent)
         ctx->completed = true;
         return;
     }
@@ -248,11 +231,9 @@ static int execute_async(Req *req, Res *res, MiddlewareInfo *middleware_info)
             return -1;
         }
 
-        // Copy global middleware first
         arena_memcpy(combined_mw, global_middleware,
                      sizeof(MiddlewareHandler) * global_middleware_count);
 
-        // Copy route-specific middleware
         if (middleware_info->middleware_count > 0 && middleware_info->middleware)
         {
             arena_memcpy(combined_mw + global_middleware_count,
@@ -261,7 +242,6 @@ static int execute_async(Req *req, Res *res, MiddlewareInfo *middleware_info)
         }
     }
 
-    // Create async execution context
     async_execution_context_t *ctx = arena_alloc(req->arena,
                                                  sizeof(async_execution_context_t));
     if (!ctx)
@@ -313,7 +293,6 @@ int execute_handler_with_middleware(
         return -1;
     }
 
-    // Route execution based on handler type
     if (middleware_info->handler_type == HANDLER_ASYNC)
     {
         return execute_async(req, res, middleware_info);
@@ -405,7 +384,6 @@ void register_async_route(int method, const char *path, MiddlewareArray middlewa
     register_route((llhttp_method_t)method, path, middleware, handler, HANDLER_ASYNC);
 }
 
-// Global middleware cleanup - server shutdown
 void reset_middleware(void)
 {
     if (global_middleware)
@@ -417,7 +395,6 @@ void reset_middleware(void)
     global_middleware_capacity = 0;
 }
 
-// Route-specific middleware cleanup - per route
 void free_middleware_info(MiddlewareInfo *info)
 {
     if (info)

@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include "task.h"
 
-// Thread pool work callback
 static void task_work_cb(uv_work_t *req)
 {
     Task *task = (Task *)req->data;
@@ -11,17 +10,14 @@ static void task_work_cb(uv_work_t *req)
         task->work_fn(task, task->context);
 }
 
-// Completion callback after thread work is done
 static void task_completion_cb(uv_work_t *req, int status)
 {
     Task *task = (Task *)req->data;
     if (!task)
         return;
 
-    // Handle libuv errors
     if (status < 0)
     {
-        // Try to get arena from task for error allocation
         if (task->arena)
         {
             task->error = arena_sprintf(task->arena,
@@ -34,17 +30,14 @@ static void task_completion_cb(uv_work_t *req, int status)
         }
     }
 
-    // Call the result handler with result
     if (task->result_fn)
     {
         task->result_fn(task->context, task->error);
     }
 
-    // Decrement after completion
     decrement_async_work();
 }
 
-// Creates and executes an async task
 int task(
     Arena *arena,                 // Arena for memory allocation
     void *context,                // User context
@@ -57,7 +50,6 @@ int task(
         return -1;
     }
 
-    // Allocate task from provided arena
     Task *task = arena_alloc(arena, sizeof(Task));
     if (!task)
     {
@@ -65,7 +57,6 @@ int task(
         return -1;
     }
 
-    // Initialize task
     task->work.data = task;
     task->context = context;
     task->arena = arena; // Store arena reference for error handling
@@ -73,10 +64,8 @@ int task(
     task->work_fn = work_fn;
     task->result_fn = res_handler;
 
-    // Track async work
     increment_async_work();
 
-    // Queue work in libuv thread pool
     int result = uv_queue_work(
         uv_default_loop(),
         &task->work,
@@ -86,7 +75,6 @@ int task(
     if (result != 0)
     {
         fprintf(stderr, "Failed to queue task: %s\n", uv_strerror(result));
-        // Rollback on failure
         decrement_async_work();
         return result;
     }

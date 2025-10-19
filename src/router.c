@@ -41,7 +41,7 @@ static void write_completion_cb(uv_write_t *req, int status)
     }
 }
 
-// Sends error responses (400 or 500)
+// Sends 400 or 500
 static void send_error(Arena *request_arena, uv_tcp_t *client_socket, int error_code)
 {
     if (!client_socket)
@@ -54,7 +54,6 @@ static void send_error(Arena *request_arena, uv_tcp_t *client_socket, int error_
         !uv_is_writable((uv_stream_t *)client_socket))
         return;
 
-    // Generate current date
     time_t now = time(NULL);
     struct tm *gmt = gmtime(&now);
     char date_str[64];
@@ -66,7 +65,6 @@ static void send_error(Arena *request_arena, uv_tcp_t *client_socket, int error_
 
     if (request_arena)
     {
-        // Arena path
         char *response = arena_sprintf(request_arena,
                                        "HTTP/1.1 %d %s\r\n"
                                        "Date: %s\r\n"
@@ -248,7 +246,6 @@ static int extract_url_params(Arena *request_arena, const route_match_t *match, 
     return 0;
 }
 
-// Context initialization
 static void context_init(context_t *ctx, Arena *request_arena)
 {
     if (!ctx || !request_arena)
@@ -267,12 +264,10 @@ void set_context(Req *req, const char *key, void *data, size_t size)
 
     context_t *ctx = &req->ctx;
 
-    // Linear search for existing entry
     for (uint32_t i = 0; i < ctx->count; i++)
     {
         if (ctx->entries[i].key && strcmp(ctx->entries[i].key, key) == 0)
         {
-            // Update existing entry
             ctx->entries[i].data = arena_alloc(ctx->arena, size);
             if (!ctx->entries[i].data)
                 return;
@@ -282,7 +277,6 @@ void set_context(Req *req, const char *key, void *data, size_t size)
         }
     }
 
-    // Need to add new entry - check capacity
     if (ctx->count >= ctx->capacity)
     {
         uint32_t new_capacity = ctx->capacity == 0 ? 8 : ctx->capacity * 2;
@@ -295,7 +289,6 @@ void set_context(Req *req, const char *key, void *data, size_t size)
         if (!new_entries)
             return;
 
-        // Initialize new entries
         for (uint32_t i = ctx->capacity; i < new_capacity; i++)
         {
             new_entries[i].key = NULL;
@@ -307,7 +300,6 @@ void set_context(Req *req, const char *key, void *data, size_t size)
         ctx->capacity = new_capacity;
     }
 
-    // Add new entry
     context_entry_t *entry = &ctx->entries[ctx->count];
 
     entry->key = arena_strdup(ctx->arena, key);
@@ -334,15 +326,12 @@ void *get_context(Req *req, const char *key)
     for (uint32_t i = 0; i < ctx->count; i++)
     {
         if (ctx->entries[i].key && strcmp(ctx->entries[i].key, key) == 0)
-        {
             return ctx->entries[i].data;
-        }
     }
 
     return NULL;
 }
 
-// Create and initialize Req
 static Req *create_req(Arena *request_arena, uv_tcp_t *client_socket)
 {
     if (!request_arena)
@@ -360,18 +349,15 @@ static Req *create_req(Arena *request_arena, uv_tcp_t *client_socket)
     req->body = NULL;
     req->body_len = 0;
 
-    // Initialize request_t structures
     memset(&req->headers, 0, sizeof(request_t));
     memset(&req->query, 0, sizeof(request_t));
     memset(&req->params, 0, sizeof(request_t));
 
-    // Initialize context
     context_init(&req->ctx, request_arena);
 
     return req;
 }
 
-// Create and initialize Res
 static Res *create_res(Arena *request_arena, uv_tcp_t *client_socket)
 {
     if (!request_arena)
@@ -396,7 +382,6 @@ static Res *create_res(Arena *request_arena, uv_tcp_t *client_socket)
     return res;
 }
 
-// Copy request_t from connection arena to request arena
 static request_t copy_request_t(Arena *request_arena, const request_t *original)
 {
     request_t copy;
@@ -405,7 +390,6 @@ static request_t copy_request_t(Arena *request_arena, const request_t *original)
     if (!request_arena || !original || original->count == 0)
         return copy;
 
-    // Allocate items array in request arena
     copy.capacity = original->count;
     copy.count = original->count;
     copy.items = arena_alloc(request_arena, copy.capacity * sizeof(request_item_t));
@@ -416,7 +400,6 @@ static request_t copy_request_t(Arena *request_arena, const request_t *original)
         return copy;
     }
 
-    // Copy each item using request arena
     for (uint32_t i = 0; i < original->count; i++)
     {
         if (original->items[i].key)
@@ -438,7 +421,6 @@ static request_t copy_request_t(Arena *request_arena, const request_t *original)
             copy.items[i].value = arena_strdup(request_arena, original->items[i].value);
             if (!copy.items[i].value)
             {
-                // Arena allocation failed - clear and return
                 memset(&copy, 0, sizeof(request_t));
                 return copy;
             }
@@ -452,7 +434,7 @@ static request_t copy_request_t(Arena *request_arena, const request_t *original)
     return copy;
 }
 
-// Populate request from persistent context - copy from connection arena to request arena
+// Copy the persistent context from connection arena to request arena
 static int populate_req_from_context(Req *req, http_context_t *persistent_ctx, const char *path)
 {
     if (!req || !req->arena || !persistent_ctx)
@@ -460,7 +442,6 @@ static int populate_req_from_context(Req *req, http_context_t *persistent_ctx, c
 
     Arena *request_arena = req->arena;
 
-    // Copy method from persistent context to request arena
     if (persistent_ctx->method)
     {
         req->method = arena_strdup(request_arena, persistent_ctx->method);
@@ -468,7 +449,6 @@ static int populate_req_from_context(Req *req, http_context_t *persistent_ctx, c
             return -1;
     }
 
-    // Copy path to request arena
     if (path)
     {
         req->path = arena_strdup(request_arena, path);
@@ -476,7 +456,6 @@ static int populate_req_from_context(Req *req, http_context_t *persistent_ctx, c
             return -1;
     }
 
-    // Copy body from persistent context to request arena
     if (persistent_ctx->body && persistent_ctx->body_length > 0)
     {
         req->body = arena_alloc(request_arena, persistent_ctx->body_length + 1);
@@ -487,7 +466,6 @@ static int populate_req_from_context(Req *req, http_context_t *persistent_ctx, c
         req->body_len = persistent_ctx->body_length;
     }
 
-    // Copy containers from connection arena to request arena
     req->headers = copy_request_t(request_arena, &persistent_ctx->headers);
     req->query = copy_request_t(request_arena, &persistent_ctx->query_params);
     req->params = copy_request_t(request_arena, &persistent_ctx->url_params);
@@ -495,10 +473,8 @@ static int populate_req_from_context(Req *req, http_context_t *persistent_ctx, c
     return 0;
 }
 
-// Composes and sends the response
 void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len)
 {
-    // Early validation
     if (!res)
         return;
 
@@ -523,19 +499,16 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         return;
     }
 
-    // Set defaults
     if (!content_type)
         content_type = "text/plain";
     if (!body)
         body_len = 0;
 
-    // Get current date in HTTP format
     time_t now = time(NULL);
     struct tm *gmt = gmtime(&now);
     char date_str[64];
     strftime(date_str, sizeof(date_str), "%a, %d %b %Y %H:%M:%S GMT", gmt);
 
-    // Calculate custom headers size
     size_t headers_size = 0;
     for (uint16_t i = 0; i < res->header_count; i++)
     {
@@ -545,7 +518,6 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         }
     }
 
-    // Allocate header string from request arena
     char *all_headers = arena_alloc(res->arena, headers_size + 1);
     if (!all_headers)
     {
@@ -553,7 +525,6 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         return;
     }
 
-    // Build custom headers string
     size_t pos = 0;
     for (uint16_t i = 0; i < res->header_count; i++)
     {
@@ -574,7 +545,6 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     }
     all_headers[pos] = '\0';
 
-    // Calculate total response size
     int base_header_len = snprintf(
         NULL, 0,
         "HTTP/1.1 %d\r\n"
@@ -605,7 +575,6 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
 
     size_t total_len = (size_t)base_header_len + body_len;
 
-    // Allocate response buffer from request arena
     char *response = arena_alloc(res->arena, total_len + 1);
     if (!response)
     {
@@ -613,7 +582,6 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         return;
     }
 
-    // Build response headers
     int written = snprintf(
         response,
         (size_t)base_header_len + 1,
@@ -637,13 +605,11 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         return;
     }
 
-    // Append body if present
     if (body_len > 0 && body)
     {
         memcpy(response + written, body, body_len);
     }
 
-    // Allocate write request in request arena
     write_req_t *write_req = arena_alloc(res->arena, sizeof(write_req_t));
     if (!write_req)
     {
@@ -651,13 +617,11 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         return;
     }
 
-    // Setup write request
     memset(write_req, 0, sizeof(write_req_t));
-    write_req->data = response;    // Request arena memory pointer
-    write_req->arena = res->arena; // Transfer request arena ownership
+    write_req->data = response; // Request arena memory pointer
+    write_req->arena = res->arena;
     write_req->buf = uv_buf_init(response, (unsigned int)total_len);
 
-    // Final socket check
     if (uv_is_closing((uv_handle_t *)res->client_socket))
     {
         // Arena cleanup will be handled by callback if write succeeds
@@ -668,7 +632,6 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         return;
     }
 
-    // Perform async write
     int result = uv_write(&write_req->req, (uv_stream_t *)res->client_socket,
                           &write_req->buf, 1, write_completion_cb);
 
@@ -682,10 +645,8 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     }
 }
 
-// Main router function
 int router(client_t *client, const char *request_data, size_t request_len)
 {
-    // Early validation
     if (!client || !request_data || request_len == 0)
     {
         if (client && client->handle.data)
@@ -696,10 +657,8 @@ int router(client_t *client, const char *request_data, size_t request_len)
     if (uv_is_closing((uv_handle_t *)&client->handle))
         return 1;
 
-    // Get persistent context from client (connection arena)
     http_context_t *persistent_ctx = &client->persistent_context;
 
-    // Create request arena (separate from connection arena)
     Arena *request_arena = calloc(1, sizeof(Arena));
     if (!request_arena)
     {
@@ -707,12 +666,10 @@ int router(client_t *client, const char *request_data, size_t request_len)
         return 1;
     }
 
-    // Initialize resources in request arena
     Req *req = NULL;
     Res *res = NULL;
     tokenized_path_t tokenized_path = {0};
 
-    // Create resources using request arena
     req = create_req(request_arena, (uv_tcp_t *)&client->handle);
     res = create_res(request_arena, (uv_tcp_t *)&client->handle);
 
@@ -722,7 +679,6 @@ int router(client_t *client, const char *request_data, size_t request_len)
         return 1;
     }
 
-    // Parse request using persistent parser and context
     parse_result_t parse_result = http_parse_request(persistent_ctx, request_data, request_len);
 
     switch (parse_result)
@@ -768,7 +724,6 @@ int router(client_t *client, const char *request_data, size_t request_len)
 
     res->keep_alive = persistent_ctx->keep_alive;
 
-    // Extract path and query in request arena
     char *path = NULL;
     char *query = NULL;
     if (extract_path_and_query(request_arena, persistent_ctx->url, &path, &query) != 0)
@@ -783,28 +738,25 @@ int router(client_t *client, const char *request_data, size_t request_len)
         return 1;
     }
 
-    // Route matching validation
     if (!global_route_trie || !persistent_ctx->method)
     {
         fprintf(stderr, "ERROR: Missing route trie (%p) or method (%s)\n",
                 (void *)global_route_trie,
                 persistent_ctx->method ? persistent_ctx->method : "NULL");
 
-        // 404 but still success response: Return based on keep_alive
+        // 404 but still success response
         bool keep_alive = res->keep_alive;
         const char *not_found_msg = "404 Not Found";
         reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
         return keep_alive ? 0 : 1;
     }
 
-    // Tokenize path in request arena
     if (tokenize_path(request_arena, path, &tokenized_path) != 0)
     {
         send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
         return 1;
     }
 
-    // Route matching
     route_match_t match;
     if (!route_trie_match(global_route_trie, persistent_ctx->parser, &tokenized_path, &match))
     {
@@ -814,14 +766,12 @@ int router(client_t *client, const char *request_data, size_t request_len)
         return keep_alive ? 0 : 1;
     }
 
-    // Extract URL parameters in request arena
     if (extract_url_params(request_arena, &match, &persistent_ctx->url_params) != 0)
     {
         send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
         return 1;
     }
 
-    // Populate request from persistent context (copy to request arena)
     if (populate_req_from_context(req, persistent_ctx, path) != 0)
     {
         send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
@@ -867,12 +817,10 @@ int router(client_t *client, const char *request_data, size_t request_len)
     }
 
     // Success
-    // Async handler: Arena cleanup in async callback, connection management by keep_alive
-    // Sync handler: Arena cleanup in write_completion_cb, connection management by keep_alive
+    // Arena cleanup in write_completion_cb, connection management by keep_alive
     return res->keep_alive ? 0 : 1;
 }
 
-// Adds a header
 void set_header(Res *res, const char *name, const char *value)
 {
     if (!res || !res->arena || !name || !value)

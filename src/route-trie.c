@@ -22,7 +22,6 @@ int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result)
     if (*path == '\0')
         return 0;
 
-    // Count segments first
     uint8_t segment_count = 0;
     const char *p = path;
     while (*p)
@@ -31,7 +30,6 @@ int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result)
         {
             segment_count++;
 
-            // DoS protection - reject overly deep paths
             if (segment_count > MAX_PATH_SEGMENTS)
             {
                 fprintf(stderr, "Path too deep: %" PRIu8 " segments (max %d)\n",
@@ -52,13 +50,11 @@ int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result)
     if (segment_count == 0)
         return 0;
 
-    // Allocate segments
     result->capacity = segment_count;
     result->segments = arena_alloc(arena, sizeof(path_segment_t) * segment_count);
     if (!result->segments)
         return -1;
 
-    // Parse segments
     p = path;
     result->count = 0;
 
@@ -102,11 +98,8 @@ static trie_node_t *match_segments(trie_node_t *node,
     if (!node || depth > MAX_PATH_SEGMENTS)
         return NULL;
 
-    // All segments processed
     if (segment_idx >= path->count)
-    {
         return node->is_end ? node : NULL;
-    }
 
     const path_segment_t *segment = &path->segments[segment_idx];
 
@@ -115,14 +108,12 @@ static trie_node_t *match_segments(trie_node_t *node,
     {
         trie_node_t *current = node;
 
-        // Match character by character
         for (size_t i = 0; i < segment->len && current; i++)
         {
             unsigned char c = (unsigned char)segment->start[i];
             current = current->children[c];
         }
 
-        // If exact match succeeded
         if (current)
         {
             if (segment_idx + 1 >= path->count)
@@ -149,7 +140,6 @@ static trie_node_t *match_segments(trie_node_t *node,
     // Try parameter match
     if (node->param_child)
     {
-        // Store parameter value
         if (match && match->param_count < 32)
         {
             match->params[match->param_count].key.data = node->param_child->param_name;
@@ -159,7 +149,6 @@ static trie_node_t *match_segments(trie_node_t *node,
             match->param_count++;
         }
 
-        // Continue matching
         if (segment_idx + 1 >= path->count)
         {
             if (node->param_child->is_end)
@@ -179,21 +168,16 @@ static trie_node_t *match_segments(trie_node_t *node,
 
         // Backtrack parameter
         if (match && match->param_count > 0)
-        {
             match->param_count--;
-        }
     }
 
     // Try wildcard match
     if (node->wildcard_child && node->wildcard_child->is_end)
-    {
         return node->wildcard_child;
-    }
 
     return NULL;
 }
 
-// Create a new trie node
 static trie_node_t *trie_node_create(void)
 {
     trie_node_t *node = calloc(1, sizeof(trie_node_t));
@@ -204,13 +188,11 @@ static trie_node_t *trie_node_create(void)
     return node;
 }
 
-// Free a trie node and its children recursively
 static void trie_node_free(trie_node_t *node)
 {
     if (!node)
         return;
 
-    // Free all children
     for (uint8_t i = 0; i < 128; i++)
     {
         if (node->children[i])
@@ -219,18 +201,12 @@ static void trie_node_free(trie_node_t *node)
         }
     }
 
-    // Free param and wildcard children
     if (node->param_child)
-    {
         trie_node_free(node->param_child);
-    }
 
     if (node->wildcard_child)
-    {
         trie_node_free(node->wildcard_child);
-    }
 
-    // Free middleware contexts
     if (node->is_end)
     {
         for (uint8_t i = 0; i < METHOD_COUNT; i++)
@@ -239,23 +215,17 @@ static void trie_node_free(trie_node_t *node)
             {
                 MiddlewareInfo *middleware_info = (MiddlewareInfo *)node->middleware_ctx[i];
                 if (middleware_info)
-                {
                     free_middleware_info(middleware_info);
-                }
             }
         }
     }
 
-    // Free param name
     if (node->param_name)
-    {
         free(node->param_name);
-    }
 
     free(node);
 }
 
-// Find a matching route
 bool route_trie_match(route_trie_t *trie,
                       llhttp_t *parser,
                       const tokenized_path_t *tokenized_path,
@@ -269,41 +239,31 @@ bool route_trie_match(route_trie_t *trie,
 
     // Unsupported method check
     if (method_idx < 0)
-    {
         return false;
-    }
 
     uv_rwlock_rdlock(&trie->lock);
 
-    // Initialize match result
     match->handler = NULL;
     match->middleware_ctx = NULL;
     match->param_count = 0;
 
     trie_node_t *matched_node = NULL;
 
-    // Handle root path
     if (tokenized_path->count == 0)
     {
         if (trie->root->is_end)
-        {
             matched_node = trie->root;
-        }
     }
     else
     {
-        // Start from root/slash
         trie_node_t *start_node = trie->root;
         unsigned char sep = '/';
         if (start_node->children[sep])
-        {
             start_node = start_node->children[sep];
-        }
 
         matched_node = match_segments(start_node, tokenized_path, 0, match, 0);
     }
 
-    // Extract handler if found
     if (matched_node && matched_node->handlers[method_idx])
     {
         match->handler = matched_node->handlers[method_idx];
@@ -316,7 +276,6 @@ bool route_trie_match(route_trie_t *trie,
     return false;
 }
 
-// Create a new route trie
 route_trie_t *route_trie_create(void)
 {
     route_trie_t *trie = calloc(1, sizeof(route_trie_t));
@@ -330,7 +289,6 @@ route_trie_t *route_trie_create(void)
         return NULL;
     }
 
-    // Initialize read-write lock for thread safety
     if (uv_rwlock_init(&trie->lock) != 0)
     {
         trie_node_free(trie->root);
@@ -341,7 +299,6 @@ route_trie_t *route_trie_create(void)
     return trie;
 }
 
-// Add a route to the trie
 int route_trie_add(route_trie_t *trie,
                    llhttp_method_t method,
                    const char *path,
@@ -351,7 +308,6 @@ int route_trie_add(route_trie_t *trie,
     if (!trie || !path || !handler)
         return -1;
 
-    // Convert method to index
     int method_idx = method_to_index(method);
     if (method_idx < 0)
     {
@@ -359,7 +315,6 @@ int route_trie_add(route_trie_t *trie,
         return -1;
     }
 
-    // Write lock for thread safety
     uv_rwlock_wrlock(&trie->lock);
 
     trie_node_t *current = trie->root;
@@ -393,7 +348,6 @@ int route_trie_add(route_trie_t *trie,
                     return -1;
                 }
 
-                // Store parameter name
                 current->param_child->param_name = malloc(param_len + 1);
                 if (!current->param_child->param_name)
                 {
@@ -431,7 +385,6 @@ int route_trie_add(route_trie_t *trie,
             {
                 unsigned char c = (unsigned char)*p;
 
-                // Create child if doesn't exist
                 if (!current->children[c])
                 {
                     current->children[c] = trie_node_create();
@@ -465,7 +418,6 @@ int route_trie_add(route_trie_t *trie,
         }
     }
 
-    // Mark as end node and store handler
     current->is_end = true;
     current->handlers[method_idx] = handler;
     current->middleware_ctx[method_idx] = middleware_ctx;
@@ -475,7 +427,6 @@ int route_trie_add(route_trie_t *trie,
     return 0;
 }
 
-// Free the route trie
 void route_trie_free(route_trie_t *trie)
 {
     if (!trie)
