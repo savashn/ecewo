@@ -35,6 +35,7 @@ static struct
     uv_tcp_t *server;
     uv_signal_t sigint_handle;
     uv_signal_t sigterm_handle;
+    uv_async_t shutdown_async;
 
     shutdown_callback_t shutdown_callback;
 
@@ -358,14 +359,22 @@ static void server_shutdown(void)
 
     stop_cleanup_timer();
 
-    uv_signal_stop(&g_server.sigint_handle);
-    uv_signal_stop(&g_server.sigterm_handle);
+    if (!uv_is_closing((uv_handle_t *)&g_server.shutdown_async))
+    {
+        uv_close((uv_handle_t *)&g_server.shutdown_async, NULL);
+    }
 
     if (!uv_is_closing((uv_handle_t *)&g_server.sigint_handle))
+    {
+        uv_signal_stop(&g_server.sigint_handle);
         uv_close((uv_handle_t *)&g_server.sigint_handle, NULL);
+    }
 
     if (!uv_is_closing((uv_handle_t *)&g_server.sigterm_handle))
+    {
+        uv_signal_stop(&g_server.sigterm_handle);
         uv_close((uv_handle_t *)&g_server.sigterm_handle, NULL);
+    }
 
     if (g_server.server && !uv_is_closing((uv_handle_t *)g_server.server))
         uv_close((uv_handle_t *)g_server.server, on_server_closed);
@@ -443,6 +452,12 @@ static void server_cleanup(void)
     memset(&g_server, 0, sizeof(g_server));
 }
 
+static void on_async_shutdown(uv_async_t *handle)
+{
+    (void)handle;
+    server_shutdown();
+}
+
 int server_init(void)
 {
     if (g_server.initialized)
@@ -467,6 +482,10 @@ int server_init(void)
 
     uv_signal_start(&g_server.sigint_handle, on_signal, SIGINT);
     uv_signal_start(&g_server.sigterm_handle, on_signal, SIGTERM);
+
+    // Initialize async shutdown handle
+    if (uv_async_init(g_server.loop, &g_server.shutdown_async, on_async_shutdown) != 0)
+        return SERVER_INIT_FAILED;
 
     // Initialize router system
     if (router_init() != 0)
@@ -953,7 +972,7 @@ static void on_signal(uv_signal_t *handle, int signum)
     (void)handle;
     const char *signal_name = (signum == SIGINT) ? "SIGINT" : "SIGTERM";
     printf("Received %s, shutting down...\n", signal_name);
-    server_shutdown();
+    uv_async_send(&g_server.shutdown_async);
 }
 
 // ============================================================================
