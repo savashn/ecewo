@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <inttypes.h>
-#include "route_trie.h"
+#include "route-trie.h"
 #include "middleware.h"
 
 // Splits a path into segments (/users/123/posts -> ["users", "123", "posts"])
@@ -11,7 +11,6 @@ int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result)
     if (!path || !result)
         return -1;
 
-    // Initialize result
     memset(result, 0, sizeof(tokenized_path_t));
 
     // Skip leading slash
@@ -76,7 +75,6 @@ int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result)
         if (len == 0)
             continue;
 
-        // Analyze segment type
         path_segment_t *seg = &result->segments[result->count];
         seg->start = start;
         seg->len = len;
@@ -103,7 +101,6 @@ static trie_node_t *match_segments(trie_node_t *node,
 
     const path_segment_t *segment = &path->segments[segment_idx];
 
-    // Try exact match first (only for non-param segments)
     if (!segment->is_param && !segment->is_wildcard)
     {
         trie_node_t *current = node;
@@ -118,13 +115,11 @@ static trie_node_t *match_segments(trie_node_t *node,
         {
             if (segment_idx + 1 >= path->count)
             {
-                // Last segment
                 if (current->is_end)
                     return current;
             }
             else
             {
-                // More segments - need slash separator
                 unsigned char sep = '/';
                 if (current->children[sep])
                 {
@@ -137,7 +132,6 @@ static trie_node_t *match_segments(trie_node_t *node,
         }
     }
 
-    // Try parameter match
     if (node->param_child)
     {
         if (match && match->param_count < 32)
@@ -171,7 +165,6 @@ static trie_node_t *match_segments(trie_node_t *node,
             match->param_count--;
     }
 
-    // Try wildcard match
     if (node->wildcard_child && node->wildcard_child->is_end)
         return node->wildcard_child;
 
@@ -237,7 +230,6 @@ bool route_trie_match(route_trie_t *trie,
     llhttp_method_t method = llhttp_get_method(parser);
     int method_idx = method_to_index(method);
 
-    // Unsupported method check
     if (method_idx < 0)
         return false;
 
@@ -320,25 +312,21 @@ int route_trie_add(route_trie_t *trie,
     trie_node_t *current = trie->root;
     const char *p = path;
 
-    // Skip leading slash
     if (*p == '/')
         p++;
 
     while (*p)
     {
-        // Handle parameter segments (:param)
         if (*p == ':')
         {
-            p++; // Skip ':'
+            p++;
 
-            // Extract parameter name
             const char *param_start = p;
             while (*p && *p != '/')
                 p++;
 
             size_t param_len = p - param_start;
 
-            // Create or navigate to param child
             if (!current->param_child)
             {
                 current->param_child = trie_node_create();
@@ -361,7 +349,6 @@ int route_trie_add(route_trie_t *trie,
 
             current = current->param_child;
         }
-        // Handle wildcard segments (*)
         else if (*p == '*')
         {
             if (!current->wildcard_child)
@@ -375,12 +362,10 @@ int route_trie_add(route_trie_t *trie,
             }
 
             current = current->wildcard_child;
-            break; // Wildcard matches everything after
+            break;
         }
-        // Handle regular segments
         else
         {
-            // Process until next segment or end
             while (*p && *p != '/')
             {
                 unsigned char c = (unsigned char)*p;
@@ -400,7 +385,6 @@ int route_trie_add(route_trie_t *trie,
             }
         }
 
-        // Skip segment separator
         if (*p == '/')
         {
             unsigned char c = (unsigned char)'/';
