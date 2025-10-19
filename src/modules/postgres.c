@@ -590,7 +590,7 @@ int query_queue(PGquery *pg,
                     free(query->params);
                     free(query->sql);
                     free(query);
-                    return -1
+                    return -1;
                 }
             }
             else

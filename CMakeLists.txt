@@ -163,10 +163,6 @@ if(NOT TARGET ecewo::ecewo)
 
     add_library(ecewo::ecewo ALIAS ecewo)
 
-    if(ECEWO_MODULE_DEFINITIONS)
-        target_compile_definitions(ecewo PUBLIC ${ECEWO_MODULE_DEFINITIONS})
-    endif()
-
     if(WIN32)
         target_compile_definitions(ecewo PRIVATE PLATFORM_WINDOWS)
     elseif(APPLE)
