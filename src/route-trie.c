@@ -134,6 +134,8 @@ static trie_node_t *match_segments(trie_node_t *node,
 
     if (node->param_child)
     {
+        uint8_t original_param_count = match ? match->param_count : 0;
+
         if (match && match->param_count < 32)
         {
             match->params[match->param_count].key.data = node->param_child->param_name;
@@ -160,9 +162,8 @@ static trie_node_t *match_segments(trie_node_t *node,
             }
         }
 
-        // Backtrack parameter
-        if (match && match->param_count > 0)
-            match->param_count--;
+        if (match && match->param_count > original_param_count)
+            match->param_count = original_param_count;
     }
 
     if (node->wildcard_child && node->wildcard_child->is_end)

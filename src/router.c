@@ -167,16 +167,22 @@ static void send_error(Arena *request_arena, uv_tcp_t *client_socket, int error_
 
 // Separates URL into path and query string components
 // Example: /users/123?active=true -> path="/users/123", query="active=true"
-static int extract_path_and_query(Arena *request_arena, char *url_buf, char **path, char **query)
+static int extract_path_and_query(Arena *request_arena, const char *url_buf, char **path, char **query)
 {
     if (!request_arena || !url_buf || !path || !query)
         return -1;
 
-    char *qmark = strchr(url_buf, '?');
+    const char *qmark = strchr(url_buf, '?');
     if (qmark)
     {
-        *qmark = '\0';
-        *path = arena_strdup(request_arena, url_buf);
+        size_t path_len = qmark - url_buf;
+        *path = arena_alloc(request_arena, path_len + 1);
+        if (!*path)
+            return -1;
+        
+        memcpy(*path, url_buf, path_len);
+        (*path)[path_len] = '\0';
+        
         *query = arena_strdup(request_arena, qmark + 1);
     }
     else
@@ -195,6 +201,7 @@ static int extract_path_and_query(Arena *request_arena, char *url_buf, char **pa
         if (!*path)
             return -1;
     }
+    
     return 0;
 }
 
@@ -228,9 +235,7 @@ static int extract_url_params(Arena *request_arena, const route_match_t *match, 
         char *value = arena_alloc(request_arena, match->params[i].value.len + 1);
 
         if (!key || !value)
-        {
             return -1;
-        }
 
         arena_memcpy(key, match->params[i].key.data, match->params[i].key.len);
         key[match->params[i].key.len] = '\0';

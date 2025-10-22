@@ -231,8 +231,16 @@ static void client_context_reset(client_t *client)
     ctx->header_field_length = 0;
 
     ctx->headers.count = 0;
+    ctx->headers.capacity = 0;
+    ctx->headers.items = NULL;
+    
     ctx->query_params.count = 0;
+    ctx->query_params.capacity = 0;
+    ctx->query_params.items = NULL;
+    
     ctx->url_params.count = 0;
+    ctx->url_params.capacity = 0;
+    ctx->url_params.items = NULL;
 
     ctx->message_complete = 0;
     ctx->headers_complete = 0;
