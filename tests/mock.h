@@ -1,30 +1,46 @@
 #ifndef MOCK_H
 #define MOCK_H
 
-#ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#pragma comment(lib, "ws2_32.lib")
-#else
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <unistd.h>
-#endif
+#include <stdint.h>
+
+typedef enum
+{
+    GET,
+    POST,
+    PUT,
+    DELETE,
+    PATCH
+} MockMethod;
 
 typedef struct
 {
-    int status_code;
+    uint16_t status_code;
     char *body;
     size_t body_len;
-} http_response_t;
+} MockResponse;
+
+typedef struct {
+    const char *key;
+    const char *value;
+} MockHeaders;
+
+typedef struct {
+    MockMethod method;
+    const char *path;
+    const char *body;
+    MockHeaders *headers;
+    size_t header_count;
+} MockParams;
 
 #define TEST_PORT 8888
+typedef void (*test_routes_cb_t)(void);
 
-void free_response(http_response_t *resp);
-http_response_t http_request(const char *method,
-                             const char *path,
-                             const char *body, 
-                             const char *headers);
+void free_request(MockResponse *resp);
+MockResponse request(MockParams *params);
+
+int ecewo_test_setup(void);
+int ecewo_test_tear_down(int num_failures);
+
+void test_routes_hook(test_routes_cb_t callback);
 
 #endif

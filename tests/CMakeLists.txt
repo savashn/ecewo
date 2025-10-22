@@ -16,12 +16,16 @@ target_include_directories(mock PUBLIC
     ${CMAKE_SOURCE_DIR}/vendors
 )
 
-target_link_libraries(mock PUBLIC
-    ecewo
-)
+# target_link_libraries(mock PUBLIC
+#     ecewo
+# )
 
 add_executable(ecewo_test
-    test.c
+    runner.c
+    # test-basic-handler.c
+    test-basics.c
+    test-request.c
+    test-context.c
 )
 
 target_link_libraries(ecewo_test PRIVATE

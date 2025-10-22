@@ -7,9 +7,25 @@
 #include <string.h>
 #include <stdbool.h>
 
-static uv_thread_t server_thread;
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <unistd.h>
+#endif
 
-void free_response(http_response_t *resp)
+#define MAX_RETRIES 10
+#define RETRY_DELAY_MS 100
+
+static uv_thread_t server_thread;
+static volatile bool server_ready = false;
+static volatile bool shutdown_requested = false;
+static test_routes_cb_t test_routes = NULL;
+
+void free_request(MockResponse *resp)
 {
     if (resp && resp->body)
     {
@@ -18,12 +34,9 @@ void free_response(http_response_t *resp)
     }
 }
 
-http_response_t http_request(const char *method,
-                             const char *path,
-                             const char *body, 
-                             const char *headers)
+MockResponse request(MockParams *params)
 {
-    http_response_t response = {0};
+    MockResponse response = {0};
 
 #ifdef _WIN32
     static bool wsa_initialized = false;
@@ -69,31 +82,63 @@ http_response_t http_request(const char *method,
     }
 
     // Build HTTP request
-    char request[4096];
-    int len;
+    char request[8192];
+    int len = 0;
+    const char *method = "GET";
 
-    if (body && strlen(body) > 0)
+    switch (params->method)
     {
-        len = snprintf(request, sizeof(request),
-                       "%s %s HTTP/1.1\r\n"
-                       "Host: localhost:%d\r\n"
-                       "Content-Length: %zu\r\n"
-                       "%s"
-                       "\r\n"
-                       "%s",
-                       method, path, TEST_PORT, strlen(body),
-                       headers ? headers : "",
-                       body);
+        case GET:
+            method = "GET";
+            break;
+        case POST:
+            method = "POST";
+            break;
+        case PUT:
+            method = "PUT";
+            break;
+        case PATCH:
+            method = "PATCH";
+            break;
+        case DELETE:
+            method = "DELETE";
+            break;
     }
-    else
+
+    // Request line
+    len += snprintf(request + len, sizeof(request) - len,
+                    "%s %s HTTP/1.1\r\n"
+                    "Host: localhost:%d\r\n",
+                    method, params->path, TEST_PORT);
+
+    // Add custom headers
+    if (params->headers && params->header_count > 0)
     {
-        len = snprintf(request, sizeof(request),
-                       "%s %s HTTP/1.1\r\n"
-                       "Host: localhost:%d\r\n"
-                       "%s"
-                       "\r\n",
-                       method, path, TEST_PORT,
-                       headers ? headers : "");
+        for (size_t i = 0; i < params->header_count; i++)
+        {
+            len += snprintf(request + len, sizeof(request) - len,
+                           "%s: %s\r\n",
+                           params->headers[i].key,
+                           params->headers[i].value);
+        }
+    }
+
+    // Add Content-Length if body exists
+    if (params->body && strlen(params->body) > 0)
+    {
+        len += snprintf(request + len, sizeof(request) - len,
+                       "Content-Length: %zu\r\n",
+                       strlen(params->body));
+    }
+
+    // End headers
+    len += snprintf(request + len, sizeof(request) - len, "\r\n");
+
+    // Add body
+    if (params->body && strlen(params->body) > 0)
+    {
+        len += snprintf(request + len, sizeof(request) - len,
+                       "%s", params->body);
     }
 
     if (send(sock, request, len, 0) < 0)
@@ -107,7 +152,7 @@ http_response_t http_request(const char *method,
         return response;
     }
 
-    // Read response
+    // Read response (aynı kalacak)
     char buffer[8192] = {0};
     int total_received = 0;
     int received;
@@ -140,7 +185,7 @@ http_response_t http_request(const char *method,
         return response;
     }
 
-    // Find body (after \r\n\r\n)
+    // Find body
     char *body_start = strstr(buffer, "\r\n\r\n");
     if (body_start)
     {
@@ -154,4 +199,125 @@ http_response_t http_request(const char *method,
     }
 
     return response;
+}
+
+void test_routes_hook(test_routes_cb_t callback)
+{
+    test_routes = callback;
+}
+
+static void shutdown_handler(Req *req, Res *res)
+{
+    send_text(res, 200, "Shutting down");
+    uv_stop(get_loop());
+}
+
+static void test_handler(Req *req, Res *res)
+{
+    send_text(res, OK, "Test");
+}
+
+static void server_thread_func(void *arg)
+{
+    (void)arg;
+
+    if (server_init() != SERVER_OK)
+    {
+        fprintf(stderr, "Failed to initialize server\n");
+        return;
+    }
+
+    if (test_routes)
+        test_routes();
+
+    get("/shutdown", shutdown_handler);
+    get("/", test_handler);
+
+    if (server_listen(TEST_PORT) != SERVER_OK)
+    {
+        fprintf(stderr, "Failed to start server on port %d\n", TEST_PORT);
+        return;
+    }
+
+    server_ready = true;
+    printf("Server ready on port %d\n", TEST_PORT);
+
+    server_run();
+}
+
+static bool wait_for_server_ready(void)
+{
+    for (int i = 0; i < MAX_RETRIES; i++)
+    {
+        if (server_ready)
+        {
+            MockParams params = {
+                .method = GET,
+                .path = "/",
+                .body = NULL,
+                .headers = NULL,
+                .header_count = 0
+            };
+            
+            MockResponse resp = request(&params);
+            if (resp.status_code == 200)
+            {
+                free_request(&resp);
+                return true;
+            }
+            free_request(&resp);
+        }
+
+        uv_sleep(RETRY_DELAY_MS);
+    }
+
+    return false;
+}
+
+int ecewo_test_setup(void)
+{
+    printf("\n=== Starting Test Suite ===\n");
+    printf("Initializing server on port %d...\n", TEST_PORT);
+
+    server_ready = false;
+    shutdown_requested = false;
+
+    int result = uv_thread_create(&server_thread, server_thread_func, NULL);
+    if (result != 0)
+    {
+        fprintf(stderr, "Failed to create server thread: %s\n", uv_strerror(result));
+        return -1;
+    }
+
+    printf("Waiting for server to be ready...\n");
+    if (!wait_for_server_ready())
+    {
+        fprintf(stderr, "Server failed to start within timeout!\n");
+        return -1;
+    }
+
+    printf("Server is ready!\n\n");
+}
+
+int ecewo_test_tear_down(int num_failures)
+{
+    printf("\n=== Cleaning Up Test Suite ===\n");
+    
+    printf("Sending shutdown request...\n");
+    MockParams params = {
+        .method = GET,
+        .path = "/shutdown",
+        .body = NULL,
+        .headers = NULL,
+        .header_count = 0
+    };
+    MockResponse resp = request(&params);
+    free_request(&resp);
+    
+    printf("Waiting for server thread to finish...\n");
+    uv_thread_join(&server_thread);
+    
+    printf("Cleanup complete\n\n");
+    
+    return num_failures;
 }
