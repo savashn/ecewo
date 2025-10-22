@@ -8,7 +8,6 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <wincrypt.h>
-#pragma comment(lib, "advapi32.lib")
 #else
 #include <fcntl.h>
 #include <unistd.h>
@@ -461,7 +460,7 @@ char *session_value_get(Session *sess, const char *key)
             char *value_start = key_end + 1;
             char *value_end = strchr(value_start, PAIR_DELIMITER);
 
-            size_t value_len = value_end ? (value_end - value_start) : strlen(value_start);
+            size_t value_len = value_end ? (size_t)(value_end - value_start) : strlen(value_start);
 
             char *encoded_value = malloc(value_len + 1);
             if (encoded_value)
