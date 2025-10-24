@@ -33,6 +33,14 @@ option(ECEWO_HELMET "Build helmet module" OFF)
 option(ECEWO_FS "Build file serving module" OFF)
 option(ECEWO_STATIC "Build static file serving module" OFF)
 option(ECEWO_POSTGRES "Build PostgreSQL integration module" OFF)
+option(ECEWO_TEST "Build test module" OFF)
+
+option(ECEWO_BUILD_TESTS "Build tests" OFF)
+
+if(ECEWO_BUILD_TESTS)
+    set(ECEWO_TEST ON CACHE BOOL "Build test module" FORCE)
+endif()
+
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     message(STATUS "Applying production optimizations for web framework...")
@@ -150,6 +158,13 @@ if(NOT TARGET ecewo::ecewo)
         message(STATUS "  + PostgreSQL integration module enabled")
     endif()
 
+    if(ECEWO_TEST)
+        list(APPEND ECEWO_SOURCES src/modules/mock.c vendors/unity/unity.c)
+        list(APPEND ECEWO_MODULE_DEFINITIONS ECEWO_HAS_TEST)
+        list(APPEND ECEWO_ENABLED_MODULES "test")
+        message(STATUS "  + Test module enabled")
+    endif()
+
     list(TRANSFORM ECEWO_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
 
     if(ECEWO_BUILD_SHARED)
@@ -198,6 +213,10 @@ if(NOT TARGET ecewo::ecewo)
         set(ECEWO_HAS_POSTGRES 1)
     endif()
 
+    if(ECEWO_TEST)
+        set(ECEWO_HAS_TEST 1)
+    endif()
+
     configure_file(
         ${CMAKE_CURRENT_SOURCE_DIR}/config/ecewo-config.h.in
         ${CMAKE_CURRENT_BINARY_DIR}/include/ecewo-config.h
@@ -216,6 +235,12 @@ if(NOT TARGET ecewo::ecewo)
             ${CMAKE_CURRENT_SOURCE_DIR}/config
             ${CMAKE_BINARY_DIR}/_deps/llhttp-src/include
     )
+
+    if(ECEWO_TEST)
+        target_include_directories(ecewo PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vendors/unity>
+        )
+    endif()
 
     if(ECEWO_BUILD_SHARED)
         target_link_libraries(ecewo PUBLIC uv llhttp_shared)
@@ -369,8 +394,6 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     endif()
     message(STATUS "=================================")
 endif()
-
-option(ECEWO_BUILD_TESTS "Build tests" OFF)
 
 if(ECEWO_BUILD_TESTS)
     enable_testing()

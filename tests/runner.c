@@ -1,6 +1,6 @@
 #include "unity.h"
 #include "ecewo.h"
-#include "mock.h"
+#include "ecewo/mock.h"
 #include "test-handlers.h"
 
 void setUp(void)

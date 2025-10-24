@@ -2,6 +2,11 @@
 #define MOCK_H
 
 #include <stdint.h>
+#include "ecewo-config.h"
+
+#ifndef ECEWO_HAS_TEST
+#error "Test module is not enabled. Build with -DECEWO_TEST=ON"
+#endif
 
 typedef enum
 {
@@ -35,7 +40,7 @@ typedef struct {
 #define TEST_PORT 8888
 typedef void (*test_routes_cb_t)(void);
 
-void free_request(MockResponse *resp);
+void free_request(MockResponse *res);
 MockResponse request(MockParams *params);
 
 int ecewo_test_setup(void);

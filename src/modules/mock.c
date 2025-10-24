@@ -1,5 +1,5 @@
 #include "ecewo.h"
-#include "mock.h"
+#include "ecewo/mock.h"
 #include "uv.h"
 
 #include <stdio.h>
@@ -21,16 +21,16 @@
 #define RETRY_DELAY_MS 100
 
 static uv_thread_t server_thread;
-static volatile bool server_ready = false;
-static volatile bool shutdown_requested = false;
+static bool server_ready = false;
+static bool shutdown_requested = false;
 static test_routes_cb_t test_routes = NULL;
 
-void free_request(MockResponse *resp)
+void free_request(MockResponse *res)
 {
-    if (resp && resp->body)
+    if (res && res->body)
     {
-        free(resp->body);
-        resp->body = NULL;
+        free(res->body);
+        res->body = NULL;
     }
 }
 
@@ -217,7 +217,7 @@ static void test_handler(Req *req, Res *res)
     send_text(res, OK, "Test");
 }
 
-static void server_thread_func(void *arg)
+static void server_thread_fn(void *arg)
 {
     (void)arg;
 
@@ -230,8 +230,8 @@ static void server_thread_func(void *arg)
     if (test_routes)
         test_routes();
 
-    get("/shutdown", shutdown_handler);
-    get("/", test_handler);
+    get("/ecewo-test-shutdown", shutdown_handler);
+    get("/ecewo-test-check", test_handler);
 
     if (server_listen(TEST_PORT) != SERVER_OK)
     {
@@ -253,7 +253,7 @@ static bool wait_for_server_ready(void)
         {
             MockParams params = {
                 .method = GET,
-                .path = "/",
+                .path = "/ecewo-test-check",
                 .body = NULL,
                 .headers = NULL,
                 .header_count = 0
@@ -282,31 +282,27 @@ int ecewo_test_setup(void)
     server_ready = false;
     shutdown_requested = false;
 
-    int result = uv_thread_create(&server_thread, server_thread_func, NULL);
+    int result = uv_thread_create(&server_thread, server_thread_fn, NULL);
     if (result != 0)
     {
         fprintf(stderr, "Failed to create server thread: %s\n", uv_strerror(result));
         return -1;
     }
 
-    printf("Waiting for server to be ready...\n");
     if (!wait_for_server_ready())
     {
         fprintf(stderr, "Server failed to start within timeout!\n");
         return -1;
     }
-
-    printf("Server is ready!\n\n");
 }
 
 int ecewo_test_tear_down(int num_failures)
 {
     printf("\n=== Cleaning Up Test Suite ===\n");
     
-    printf("Sending shutdown request...\n");
     MockParams params = {
         .method = GET,
-        .path = "/shutdown",
+        .path = "/ecewo-test-shutdown",
         .body = NULL,
         .headers = NULL,
         .header_count = 0
@@ -314,7 +310,6 @@ int ecewo_test_tear_down(int num_failures)
     MockResponse resp = request(&params);
     free_request(&resp);
     
-    printf("Waiting for server thread to finish...\n");
     uv_thread_join(&server_thread);
     
     printf("Cleanup complete\n\n");
