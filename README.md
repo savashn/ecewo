@@ -8,7 +8,7 @@
 
 ## Express-C Effect for Web Operations
 
-Inspired by [Express.js](https://expressjs.com/). It’s minimalist, unopinionated, and easy-to-use (in a C kind of way).
+Modular C web framework with [Express.js](https://expressjs.com/) ergonomics and native performance.
 
 > **This is a hobby project that I'm developing to improve my programming skills. So it might not be production-ready, and it doesn't have to be.**
 
@@ -71,7 +71,7 @@ include(FetchContent)
 FetchContent_Declare(
     ecewo
     GIT_REPOSITORY https://github.com/savashn/ecewo.git
-    GIT_TAG v2.1.0
+    GIT_TAG v2.2.0
 )
 
 FetchContent_MakeAvailable(ecewo)
