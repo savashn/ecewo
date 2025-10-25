@@ -115,6 +115,7 @@ Refer to the [docs](/docs/) for usage.
 - [ecewo/static.h](/include/ecewo/static.h) for static file serving.
 - [ecewo/cors.h](/include/ecewo/cors.h) for CORS implementation.
 - [ecewo/helmet.h](/include/ecewo/helmet.h) for automaticaly setting safety headers.
+- [ecewo/mock.h](/include/ecewo/mock.h) for mocking requests (comes with [Unity](https://github.com/ThrowTheSwitch/Unity)).
 
 ## Example App
 
