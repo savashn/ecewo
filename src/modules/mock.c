@@ -59,11 +59,17 @@ MockResponse request(MockParams *params)
         return response;
     }
 
+#ifdef _WIN32
+    DWORD timeout_ms = 5000;  // 5 seconds
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&timeout_ms, sizeof(timeout_ms));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (const char *)&timeout_ms, sizeof(timeout_ms));
+#else
     struct timeval timeout;
     timeout.tv_sec = 5;
     timeout.tv_usec = 0;
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&timeout, sizeof(timeout));
     setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (const char *)&timeout, sizeof(timeout));
+#endif
 
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
@@ -88,30 +94,28 @@ MockResponse request(MockParams *params)
 
     switch (params->method)
     {
-        case GET:
+        case MOCK_GET:
             method = "GET";
             break;
-        case POST:
+        case MOCK_POST:
             method = "POST";
             break;
-        case PUT:
+        case MOCK_PUT:
             method = "PUT";
             break;
-        case PATCH:
+        case MOCK_PATCH:
             method = "PATCH";
             break;
-        case DELETE:
+        case MOCK_DELETE:
             method = "DELETE";
             break;
     }
 
-    // Request line
     len += snprintf(request + len, sizeof(request) - len,
                     "%s %s HTTP/1.1\r\n"
                     "Host: localhost:%d\r\n",
                     method, params->path, TEST_PORT);
 
-    // Add custom headers
     if (params->headers && params->header_count > 0)
     {
         for (size_t i = 0; i < params->header_count; i++)
@@ -123,7 +127,6 @@ MockResponse request(MockParams *params)
         }
     }
 
-    // Add Content-Length if body exists
     if (params->body && strlen(params->body) > 0)
     {
         len += snprintf(request + len, sizeof(request) - len,
@@ -131,10 +134,8 @@ MockResponse request(MockParams *params)
                        strlen(params->body));
     }
 
-    // End headers
     len += snprintf(request + len, sizeof(request) - len, "\r\n");
 
-    // Add body
     if (params->body && strlen(params->body) > 0)
     {
         len += snprintf(request + len, sizeof(request) - len,
@@ -152,7 +153,6 @@ MockResponse request(MockParams *params)
         return response;
     }
 
-    // Read response (aynı kalacak)
     char buffer[8192] = {0};
     int total_received = 0;
     int received;
@@ -178,14 +178,12 @@ MockResponse request(MockParams *params)
         return response;
     }
 
-    // Parse status code
-    if (sscanf(buffer, "HTTP/1.1 %d", &response.status_code) != 1)
+    if (sscanf(buffer, "HTTP/1.1 %hu", &response.status_code) != 1)
     {
         response.status_code = -1;
         return response;
     }
 
-    // Find body
     char *body_start = strstr(buffer, "\r\n\r\n");
     if (body_start)
     {
@@ -252,7 +250,7 @@ static bool wait_for_server_ready(void)
         if (server_ready)
         {
             MockParams params = {
-                .method = GET,
+                .method = MOCK_GET,
                 .path = "/ecewo-test-check",
                 .body = NULL,
                 .headers = NULL,
@@ -277,7 +275,6 @@ static bool wait_for_server_ready(void)
 int ecewo_test_setup(void)
 {
     printf("\n=== Starting Test Suite ===\n");
-    printf("Initializing server on port %d...\n", TEST_PORT);
 
     server_ready = false;
     shutdown_requested = false;
@@ -294,6 +291,8 @@ int ecewo_test_setup(void)
         fprintf(stderr, "Server failed to start within timeout!\n");
         return -1;
     }
+
+    return 0;
 }
 
 int ecewo_test_tear_down(int num_failures)
@@ -301,7 +300,7 @@ int ecewo_test_tear_down(int num_failures)
     printf("\n=== Cleaning Up Test Suite ===\n");
     
     MockParams params = {
-        .method = GET,
+        .method = MOCK_GET,
         .path = "/ecewo-test-shutdown",
         .body = NULL,
         .headers = NULL,

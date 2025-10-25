@@ -15,7 +15,7 @@ void handler_params(Req *req, Res *res)
 void test_params(void)
 {
     MockParams params = {
-        .method = GET,
+        .method = MOCK_GET,
         .path = "/users/123/posts/456"
     };
 
@@ -46,7 +46,7 @@ void handler_query(Req *req, Res *res)
 void test_query(void)
 {
     MockParams params = {
-        .method = GET,
+        .method = MOCK_GET,
         .path = "/search?name=John&age=30"
     };
 
@@ -101,7 +101,7 @@ void test_headers(void)
     const char *json_body = "{\"name\":\"John\",\"age\":30}";
     
     MockParams params = {
-        .method = POST,
+        .method = MOCK_POST,
         .path = "/headers",
         .body = json_body,
         .headers = headers,

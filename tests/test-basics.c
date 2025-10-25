@@ -11,7 +11,7 @@ void handler_plaintext(Req *req, Res *res)
 void test_plaintext(void)
 {
     MockParams params = {
-        .method = GET,
+        .method = MOCK_GET,
         .path = "/plaintext",
     };
 
@@ -32,7 +32,7 @@ void handler_json(Req *req, Res *res)
 void test_json(void)
 {
     MockParams params = {
-        .method = GET,
+        .method = MOCK_GET,
         .path = "/json",
     };
 
@@ -53,7 +53,7 @@ void handler_html(Req *req, Res *res)
 void test_html(void)
 {
     MockParams params = {
-        .method = GET,
+        .method = MOCK_GET,
         .path = "/html",
     };
 

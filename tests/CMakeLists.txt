@@ -3,6 +3,7 @@ add_executable(ecewo_test
     test-basics.c
     test-request.c
     test-context.c
+    test-worker.c
 )
 
 target_link_libraries(ecewo_test PRIVATE

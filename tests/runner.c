@@ -37,6 +37,11 @@ void setup_routes(void)
 
     // test-context
     get("/context", use(context_middleware), context_handler);
+
+    // blocking/non-blocking
+    get("/instant", instant_handler);
+    get_worker("/slow-async", use(slow_middleware), slow_async_handler);
+    get("/fast-sync", use(slow_middleware), fast_sync_handler);
 }
 
 int main(void)
@@ -57,6 +62,10 @@ int main(void)
 
     // test-context
     RUN_TEST(test_context);
+
+    // test-worker
+    RUN_TEST(test_not_blocked);
+    RUN_TEST(test_sync_blocks);
 
     int result = UNITY_END();
 

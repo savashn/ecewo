@@ -10,11 +10,11 @@
 
 typedef enum
 {
-    GET,
-    POST,
-    PUT,
-    DELETE,
-    PATCH
+    MOCK_GET,
+    MOCK_POST,
+    MOCK_PUT,
+    MOCK_DELETE,
+    MOCK_PATCH
 } MockMethod;
 
 typedef struct

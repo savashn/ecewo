@@ -43,7 +43,7 @@ void test_context(void)
     };
 
     MockParams params = {
-        .method = GET,
+        .method = MOCK_GET,
         .path = "/context",
         .headers = headers,
         .header_count = 1

@@ -24,5 +24,12 @@ int context_middleware(Req *req, Res *res, Chain *chain);
 void context_handler(Req *req, Res *res);
 void test_context(void);
 
+// blocking/non-blocking
+void instant_handler(Req *req, Res *res);
+int slow_middleware(Req *req, Res *res, Chain *chain);
+void slow_async_handler(Req *req, Res *res);
+void fast_sync_handler(Req *req, Res *res);
+void test_not_blocked(void);
+void test_sync_blocks(void);
 
 #endif
