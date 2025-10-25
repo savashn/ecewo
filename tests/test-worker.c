@@ -3,6 +3,7 @@
 #include "ecewo/mock.h"
 #include "uv.h"
 #include "test-handlers.h"
+#include <stdlib.h>
 
 #ifdef _WIN32
     #include <windows.h>
