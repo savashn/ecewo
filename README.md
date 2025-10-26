@@ -125,7 +125,7 @@ Refer to the [docs](/docs/) for usage.
 
 ## Contributing
 
-Contributions are welcome. Please feel free to submit a pull requests or open issues for feature requests or bugs.
+Contributions are welcome. Please feel free to submit a pull requests or open issues for feature requests or bugs. See the [CONTRIBUTING.md](/CONTRIBUTING.md).
 
 ## License
 
