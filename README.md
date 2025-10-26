@@ -18,7 +18,7 @@ Modular C web framework with [Express.js](https://expressjs.com/) ergonomics and
 - [Quick Start](#quick-start)
 - [Benchmarks](#benchmarks)
 - [Documentation](#documentation)
-- [Ecosystem](#ecosystem)
+- [Modules](#modules)
 - [Example App](#example-app)
 - [Contributing](#contributing)
 - [License](#license)
@@ -106,16 +106,18 @@ Lower is better.
 
 Refer to the [docs](/docs/) for usage.
 
-## Ecosystem
+## Modules
 
-- [ecewo/postgres.h](/include/ecewo/postgres.h) for async PostgreSQL integration.
-- [ecewo/cookie.h](/include/ecewo/cookie.h) for cookie management.
-- [ecewo/session.h](/include/ecewo/session.h) for session management.
-- [ecewo/fs.h](/include/ecewo/fs.h) for file operations.
-- [ecewo/static.h](/include/ecewo/static.h) for static file serving.
-- [ecewo/cors.h](/include/ecewo/cors.h) for CORS implementation.
-- [ecewo/helmet.h](/include/ecewo/helmet.h) for automaticaly setting safety headers.
-- [ecewo/mock.h](/include/ecewo/mock.h) for mocking requests (comes with [Unity](https://github.com/ThrowTheSwitch/Unity)).
+| MODULE                                          | TODO                                                                                                  |
+|-------------------------------------------------|-------------------------------------------------------------------------------------------------------|
+| [`ecewo/postgres.h`](/include/ecewo/postgres.h) | [async PostgreSQL integration](/docs/08.async-database.md)                                            |
+| [`ecewo/cookie.h`](/include/ecewo/cookie.h)     | [cookie management](/docs/12.cookie.md)                                                               |
+| [`ecewo/session.h`](/include/ecewo/session.h)   | [session management](/docs/13.session.md)                                                             |
+| [`ecewo/fs.h`](/include/ecewo/fs.h)             | [file operations](/docs/09.file-operations.md)                                                        |
+| [`ecewo/static.h`](/include/ecewo/static.h)     | [static file serving](/docs/10.static-file-serving.md)                                                |
+| [`ecewo/cors.h`](/include/ecewo/cors.h)         | [CORS implementation](/docs/14.cors.md)                                                               |
+| [`ecewo/helmet.h`](/include/ecewo/helmet.h)     | [automaticaly setting safety headers](/docs/15.helmet.md)                                             |
+| [`ecewo/mock.h`](/include/ecewo/mock.h)         | [mocking requests](/docs/16.testing.md) (comes with [Unity](https://github.com/ThrowTheSwitch/Unity)) |
 
 ## Example App
 
