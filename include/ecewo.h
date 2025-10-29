@@ -7,10 +7,6 @@
 #include <string.h>
 #include <time.h>
 
-// ============================================================================
-// PUBLIC TYPES AND FORWARD DECLARATIONS
-// ============================================================================
-
 typedef struct uv_loop_s uv_loop_t;
 typedef struct uv_timer_s uv_timer_t;
 typedef struct uv_tcp_s uv_tcp_t;
@@ -23,7 +19,6 @@ typedef struct Req Req;
 typedef struct Res Res;
 typedef struct Chain Chain;
 
-// Context entry
 typedef struct
 {
     char *key;
@@ -31,7 +26,6 @@ typedef struct
     size_t size;
 } context_entry_t;
 
-// Context
 typedef struct
 {
     context_entry_t *entries;
@@ -40,14 +34,12 @@ typedef struct
     Arena *arena;
 } context_t;
 
-// Request item
 typedef struct
 {
     char *key;
     char *value;
 } request_item_t;
 
-// Request structure
 typedef struct
 {
     request_item_t *items;
@@ -55,7 +47,6 @@ typedef struct
     uint16_t capacity;
 } request_t;
 
-// Request structure
 struct Req
 {
     Arena *arena;
@@ -70,14 +61,12 @@ struct Req
     context_t ctx; // Middleware context
 };
 
-// HTTP Header structure
 typedef struct
 {
     char *name;
     char *value;
 } http_header_t;
 
-// Response structure
 struct Res
 {
     Arena *arena;
@@ -92,7 +81,6 @@ struct Res
     uint16_t header_capacity;
 };
 
-// HTTP Status Codes
 typedef enum
 {
     // 1xx Informational
@@ -315,7 +303,6 @@ extern void register_async_route(int method, const char *path, MiddlewareArray m
 // Argument chooser
 #define ECEWO_ROUTE_CHOOSER(_1, _2, _3, NAME, ...) NAME
 
-// Reusable inline helpers (shared by all routes)
 static inline void route_sync_no_mw(int method, const char *path, RequestHandler handler)
 {
     register_sync_route(method, path, NO_MW, handler);

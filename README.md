@@ -110,14 +110,14 @@ Refer to the [docs](/docs/) for usage.
 
 | MODULE                                          | TODO                                                                                                  |
 |-------------------------------------------------|-------------------------------------------------------------------------------------------------------|
-| [`ecewo/postgres.h`](/include/ecewo/postgres.h) | [async PostgreSQL integration](/docs/08.async-database.md)                                            |
-| [`ecewo/cookie.h`](/include/ecewo/cookie.h)     | [cookie management](/docs/12.cookie.md)                                                               |
-| [`ecewo/session.h`](/include/ecewo/session.h)   | [session management](/docs/13.session.md)                                                             |
-| [`ecewo/fs.h`](/include/ecewo/fs.h)             | [file operations](/docs/09.file-operations.md)                                                        |
-| [`ecewo/static.h`](/include/ecewo/static.h)     | [static file serving](/docs/10.static-file-serving.md)                                                |
+| [`ecewo/postgres.h`](/include/ecewo/postgres.h) | [Async PostgreSQL integration](/docs/08.async-database.md)                                            |
+| [`ecewo/cookie.h`](/include/ecewo/cookie.h)     | [Cookie management](/docs/12.cookie.md)                                                               |
+| [`ecewo/session.h`](/include/ecewo/session.h)   | [Session management](/docs/13.session.md)                                                             |
+| [`ecewo/fs.h`](/include/ecewo/fs.h)             | [File operations](/docs/09.file-operations.md)                                                        |
+| [`ecewo/static.h`](/include/ecewo/static.h)     | [Static file serving](/docs/10.static-file-serving.md)                                                |
 | [`ecewo/cors.h`](/include/ecewo/cors.h)         | [CORS implementation](/docs/14.cors.md)                                                               |
-| [`ecewo/helmet.h`](/include/ecewo/helmet.h)     | [automaticaly setting safety headers](/docs/15.helmet.md)                                             |
-| [`ecewo/mock.h`](/include/ecewo/mock.h)         | [mocking requests](/docs/16.testing.md) (comes with [Unity](https://github.com/ThrowTheSwitch/Unity)) |
+| [`ecewo/helmet.h`](/include/ecewo/helmet.h)     | [Automaticaly setting safety headers](/docs/15.helmet.md)                                             |
+| [`ecewo/mock.h`](/include/ecewo/mock.h)         | [Mocking requests](/docs/16.testing.md) (comes with [Unity](https://github.com/ThrowTheSwitch/Unity)) |
 
 ## Example App
 
