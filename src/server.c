@@ -481,7 +481,15 @@ int server_listen(uint16_t port)
     struct sockaddr_in addr;
     uv_ip4_addr("0.0.0.0", port, &addr);
 
-    if (uv_tcp_bind(g_server.server, (const struct sockaddr *)&addr, 0) != 0)
+#ifdef _WIN32
+    // Windows: Don't use UV_TCP_REUSEPORT (causes bind failures with multiple processes)
+    unsigned int flags = 0;
+#else
+    // Unix/Linux/Mac: Use SO_REUSEPORT for true load balancing
+    unsigned int flags = UV_TCP_REUSEPORT;
+#endif
+    
+    if (uv_tcp_bind(g_server.server, (const struct sockaddr *)&addr, flags) != 0)
     {
         free(g_server.server);
         g_server.server = NULL;
