@@ -31,6 +31,7 @@ option(ECEWO_HELMET "Build helmet module" OFF)
 option(ECEWO_FS "Build file serving module" OFF)
 option(ECEWO_STATIC "Build static file serving module" OFF)
 option(ECEWO_POSTGRES "Build PostgreSQL integration module" OFF)
+option(ECEWO_CLUSTER "Build cluster module" OFF)
 option(ECEWO_TEST "Build test module" OFF)
 
 option(ECEWO_BUILD_TESTS "Build tests" OFF)
@@ -155,6 +156,13 @@ if(NOT TARGET ecewo::ecewo)
         message(STATUS "  + PostgreSQL integration module enabled")
     endif()
 
+    if(ECEWO_CLUSTER)
+        list(APPEND ECEWO_SOURCES src/modules/cluster.c)
+        list(APPEND ECEWO_MODULE_DEFINITIONS ECEWO_HAS_CLUSTER)
+        list(APPEND ECEWO_ENABLED_MODULES "cluster")
+        message(STATUS "  + Cluster module enabled")
+    endif()
+
     if(ECEWO_TEST)
         list(APPEND ECEWO_SOURCES src/modules/mock.c vendors/unity/unity.c)
         list(APPEND ECEWO_MODULE_DEFINITIONS ECEWO_HAS_TEST)
@@ -208,6 +216,10 @@ if(NOT TARGET ecewo::ecewo)
 
     if(ECEWO_POSTGRES)
         set(ECEWO_HAS_POSTGRES 1)
+    endif()
+
+    if(ECEWO_CLUSTER)
+        set(ECEWO_HAS_CLUSTER 1)
     endif()
 
     if(ECEWO_TEST)

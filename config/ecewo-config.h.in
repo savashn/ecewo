@@ -8,6 +8,7 @@
 #cmakedefine ECEWO_HAS_FS
 #cmakedefine ECEWO_HAS_STATIC
 #cmakedefine ECEWO_HAS_POSTGRES
+#cmakedefine ECEWO_HAS_CLUSTER
 #cmakedefine ECEWO_HAS_TEST
 
 #endif
