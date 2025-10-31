@@ -2,9 +2,7 @@ name: CI/CD
 
 on:
   push:
-    branches: [ main ]
-    tags:
-      - 'v*'
+    branches: [ '*' ]
     paths-ignore:
       - '**/*.md'
   pull_request:
