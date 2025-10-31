@@ -32,8 +32,8 @@
 
 typedef struct {
     uv_process_t handle;
-    int worker_id;
-    int port;
+    uint8_t worker_id;
+    uint16_t port;
     bool active;
     
     time_t restart_times[RESPAWN_THROTTLE_COUNT];
@@ -46,10 +46,10 @@ typedef struct {
 
 static struct {
     bool is_master;
-    int worker_id;
-    int worker_count;
-    int base_port;
-    int worker_port;
+    uint8_t worker_id;
+    uint8_t worker_count;
+    uint16_t base_port;
+    uint16_t worker_port;
     
     worker_process_t *workers;
     Cluster config;
@@ -76,18 +76,6 @@ static void on_sigint(uv_signal_t *handle, int signum);
 static void on_sigusr2(uv_signal_t *handle, int signum);
 static void on_sigchld(uv_signal_t *handle, int signum);
 #endif
-
-static int get_cpu_count_impl(void)
-{
-#ifdef _WIN32
-    SYSTEM_INFO sysinfo;
-    GetSystemInfo(&sysinfo);
-    return (int)sysinfo.dwNumberOfProcessors;
-#else
-    long count = sysconf(_SC_NPROCESSORS_ONLN);
-    return count > 0 ? (int)count : 1;
-#endif
-}
 
 static void save_original_args(int argc, char **argv)
 {
@@ -143,7 +131,7 @@ static void cleanup_original_args(void)
     cluster_state.original_argc = 0;
 }
 
-static char **build_worker_args(int worker_id, int port)
+static char **build_worker_args(uint8_t worker_id, uint16_t port)
 {
     if (!cluster_state.original_argv || cluster_state.original_argc == 0)
     {
@@ -198,8 +186,8 @@ static char **build_worker_args(int worker_id, int port)
         return NULL;
     }
     
-    snprintf(worker_id_str, 16, "%d", worker_id);
-    snprintf(port_str, 16, "%d", port);
+    snprintf(worker_id_str, 16, "%u", (unsigned int)worker_id);
+    snprintf(port_str, 16, "%u", (unsigned int)port);
     
     args[args_idx++] = "--cluster-worker";
     args[args_idx++] = worker_id_str;
@@ -253,7 +241,7 @@ static void load_env_config(Cluster *config)
     {
         int workers = atoi(env_workers);
         if (workers >= MIN_WORKERS && workers <= MAX_WORKERS)
-            config->workers = workers;
+            config->workers = (uint8_t)workers;
     }
 
     char *env_respawn = getenv("CLUSTER_RESPAWN");
@@ -290,24 +278,24 @@ static void apply_config(const Cluster *config)
 
     if (cluster_state.worker_count < MIN_WORKERS)
     {
-        fprintf(stderr, "ERROR: Invalid worker count: %d (must be >= %d)\n",
-                cluster_state.worker_count, MIN_WORKERS);
+        fprintf(stderr, "ERROR: Invalid worker count: %u (must be >= %d)\n",
+                (unsigned int)cluster_state.worker_count, MIN_WORKERS);
 
         cluster_state.worker_count = MIN_WORKERS;
     }
 
     if (cluster_state.worker_count > MAX_WORKERS)
     {
-        printf("WARNING: Worker count %d exceeds max %d, capping\n",
-                 cluster_state.worker_count, MAX_WORKERS);
+        printf("WARNING: Worker count %u exceeds max %d, capping\n",
+                 (unsigned int)cluster_state.worker_count, MAX_WORKERS);
 
         cluster_state.worker_count = MAX_WORKERS;
     }
 
-    int cpu_count = cluster_cpu_count();
+    uint8_t cpu_count = cluster_cpu_count();
     if (cluster_state.worker_count > cpu_count * 2)
-        printf("WARNING: %d workers > 2x CPU count (%d) - may cause contention\n",
-                cluster_state.worker_count, cpu_count);
+        printf("WARNING: %u workers > 2x CPU count (%u) - may cause contention\n",
+                (unsigned int)cluster_state.worker_count, (unsigned int)cpu_count);
 }
 
 static bool should_respawn_worker(worker_process_t *worker)
@@ -334,8 +322,8 @@ static bool should_respawn_worker(worker_process_t *worker)
         time_t window = now - worker->restart_times[0];
         if (window < RESPAWN_THROTTLE_WINDOW)
         {
-            fprintf(stderr, "ERROR: Worker %d crashing too fast (%d times in %lds), disabling respawn\n",
-                    (int)worker->worker_id, RESPAWN_THROTTLE_COUNT, (long)window);
+            fprintf(stderr, "ERROR: Worker %u crashing too fast (%d times in %lds), disabling respawn\n",
+                    (unsigned int)worker->worker_id, RESPAWN_THROTTLE_COUNT, (long)window);
 
             worker->respawn_disabled = true;
             return false;
@@ -345,11 +333,11 @@ static bool should_respawn_worker(worker_process_t *worker)
     return true;
 }
 
-static int spawn_worker(int worker_id, int port)
+static int spawn_worker(uint8_t worker_id, uint16_t port)
 {
     if (worker_id >= cluster_state.worker_count)
     {
-        fprintf(stderr, "ERROR: Invalid worker ID: %d\n", worker_id);
+        fprintf(stderr, "ERROR: Invalid worker ID: %u\n", (unsigned int)worker_id);
         return -1;
     }
     
@@ -398,14 +386,14 @@ static int spawn_worker(int worker_id, int port)
     
     if (result != 0)
     {
-        fprintf(stderr, "Failed to spawn worker %d: %s\n", worker_id, uv_strerror(result));
+        fprintf(stderr, "Failed to spawn worker %u: %s\n", (unsigned int)worker_id, uv_strerror(result));
         return -1;
     }
     
     worker->active = true;
     
     if (cluster_state.config.on_worker_start)
-        cluster_state.config.on_worker_start((int)worker_id);
+        cluster_state.config.on_worker_start(worker_id);
     
     return 0;
 }
@@ -417,15 +405,15 @@ static void on_worker_exit_cb(uv_process_t *handle, int64_t exit_status, int ter
     if (!worker || !cluster_state.is_master)
         return;
     
-    int worker_id = worker->worker_id;
+    uint8_t worker_id = worker->worker_id;
     time_t uptime = time(NULL) - worker->start_time;
     worker->active = false;
     worker->exit_status = (int)exit_status;
     
     if (exit_status != 0 || term_signal != 0)
     {
-        fprintf(stderr, "Worker %d exited after %ld seconds (exit: %d, signal: %d)\n",
-                worker_id, (long)uptime, (int)exit_status, term_signal);
+        fprintf(stderr, "Worker %u exited after %ld seconds (exit: %d, signal: %d)\n",
+                (unsigned int)worker_id, (long)uptime, (int)exit_status, term_signal);
     }
     
     if (cluster_state.config.on_worker_exit)
@@ -438,7 +426,7 @@ static void on_worker_exit_cb(uv_process_t *handle, int64_t exit_status, int ter
         if (should_respawn_worker(worker))
         {
             if (spawn_worker(worker_id, worker->port) != 0)
-                fprintf(stderr, "Failed to respawn worker %d\n", worker_id);
+                fprintf(stderr, "Failed to respawn worker %u\n", (unsigned int)worker_id);
         }
     }
     
@@ -455,7 +443,7 @@ static void on_sigterm(uv_signal_t *handle, int signum)
     
     cluster_state.shutdown_requested = true;
     
-    for (int i = 0; i < cluster_state.worker_count; i++)
+    for (uint8_t i = 0; i < cluster_state.worker_count; i++)
     {
         if (cluster_state.workers[i].active)
         {
@@ -480,7 +468,7 @@ static void on_sigusr2(uv_signal_t *handle, int signum)
     
     cluster_state.graceful_restart_requested = true;
     
-    for (int i = 0; i < cluster_state.worker_count; i++)
+    for (uint8_t i = 0; i < cluster_state.worker_count; i++)
     {
         if (cluster_state.workers[i].active)
             uv_process_kill(&cluster_state.workers[i].handle, SIGTERM);
@@ -564,7 +552,7 @@ static void cluster_cleanup(void)
     printf("Cluster cleanup completed\n");
 }
 
-bool cluster_init(const Cluster *config, int base_port, int argc, char **argv)
+bool cluster_init(const Cluster *config, uint16_t base_port, int argc, char **argv)
 {
     if (cluster_state.initialized)
     {
@@ -586,18 +574,18 @@ bool cluster_init(const Cluster *config, int base_port, int argc, char **argv)
     char **args = uv_setup_args(argc, argv);
     
     cluster_state.is_master = true;
-    cluster_state.worker_id = -1;
+    cluster_state.worker_id = 0;
     
     for (int i = 1; args && i < argc - 2; i++)
     {
         if (strcmp(args[i], "--cluster-worker") == 0)
         {
             cluster_state.is_master = false;
-            cluster_state.worker_id = atoi(args[i + 1]);
-            cluster_state.worker_port = atoi(args[i + 2]);
+            cluster_state.worker_id = (uint8_t)atoi(args[i + 1]);
+            cluster_state.worker_port = (uint16_t)atoi(args[i + 2]);
             
             char title[64];
-            snprintf(title, sizeof(title), "ecewo:worker-%d", cluster_state.worker_id);
+            snprintf(title, sizeof(title), "ecewo:worker-%u", (unsigned int)cluster_state.worker_id);
             uv_set_process_title(title);
             
             cluster_state.initialized = true;
@@ -616,11 +604,11 @@ bool cluster_init(const Cluster *config, int base_port, int argc, char **argv)
     
 #ifdef _WIN32
     // Windows: Each worker uses different port (8080, 8081, 8082, ...)
-    printf("Windows mode - workers use ports %d-%d\n", 
-           base_port, base_port + config->workers - 1);
+    printf("Windows mode - workers use ports %u-%u\n", 
+           (unsigned int)base_port, (unsigned int)(base_port + config->workers - 1));
 #else
     // Unix/Linux/Mac: All workers use same port with SO_REUSEPORT
-    printf("Cluster mode - all workers use port %d (SO_REUSEPORT)\n", base_port);
+    printf("Cluster mode - all workers use port %u (SO_REUSEPORT)\n", (unsigned int)base_port);
 #endif
     
     setup_signal_handlers();
@@ -634,9 +622,9 @@ bool cluster_init(const Cluster *config, int base_port, int argc, char **argv)
     }
     
     int failed_count = 0;
-    for (int i = 0; i < config->workers; i++)
+    for (uint8_t i = 0; i < config->workers; i++)
     {
-        int port;
+        uint16_t port;
         
 #ifdef _WIN32
         // Windows: unique port per worker
@@ -648,7 +636,7 @@ bool cluster_init(const Cluster *config, int base_port, int argc, char **argv)
         
         if (spawn_worker(i, port) != 0)
         {
-            fprintf(stderr, "Failed to spawn worker %d\n", i);
+            fprintf(stderr, "Failed to spawn worker %u\n", (unsigned int)i);
             failed_count++;
             
             if (failed_count > config->workers / 2)
@@ -670,10 +658,10 @@ bool cluster_init(const Cluster *config, int base_port, int argc, char **argv)
     return false;
 }
 
-int cluster_get_port(void)
+uint16_t cluster_get_port(void)
 {
     if (!cluster_state.initialized)
-        return -1;
+        return 0;
     
     if (cluster_state.is_master)
         return cluster_state.base_port;
@@ -691,19 +679,27 @@ bool cluster_is_worker(void)
     return cluster_state.initialized && !cluster_state.is_master;
 }
 
-int cluster_worker_id(void)
+uint8_t cluster_worker_id(void)
 {
     return cluster_state.worker_id;
 }
 
-int cluster_worker_count(void)
+uint8_t cluster_worker_count(void)
 {
-    return (int)cluster_state.worker_count;
+    return cluster_state.worker_count;
 }
 
-int cluster_cpu_count(void)
+uint8_t cluster_cpu_count(void)
 {
-    return get_cpu_count_impl();
+#ifdef _WIN32
+    SYSTEM_INFO sysinfo;
+    GetSystemInfo(&sysinfo);
+    return (uint8_t)sysinfo.dwNumberOfProcessors;
+#else
+    long count = sysconf(_SC_NPROCESSORS_ONLN);
+    if (count > 255) count = 255;
+    return count > 0 ? (uint8_t)count : 1;
+#endif
 }
 
 void cluster_signal_workers(int signal)
@@ -714,7 +710,7 @@ void cluster_signal_workers(int signal)
         return;
     }
     
-    for (int i = 0; i < cluster_state.worker_count; i++)
+    for (uint8_t i = 0; i < cluster_state.worker_count; i++)
     {
         if (cluster_state.workers[i].active)
             uv_process_kill(&cluster_state.workers[i].handle, signal);
@@ -729,13 +725,13 @@ void cluster_wait_workers(void)
         return;
     }
     
-    printf("Master waiting for %d workers to exit...\n", 
-            (int)cluster_state.worker_count);
+    printf("Master waiting for %u workers to exit...\n", 
+            (unsigned int)cluster_state.worker_count);
     
     while (1)
     {
         bool any_active = false;
-        for (int i = 0; i < cluster_state.worker_count; i++)
+        for (uint8_t i = 0; i < cluster_state.worker_count; i++)
         {
             if (cluster_state.workers[i].active)
             {
