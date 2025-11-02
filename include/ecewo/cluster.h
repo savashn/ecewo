@@ -13,11 +13,12 @@ typedef struct
 {
     uint8_t workers;
     bool respawn;
-    void (*on_worker_start)(uint8_t  worker_id);
-    void (*on_worker_exit)(uint8_t  worker_id, int status);
+    uint16_t port;
+    void (*on_start)(uint8_t worker_id);
+    void (*on_exit)(uint8_t worker_id, int status);
 } Cluster;
 
-bool cluster_init(const Cluster *config, uint16_t base_port, int argc, char **argv);
+bool cluster_init(const Cluster *config, int argc, char **argv);
 uint16_t cluster_get_port(void);
 bool cluster_is_master(void);
 bool cluster_is_worker(void);
