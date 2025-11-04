@@ -71,7 +71,7 @@ include(FetchContent)
 FetchContent_Declare(
     ecewo
     GIT_REPOSITORY https://github.com/savashn/ecewo.git
-    GIT_TAG v2.2.0
+    GIT_TAG v2.3.0
 )
 
 FetchContent_MakeAvailable(ecewo)
@@ -118,6 +118,7 @@ Refer to the [docs](/docs/) for usage.
 | [`ecewo/cors.h`](/include/ecewo/cors.h)         | [CORS implementation](/docs/14.cors.md)                                                               |
 | [`ecewo/helmet.h`](/include/ecewo/helmet.h)     | [Automaticaly setting safety headers](/docs/15.helmet.md)                                             |
 | [`ecewo/mock.h`](/include/ecewo/mock.h)         | [Mocking requests](/docs/16.testing.md) (comes with [Unity](https://github.com/ThrowTheSwitch/Unity)) |
+| [`ecewo/cluster.h`](/include/ecewo.h/cluster.h) | [Multithreading](/docs/17.cluster.md)                                                                 |
 
 ## Example App
 
