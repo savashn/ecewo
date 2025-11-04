@@ -118,7 +118,7 @@ Refer to the [docs](/docs/) for usage.
 | [`ecewo/cors.h`](/include/ecewo/cors.h)         | [CORS implementation](/docs/14.cors.md)                                                               |
 | [`ecewo/helmet.h`](/include/ecewo/helmet.h)     | [Automaticaly setting safety headers](/docs/15.helmet.md)                                             |
 | [`ecewo/mock.h`](/include/ecewo/mock.h)         | [Mocking requests](/docs/16.testing.md) (comes with [Unity](https://github.com/ThrowTheSwitch/Unity)) |
-| [`ecewo/cluster.h`](/include/ecewo.h/cluster.h) | [Multithreading](/docs/17.cluster.md)                                                                 |
+| [`ecewo/cluster.h`](/include/ecewo/cluster.h) | [Multithreading](/docs/17.cluster.md)                                                                 |
 
 ## Example App
 
