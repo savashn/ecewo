@@ -67,6 +67,18 @@ int main(void)
     RUN_TEST(test_not_blocked);
     RUN_TEST(test_sync_blocks);
 
+    // test cluster
+    RUN_TEST(test_cluster_cpu_count);
+    RUN_TEST(test_cluster_config_defaults);
+    RUN_TEST(test_cluster_callbacks);
+    RUN_TEST(test_cluster_invalid_config);
+    
+#ifdef _WIN32
+    RUN_TEST(test_cluster_windows_port_strategy);
+#else
+    RUN_TEST(test_cluster_unix_port_strategy);
+#endif
+    
     int result = UNITY_END();
 
     suiteTearDown(result);

@@ -38,6 +38,7 @@ option(ECEWO_BUILD_TESTS "Build tests" OFF)
 
 if(ECEWO_BUILD_TESTS)
     set(ECEWO_TEST ON CACHE BOOL "Build test module" FORCE)
+    set(ECEWO_CLUSTER ON CACHE BOOL "Build cluster module" FORCE)
 endif()
 
 

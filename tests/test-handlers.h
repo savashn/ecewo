@@ -32,4 +32,12 @@ void fast_sync_handler(Req *req, Res *res);
 void test_not_blocked(void);
 void test_sync_blocks(void);
 
+// cluster
+void test_cluster_cpu_count(void);
+void test_cluster_callbacks(void);
+void test_cluster_invalid_config(void);
+void test_cluster_windows_port_strategy(void);
+void test_cluster_unix_port_strategy(void);
+void test_cluster_config_defaults(void);
+
 #endif

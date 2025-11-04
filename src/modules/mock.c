@@ -12,6 +12,7 @@
 #include <ws2tcpip.h>
 #else
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <unistd.h>
