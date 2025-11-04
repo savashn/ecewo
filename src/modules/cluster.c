@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <inttypes.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -25,8 +26,6 @@
 
 #endif
 
-#define MAX_WORKERS 255
-#define MIN_WORKERS 1
 #define RESPAWN_THROTTLE_COUNT 3
 #define RESPAWN_THROTTLE_WINDOW 5 // seconds
 
@@ -231,71 +230,35 @@ static void setup_worker_stdio(uv_process_options_t *options)
     options->stdio = stdio;
 }
 
-static void load_env_config(Cluster *config)
-{
-    if (!config)
-        return;
-
-    char *env_workers = getenv("CLUSTER_WORKERS");
-    if (env_workers)
-    {
-        int workers = atoi(env_workers);
-        if (workers >= MIN_WORKERS && workers <= MAX_WORKERS)
-            config->workers = (uint8_t)workers;
-    }
-
-    char *env_respawn = getenv("CLUSTER_RESPAWN");
-    if (env_respawn)
-    {
-        config->respawn = (strcmp(env_respawn, "1") == 0 ||
-                           strcmp(env_respawn, "true") == 0 ||
-                           strcmp(env_respawn, "yes") == 0);
-    }
-}
-
 static void apply_config(const Cluster *config)
 {
-    cluster_state.worker_count = MIN_WORKERS;
+    cluster_state.worker_count = 1;
     cluster_state.config.respawn = false;
     cluster_state.config.on_start = NULL;
     cluster_state.config.on_exit = NULL;
 
-    Cluster env_config = {0};
-    load_env_config(&env_config);
-    if (env_config.workers >= MIN_WORKERS)
-        cluster_state.worker_count = env_config.workers;
-    cluster_state.config.respawn = env_config.respawn;
-
     if (config)
     {
-        if (config->workers >= MIN_WORKERS)
+        if (config->workers < 1)
+        {
+            fprintf(stderr, "ERROR: Invalid worker count: %" PRIu8 " (must be >= 1)\n",
+                    config->workers);
+            cluster_state.worker_count = 1;
+        }
+        else
+        {
             cluster_state.worker_count = config->workers;
+        }
 
         cluster_state.config.respawn = config->respawn;
         cluster_state.config.on_start = config->on_start;
         cluster_state.config.on_exit = config->on_exit;
     }
 
-    if (cluster_state.worker_count < MIN_WORKERS)
-    {
-        fprintf(stderr, "ERROR: Invalid worker count: %u (must be >= %d)\n",
-                (unsigned int)cluster_state.worker_count, MIN_WORKERS);
-
-        cluster_state.worker_count = MIN_WORKERS;
-    }
-
-    if (cluster_state.worker_count > MAX_WORKERS)
-    {
-        fprintf(stderr, "WARNING: Worker count %u exceeds max %d, capping\n",
-                (unsigned int)cluster_state.worker_count, MAX_WORKERS);
-
-        cluster_state.worker_count = MAX_WORKERS;
-    }
-
     uint8_t cpu_count = cluster_cpu_count();
     if (cluster_state.worker_count > cpu_count * 2)
-        fprintf(stderr, "WARNING: %u workers > 2x CPU count (%u) - may cause contention\n",
-                (unsigned int)cluster_state.worker_count, (unsigned int)cpu_count);
+        fprintf(stderr, "WARNING: %" PRIu8 " workers > 2x CPU count (%" PRIu8 ") - may cause contention\n",
+                cluster_state.worker_count, cpu_count);
 }
 
 static bool should_respawn_worker(worker_process_t *worker)
@@ -322,8 +285,8 @@ static bool should_respawn_worker(worker_process_t *worker)
         time_t window = now - worker->restart_times[0];
         if (window < RESPAWN_THROTTLE_WINDOW)
         {
-            fprintf(stderr, "ERROR: Worker %u crashing too fast (%d times in %lds), disabling respawn\n",
-                    (unsigned int)worker->worker_id, RESPAWN_THROTTLE_COUNT, (long)window);
+            fprintf(stderr, "ERROR: Worker %" PRIu8 " crashing too fast (%d times in %lds), disabling respawn\n",
+                    worker->worker_id, RESPAWN_THROTTLE_COUNT, (long)window);
 
             worker->respawn_disabled = true;
             return false;
@@ -337,7 +300,7 @@ static int spawn_worker(uint8_t worker_id, uint16_t port)
 {
     if (worker_id >= cluster_state.worker_count)
     {
-        fprintf(stderr, "ERROR: Invalid worker ID: %u\n", (unsigned int)worker_id);
+        fprintf(stderr, "ERROR: Invalid worker ID: %" PRIu8 "\n", worker_id);
         return -1;
     }
     
@@ -386,7 +349,7 @@ static int spawn_worker(uint8_t worker_id, uint16_t port)
     
     if (result != 0)
     {
-        fprintf(stderr, "Failed to spawn worker %u: %s\n", (unsigned int)worker_id, uv_strerror(result));
+        fprintf(stderr, "Failed to spawn worker %" PRIu8 ": %s\n", worker_id, uv_strerror(result));
         return -1;
     }
     
@@ -420,8 +383,8 @@ static void on_exit_cb(uv_process_t *handle, int64_t exit_status, int term_signa
     
     if (is_crash)
     {
-        fprintf(stderr, "Worker %u crashed after %ld seconds (exit: %d",
-                (unsigned int)worker_id, (long)uptime, (int)exit_status);
+        fprintf(stderr, "Worker %" PRIu8 " crashed after %ld seconds (exit: %d",
+                worker_id, (long)uptime, (int)exit_status);
         
 #ifndef _WIN32
         fprintf(stderr, ", signal: %d", term_signal);
@@ -436,7 +399,7 @@ static void on_exit_cb(uv_process_t *handle, int64_t exit_status, int term_signa
     if (is_crash && should_respawn_worker(worker))
     {
         if (spawn_worker(worker_id, worker->port) != 0)
-            fprintf(stderr, "Failed to respawn worker %u\n", (unsigned int)worker_id);
+            fprintf(stderr, "Failed to respawn worker %" PRIu8 "\n", worker_id);
     }
     
     uv_close((uv_handle_t *)handle, NULL);
@@ -608,8 +571,8 @@ bool cluster_init(const Cluster *config, int argc, char **argv)
             cluster_state.worker_port = (uint16_t)atoi(args[i + 2]);
             
             char title[64];
-            snprintf(title, sizeof(title), "ecewo:worker-%u", 
-                    (unsigned int)cluster_state.worker_id);
+            snprintf(title, sizeof(title), "ecewo:worker-%" PRIu8, 
+                    cluster_state.worker_id);
             uv_set_process_title(title);
             
             cluster_state.initialized = true;
@@ -629,7 +592,7 @@ bool cluster_init(const Cluster *config, int argc, char **argv)
     
     setup_signal_handlers();
     
-    cluster_state.workers = calloc(config->workers, sizeof(worker_process_t));
+    cluster_state.workers = calloc(cluster_state.worker_count, sizeof(worker_process_t));
     if (!cluster_state.workers)
     {
         fprintf(stderr, "Failed to allocate worker array\n");
@@ -638,22 +601,22 @@ bool cluster_init(const Cluster *config, int argc, char **argv)
     }
     
     int failed_count = 0;
-    for (uint8_t i = 0; i < config->workers; i++)
+    for (uint8_t i = 0; i < cluster_state.worker_count; i++)
     {
         uint16_t port;
         
 #ifdef _WIN32
-        port = config->port + i;
+        port = cluster_state.base_port + i;
 #else
-        port = config->port;
+        port = cluster_state.base_port;
 #endif
         
         if (spawn_worker(i, port) != 0)
         {
-            fprintf(stderr, "Failed to spawn worker %u\n", (unsigned int)i);
+            fprintf(stderr, "Failed to spawn worker %" PRIu8 "\n", i);
             failed_count++;
             
-            if (failed_count > config->workers / 2)
+            if (failed_count > cluster_state.worker_count / 2)
             {
                 fprintf(stderr, "Too many spawn failures, aborting\n");
                 cleanup_original_args();
