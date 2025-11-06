@@ -333,8 +333,26 @@ static int spawn_worker(uint8_t worker_id, uint16_t port)
     setup_worker_stdio(&options);
     
 #ifdef _WIN32
+    SetEnvironmentVariable("ECEWO_WORKER", "1");
+    
+    options.env = NULL;
     options.flags = UV_PROCESS_WINDOWS_HIDE;
 #else
+    extern char **environ;
+    
+    int env_count = 0;
+    while (environ[env_count])
+        env_count++;
+    
+    char *new_env[env_count + 2];
+    
+    for (int i = 0; i < env_count; i++)
+        new_env[i] = environ[i];
+    
+    new_env[env_count] = "ECEWO_WORKER=1";
+    new_env[env_count + 1] = NULL;
+    
+    options.env = new_env;
     options.flags = UV_PROCESS_DETACHED;
 #endif
     
@@ -342,6 +360,10 @@ static int spawn_worker(uint8_t worker_id, uint16_t port)
     handle->data = worker;
     
     int result = uv_spawn(uv_default_loop(), handle, &options);
+    
+#ifdef _WIN32
+    SetEnvironmentVariable("ECEWO_WORKER", NULL);
+#endif
     
     free_worker_args(args);
     
@@ -651,20 +673,16 @@ bool cluster_init(const Cluster *config, int argc, char **argv)
             }
         }
         
-#ifdef _WIN32
-        Sleep(100);
-#else
-        usleep(100000);
-#endif
+        uv_sleep(100);
     }
     
-#ifdef _WIN32
-    Sleep(500);
-#else
-    usleep(500000);
-#endif
+    uv_sleep(500);
     
     cluster_state.initialized = true;
+
+    printf("Server listening on http://localhost:%" PRIu16 " (Cluster: %d workers)\n",
+        cluster_state.base_port, cluster_state.worker_count);
+
     return true;
 }
 

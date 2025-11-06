@@ -327,6 +327,27 @@ static void server_shutdown(void)
 
     stop_cleanup_timer();
 
+    if (!uv_is_closing((uv_handle_t *)&g_server.shutdown_async))
+        uv_close((uv_handle_t *)&g_server.shutdown_async, NULL);
+
+    const char *is_worker = getenv("ECEWO_WORKER");
+    bool in_cluster = (is_worker && strcmp(is_worker, "1") == 0);
+    
+    if (!in_cluster)
+    {
+        if (!uv_is_closing((uv_handle_t *)&g_server.sigint_handle))
+        {
+            uv_signal_stop(&g_server.sigint_handle);
+            uv_close((uv_handle_t *)&g_server.sigint_handle, NULL);
+        }
+
+        if (!uv_is_closing((uv_handle_t *)&g_server.sigterm_handle))
+        {
+            uv_signal_stop(&g_server.sigterm_handle);
+            uv_close((uv_handle_t *)&g_server.sigterm_handle, NULL);
+        }
+    }
+
     if (g_server.server && !uv_is_closing((uv_handle_t *)g_server.server))
         uv_close((uv_handle_t *)g_server.server, on_server_closed);
 
@@ -348,32 +369,14 @@ static void server_shutdown(void)
         wait_iterations++;
     }
 
-    if (!uv_is_closing((uv_handle_t *)&g_server.sigint_handle))
-    {
-        uv_signal_stop(&g_server.sigint_handle);
-        uv_close((uv_handle_t *)&g_server.sigint_handle, NULL);
-    }
-
-    if (!uv_is_closing((uv_handle_t *)&g_server.sigterm_handle))
-    {
-        uv_signal_stop(&g_server.sigterm_handle);
-        uv_close((uv_handle_t *)&g_server.sigterm_handle, NULL);
-    }
-
-    if (!uv_is_closing((uv_handle_t *)&g_server.shutdown_async))
-        uv_close((uv_handle_t *)&g_server.shutdown_async, NULL);
-
     uv_walk(g_server.loop, close_walk_cb, NULL);
 
     wait_iterations = 0;
     while (g_server.active_connections > 0 && wait_iterations < MAX_WAIT_ITERATIONS)
     {
-        uv_run(g_server.loop, UV_RUN_NOWAIT);
-        uv_sleep(100);
+        uv_run(g_server.loop, UV_RUN_ONCE);
         wait_iterations++;
     }
-
-    uv_stop(g_server.loop);
 }
 
 static void server_cleanup(void)
@@ -425,14 +428,20 @@ int server_init(void)
     if (!g_server.loop)
         return SERVER_INIT_FAILED;
 
-    if (uv_signal_init(g_server.loop, &g_server.sigint_handle) != 0 ||
-        uv_signal_init(g_server.loop, &g_server.sigterm_handle) != 0)
+    const char *is_worker = getenv("ECEWO_WORKER");
+    bool in_cluster = (is_worker && strcmp(is_worker, "1") == 0);
+    
+    if (!in_cluster)
     {
-        return SERVER_INIT_FAILED;
-    }
+        if (uv_signal_init(g_server.loop, &g_server.sigint_handle) != 0 ||
+            uv_signal_init(g_server.loop, &g_server.sigterm_handle) != 0)
+        {
+            return SERVER_INIT_FAILED;
+        }
 
-    uv_signal_start(&g_server.sigint_handle, on_signal, SIGINT);
-    uv_signal_start(&g_server.sigterm_handle, on_signal, SIGTERM);
+        uv_signal_start(&g_server.sigint_handle, on_signal, SIGINT);
+        uv_signal_start(&g_server.sigterm_handle, on_signal, SIGTERM);
+    }
 
     if (uv_async_init(g_server.loop, &g_server.shutdown_async, on_async_shutdown) != 0)
         return SERVER_INIT_FAILED;
@@ -477,10 +486,8 @@ int server_listen(uint16_t port)
     uv_ip4_addr("0.0.0.0", port, &addr);
 
 #ifdef _WIN32
-    // Windows: Don't use UV_TCP_REUSEPORT (causes bind failures with multiple processes)
     unsigned int flags = 0;
 #else
-    // Unix/Linux/Mac: Use SO_REUSEPORT for true load balancing
     unsigned int flags = UV_TCP_REUSEPORT;
 #endif
     
@@ -504,7 +511,13 @@ int server_listen(uint16_t port)
         printf("Warning: Failed to start cleanup timer\n");
 
     g_server.running = 1;
-    printf("Server listening on http://localhost:%" PRIu16 "\n", port);
+    
+    const char *is_worker = getenv("ECEWO_WORKER");
+    if (!is_worker || strcmp(is_worker, "1") != 0)
+    {
+        printf("Server listening on http://localhost:%" PRIu16 "\n", port);
+    }
+    
     return SERVER_OK;
 }
 
