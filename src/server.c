@@ -98,19 +98,33 @@ static void cleanup_idle_connections(uv_timer_t *handle)
 
     time_t now = time(NULL);
     client_t *current = g_server.client_list_head;
+    int checked = 0;
+    int closed = 0;
 
     while (current)
     {
         client_t *next = current->next;
+        checked++;
 
         if (current->keep_alive_enabled && !current->closing)
         {
             time_t idle_time = now - current->last_activity;
             if (idle_time > IDLE_TIMEOUT_SECONDS)
+            {
                 close_client(current);
+                closed++;
+            }
         }
         current = next;
     }
+
+#ifndef NDEBUG
+    if (closed > 0)
+    {
+        printf("[Cleanup] Checked %d connections, closed %d idle (timeout: %ds)\n",
+               checked, closed, IDLE_TIMEOUT_SECONDS);
+    }
+#endif
 }
 
 static int start_cleanup_timer(void)
@@ -359,23 +373,34 @@ static void server_shutdown(void)
         current = next;
     }
 
-    int wait_iterations = 0;
-    const int MAX_WAIT_ITERATIONS = 50;
-
-    while (get_pending_async_work() > 0 && wait_iterations < MAX_WAIT_ITERATIONS)
+    uint64_t start = uv_now(g_server.loop);
+    
+    while (get_pending_async_work() > 0)
     {
-        uv_run(g_server.loop, UV_RUN_NOWAIT);
-        uv_sleep(100);
-        wait_iterations++;
+        if ((uv_now(g_server.loop) - start) >= SHUTDOWN_TIMEOUT_MS)
+        {
+            fprintf(stderr, "Shutdown timeout: %d operations abandoned\n",
+                    get_pending_async_work());
+            break;
+        }
+        
+        uv_run(g_server.loop, UV_RUN_ONCE);
     }
 
     uv_walk(g_server.loop, close_walk_cb, NULL);
 
-    wait_iterations = 0;
-    while (g_server.active_connections > 0 && wait_iterations < MAX_WAIT_ITERATIONS)
+    start = uv_now(g_server.loop);
+    
+    while (g_server.active_connections > 0)
     {
+        if ((uv_now(g_server.loop) - start) >= SHUTDOWN_TIMEOUT_MS)
+        {
+            fprintf(stderr, "Shutdown timeout: %d connections force closed\n",
+                    g_server.active_connections);
+            break;
+        }
+        
         uv_run(g_server.loop, UV_RUN_ONCE);
-        wait_iterations++;
     }
 }
 
@@ -390,11 +415,17 @@ static void server_cleanup(void)
     stop_cleanup_timer();
     router_cleanup();
 
-    int iterations = 0;
-    while (uv_loop_alive(g_server.loop) && iterations < 100)
+    uint64_t start = uv_now(g_server.loop);
+    
+    while (uv_loop_alive(g_server.loop))
     {
+        if ((uv_now(g_server.loop) - start) >= CLEANUP_TIMEOUT_MS)
+        {
+            fprintf(stderr, "Cleanup timeout: forcing loop close\n");
+            break;
+        }
+        
         uv_run(g_server.loop, UV_RUN_NOWAIT);
-        iterations++;
     }
 
     int result = uv_loop_close(g_server.loop);
