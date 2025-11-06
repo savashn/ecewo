@@ -17,7 +17,7 @@ if(UNIX)
 endif()
 
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Choose the type of build" FORCE)
+    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the type of build" FORCE)
 endif()
 
 if(NOT DEFINED ECEWO_BUILD_SHARED)
@@ -276,6 +276,11 @@ if(NOT TARGET ecewo::ecewo)
         )
         
         if(CMAKE_BUILD_TYPE STREQUAL "Release")
+            target_compile_definitions(ecewo PRIVATE
+                NDEBUG
+                ECEWO_PRODUCTION=1
+            )
+            
             target_compile_options(ecewo PRIVATE 
                 /O2         # Balanced optimization
                 /Oi         # Enable intrinsic functions
@@ -290,6 +295,16 @@ if(NOT TARGET ecewo::ecewo)
                 /OPT:REF    # Remove unreferenced functions/data
                 /OPT:ICF    # Identical COMDAT folding
             )
+        elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+            target_compile_definitions(ecewo PRIVATE
+                ECEWO_DEBUG=1
+            )
+            
+            target_compile_options(ecewo PRIVATE 
+                /Od         # No optimization
+                /Zi         # Debug info
+                /RTC1       # Runtime checks
+            )
         endif()
     else()
         target_compile_options(ecewo PRIVATE 
@@ -297,23 +312,36 @@ if(NOT TARGET ecewo::ecewo)
             -Wextra 
             -std=c99
         )
+        
         target_compile_options(ecewo PUBLIC
             -fno-strict-aliasing    # Recommended by libuv
         )
         
         if(CMAKE_BUILD_TYPE STREQUAL "Release")
-            target_compile_options(ecewo PRIVATE 
-                -O2                      # Balanced optimization
-                -ffunction-sections      # Each function in separate section
-                -fdata-sections          # Each data item in separate section
-                -fstack-protector-strong # Stack protection
-                -D_FORTIFY_SOURCE=2      # Runtime buffer overflow detection
+            target_compile_definitions(ecewo PRIVATE
+                NDEBUG
+                ECEWO_PRODUCTION=1
             )
             
+            # LTO (Link Time Optimization)
+            include(CheckIPOSupported)
+            check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
+            if(ipo_supported)
+                set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+                set_property(TARGET ecewo PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+                message(STATUS "  Link Time Optimization (LTO) enabled")
+            else()
+                message(WARNING "  LTO not supported: ${ipo_error}")
+            endif()
+            
             target_compile_options(ecewo PRIVATE 
-                -finline-functions     # Reasonable inlining
+                -O2                    # Balanced optimization
+                -ffunction-sections    # Each function in separate section
+                -fdata-sections        # Each data item in separate section
+                -finline-functions     # Aggressive inlining
                 -funroll-loops         # Loop unrolling
                 -ftree-vectorize       # Auto-vectorization
+                -fomit-frame-pointer   # Omit frame pointer for more registers
             )
             
             target_link_options(ecewo PRIVATE 
@@ -321,49 +349,64 @@ if(NOT TARGET ecewo::ecewo)
             )
             
             if(NOT APPLE)
-                target_link_options(ecewo PRIVATE -Wl,--strip-all)
+                target_link_options(ecewo PRIVATE 
+                    -Wl,--strip-all         # Strip all symbols
+                )
             endif()
             
-            message(STATUS "  - Production compiler optimizations applied")
-        endif()
-    endif()
-
-    if(CMAKE_BUILD_TYPE STREQUAL "Release" AND NOT WIN32)
-        include(CheckCCompilerFlag)
-        check_c_compiler_flag("-fstack-protector-strong" HAS_STACK_PROTECTOR_STRONG)
-        if(HAS_STACK_PROTECTOR_STRONG)
-            target_compile_options(ecewo PRIVATE -fstack-protector-strong)
-        else()
-            target_compile_options(ecewo PRIVATE -fstack-protector)
-        endif()
-        
-        target_compile_options(ecewo PRIVATE 
-            -fPIE                   # Position independent executable
-            -Wformat                # Format string vulnerabilities
-            -Wformat-security       # Additional format checks
-            -Werror=format-security # Make format security errors fatal
-        )
-        target_link_options(ecewo PRIVATE -pie)
-        
-        if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-            target_link_options(ecewo PRIVATE 
-                -Wl,-z,relro         # Read-only relocations
-                -Wl,-z,now           # Immediate binding
+            include(CheckCCompilerFlag)
+            check_c_compiler_flag("-fstack-protector-strong" HAS_STACK_PROTECTOR_STRONG)
+            if(HAS_STACK_PROTECTOR_STRONG)
+                target_compile_options(ecewo PRIVATE -fstack-protector-strong)
+            else()
+                target_compile_options(ecewo PRIVATE -fstack-protector)
+            endif()
+            
+            target_compile_options(ecewo PRIVATE 
+                -D_FORTIFY_SOURCE=2     # Runtime buffer overflow detection
+                -fPIE                   # Position independent executable
+                -Wformat                # Format string vulnerabilities
+                -Wformat-security       # Additional format checks
+                -Werror=format-security # Make format security errors fatal
             )
+            
+            target_link_options(ecewo PRIVATE -pie)
+            
+            if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+                target_link_options(ecewo PRIVATE 
+                    -Wl,-z,relro         # Read-only relocations
+                    -Wl,-z,now           # Immediate binding
+                )
+            endif()
+            
+            # Control Flow Guard (Intel CET) - if available
+            check_c_compiler_flag("-fcf-protection" HAS_CF_PROTECTION)
+            if(HAS_CF_PROTECTION)
+                target_compile_options(ecewo PRIVATE -fcf-protection)
+            endif()
+            
+        elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+            message(STATUS "Debug build - enabling verbose logging")
+            
+            target_compile_definitions(ecewo PRIVATE
+                ECEWO_DEBUG=1
+            )
+            
+            target_compile_options(ecewo PRIVATE 
+                -O0                         # No optimization
+                -g3                         # Maximum debug info
+                -ggdb                       # GDB-specific debug info
+                -fno-omit-frame-pointer     # Keep frame pointer for debugging
+                -fno-inline                 # Disable inlining
+            )
+            
+            # Additional debug flags
+            if(CMAKE_C_COMPILER_ID MATCHES "GNU")
+                target_compile_options(ecewo PRIVATE 
+                    -rdynamic               # Export symbols for backtrace
+                )
+            endif()
         endif()
-        
-        check_c_compiler_flag("-fcf-protection" HAS_CF_PROTECTION)
-        if(HAS_CF_PROTECTION)
-            target_compile_options(ecewo PRIVATE -fcf-protection)
-        endif()
-        
-        message(STATUS "  - Security hardening enabled")
-    endif()
-
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        target_compile_definitions(ecewo PRIVATE
-            NDEBUG
-        )
     endif()
 
     set_target_properties(ecewo PROPERTIES
