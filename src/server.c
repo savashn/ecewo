@@ -11,10 +11,6 @@
 #include "middleware.h"
 #include "arena.h"
 
-#ifdef ECEWO_HAS_CLUSTER
-#include "ecewo/cluster.h"
-#endif
-
 // ============================================================================
 // INTERNAL STRUCTURES
 // ============================================================================
@@ -336,25 +332,16 @@ static void server_shutdown(void)
         uv_close((uv_handle_t *)&g_server.shutdown_async, NULL);
     }
 
-    #ifdef ECEWO_HAS_CLUSTER
-        bool is_cluster_worker = cluster_is_worker();
-    #else
-        bool is_cluster_worker = false;
-    #endif
-
-    if (!is_cluster_worker)
+    if (!uv_is_closing((uv_handle_t *)&g_server.sigint_handle))
     {
-        if (!uv_is_closing((uv_handle_t *)&g_server.sigint_handle))
-        {
-            uv_signal_stop(&g_server.sigint_handle);
-            uv_close((uv_handle_t *)&g_server.sigint_handle, NULL);
-        }
+        uv_signal_stop(&g_server.sigint_handle);
+        uv_close((uv_handle_t *)&g_server.sigint_handle, NULL);
+    }
 
-        if (!uv_is_closing((uv_handle_t *)&g_server.sigterm_handle))
-        {
-            uv_signal_stop(&g_server.sigterm_handle);
-            uv_close((uv_handle_t *)&g_server.sigterm_handle, NULL);
-        }
+    if (!uv_is_closing((uv_handle_t *)&g_server.sigterm_handle))
+    {
+        uv_signal_stop(&g_server.sigterm_handle);
+        uv_close((uv_handle_t *)&g_server.sigterm_handle, NULL);
     }
 
     if (g_server.server && !uv_is_closing((uv_handle_t *)g_server.server))
@@ -440,23 +427,14 @@ int server_init(void)
     if (!g_server.loop)
         return SERVER_INIT_FAILED;
 
-    #ifdef ECEWO_HAS_CLUSTER
-        bool should_register_signals = !cluster_is_master() && !cluster_is_worker();
-    #else
-        bool should_register_signals = true;
-    #endif
-
-    if (should_register_signals)
+    if (uv_signal_init(g_server.loop, &g_server.sigint_handle) != 0 ||
+        uv_signal_init(g_server.loop, &g_server.sigterm_handle) != 0)
     {
-        if (uv_signal_init(g_server.loop, &g_server.sigint_handle) != 0 ||
-            uv_signal_init(g_server.loop, &g_server.sigterm_handle) != 0)
-        {
-            return SERVER_INIT_FAILED;
-        }
-
-        uv_signal_start(&g_server.sigint_handle, on_signal, SIGINT);
-        uv_signal_start(&g_server.sigterm_handle, on_signal, SIGTERM);
+        return SERVER_INIT_FAILED;
     }
+
+    uv_signal_start(&g_server.sigint_handle, on_signal, SIGINT);
+    uv_signal_start(&g_server.sigterm_handle, on_signal, SIGTERM);
 
     if (uv_async_init(g_server.loop, &g_server.shutdown_async, on_async_shutdown) != 0)
         return SERVER_INIT_FAILED;
@@ -901,17 +879,9 @@ static void on_signal(uv_signal_t *handle, int signum)
 {
     (void)handle;
 
-    #ifdef ECEWO_HAS_CLUSTER
-        if (cluster_is_worker())
-        {
-            if (!g_server.shutdown_requested)
-                uv_async_send(&g_server.shutdown_async);
-            return;
-        }
-    #endif
-
     const char *signal_name = (signum == SIGINT) ? "SIGINT" : "SIGTERM";
     printf("Received %s, shutting down...\n", signal_name);
+    
     uv_async_send(&g_server.shutdown_async);
 }
 

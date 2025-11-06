@@ -53,7 +53,6 @@ static struct {
     worker_process_t *workers;
     Cluster config;
     
-    uv_signal_t sigchld;
     uv_signal_t sigterm;
     uv_signal_t sigint;
     uv_signal_t sigusr2;
@@ -73,7 +72,6 @@ static void on_sigterm(uv_signal_t *handle, int signum);
 static void on_sigint(uv_signal_t *handle, int signum);
 #ifndef _WIN32
 static void on_sigusr2(uv_signal_t *handle, int signum);
-static void on_sigchld(uv_signal_t *handle, int signum);
 #endif
 
 static void save_original_args(int argc, char **argv)
@@ -462,19 +460,6 @@ static void on_sigusr2(uv_signal_t *handle, int signum)
     
     cluster_state.graceful_restart_requested = false;
 }
-
-static void on_sigchld(uv_signal_t *handle, int signum)
-{
-    (void)handle;
-    (void)signum;
-    
-    int status;
-    pid_t pid;
-    while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
-    {
-        // Already handled by on_exit_cb
-    }
-}
 #endif
 
 static void setup_signal_handlers(void)
@@ -491,9 +476,6 @@ static void setup_signal_handlers(void)
 #ifndef _WIN32
     uv_signal_init(uv_default_loop(), &cluster_state.sigusr2);
     uv_signal_start(&cluster_state.sigusr2, on_sigusr2, SIGUSR2);
-    
-    uv_signal_init(uv_default_loop(), &cluster_state.sigchld);
-    uv_signal_start(&cluster_state.sigchld, on_sigchld, SIGCHLD);
 #endif
 }
 
@@ -508,9 +490,6 @@ static void cleanup_signal_handlers(void)
 #ifndef _WIN32
     uv_signal_stop(&cluster_state.sigusr2);
     uv_close((uv_handle_t *)&cluster_state.sigusr2, NULL);
-    
-    uv_signal_stop(&cluster_state.sigchld);
-    uv_close((uv_handle_t *)&cluster_state.sigchld, NULL);
 #endif
 }
 
