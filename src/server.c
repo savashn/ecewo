@@ -397,9 +397,6 @@ static void server_cleanup(void)
     int result = uv_loop_close(g_server.loop);
     if (result != 0)
     {
-        printf("[PID %d] Warning: uv_loop_close failed: %s\n", 
-               getpid(), uv_strerror(result));
-        
         uv_walk(g_server.loop, close_walk_cb, NULL);
         uv_run(g_server.loop, UV_RUN_NOWAIT);
         uv_loop_close(g_server.loop);
