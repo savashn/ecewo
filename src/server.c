@@ -327,9 +327,25 @@ static void server_shutdown(void)
 
     stop_cleanup_timer();
 
-    if (!uv_is_closing((uv_handle_t *)&g_server.shutdown_async))
+    if (g_server.server && !uv_is_closing((uv_handle_t *)g_server.server))
+        uv_close((uv_handle_t *)g_server.server, on_server_closed);
+
+    client_t *current = g_server.client_list_head;
+    while (current)
     {
-        uv_close((uv_handle_t *)&g_server.shutdown_async, NULL);
+        client_t *next = current->next;
+        close_client(current);
+        current = next;
+    }
+
+    int wait_iterations = 0;
+    const int MAX_WAIT_ITERATIONS = 50;
+
+    while (get_pending_async_work() > 0 && wait_iterations < MAX_WAIT_ITERATIONS)
+    {
+        uv_run(g_server.loop, UV_RUN_NOWAIT);
+        uv_sleep(100);
+        wait_iterations++;
     }
 
     if (!uv_is_closing((uv_handle_t *)&g_server.sigint_handle))
@@ -344,45 +360,20 @@ static void server_shutdown(void)
         uv_close((uv_handle_t *)&g_server.sigterm_handle, NULL);
     }
 
-    if (g_server.server && !uv_is_closing((uv_handle_t *)g_server.server))
-        uv_close((uv_handle_t *)g_server.server, on_server_closed);
-
-    int wait_iterations = 0;
-    const int MAX_WAIT_ITERATIONS = 100;
-
-    while (get_pending_async_work() > 0 && wait_iterations < MAX_WAIT_ITERATIONS)
-    {
-        uv_run(g_server.loop, UV_RUN_NOWAIT);
-        uv_sleep(100);
-        wait_iterations++;
-
-        if (wait_iterations % 10 == 0)
-        {
-            printf("Still waiting for %d async operations...\n",
-                   get_pending_async_work());
-        }
-    }
-
-    if (get_pending_async_work() > 0)
-    {
-        printf("Warning: Force closing with %d pending operations\n",
-               get_pending_async_work());
-    }
+    if (!uv_is_closing((uv_handle_t *)&g_server.shutdown_async))
+        uv_close((uv_handle_t *)&g_server.shutdown_async, NULL);
 
     uv_walk(g_server.loop, close_walk_cb, NULL);
 
     wait_iterations = 0;
     while (g_server.active_connections > 0 && wait_iterations < MAX_WAIT_ITERATIONS)
     {
-        uv_run(g_server.loop, UV_RUN_ONCE);
+        uv_run(g_server.loop, UV_RUN_NOWAIT);
+        uv_sleep(100);
         wait_iterations++;
-
-        if (wait_iterations % 10 == 0)
-        {
-            printf("Waiting for %d connections to close...\n",
-                   g_server.active_connections);
-        }
     }
+
+    uv_stop(g_server.loop);
 }
 
 static void server_cleanup(void)
@@ -396,17 +387,27 @@ static void server_cleanup(void)
     stop_cleanup_timer();
     router_cleanup();
 
-    while (uv_loop_alive(g_server.loop))
+    int iterations = 0;
+    while (uv_loop_alive(g_server.loop) && iterations < 100)
     {
-        if (uv_run(g_server.loop, UV_RUN_ONCE) == 0)
-            break;
+        uv_run(g_server.loop, UV_RUN_NOWAIT);
+        iterations++;
     }
 
-    uv_loop_close(g_server.loop);
+    int result = uv_loop_close(g_server.loop);
+    if (result != 0)
+    {
+        printf("[PID %d] Warning: uv_loop_close failed: %s\n", 
+               getpid(), uv_strerror(result));
+        
+        uv_walk(g_server.loop, close_walk_cb, NULL);
+        uv_run(g_server.loop, UV_RUN_NOWAIT);
+        uv_loop_close(g_server.loop);
+    }
 
     if (g_server.server && !g_server.server_closed)
         free(g_server.server);
-
+    
     memset(&g_server, 0, sizeof(g_server));
 }
 
@@ -517,7 +518,7 @@ void server_run(void)
         fprintf(stderr, "Error: Server not initialized or not listening\n");
         return;
     }
-
+    
     uv_run(g_server.loop, UV_RUN_DEFAULT);
     server_cleanup();
 }
@@ -840,27 +841,43 @@ static void close_walk_cb(uv_handle_t *handle, void *arg)
     if (uv_is_closing(handle))
         return;
 
-    if (handle->type == UV_TCP && handle != (uv_handle_t *)g_server.server)
+    if (handle->type == UV_TCP)
     {
-        client_t *client = (client_t *)handle->data;
-        if (client)
-            close_client(client);
+        if (handle != (uv_handle_t *)g_server.server)
+        {
+            client_t *client = (client_t *)handle->data;
+            if (client)
+                close_client(client);
+        }
+    }
+    else if (handle->type == UV_TIMER)
+    {
+        if (handle != (uv_handle_t *)g_server.cleanup_timer)
+        {
+            uv_timer_stop((uv_timer_t *)handle);
+            timer_data_t *data = (timer_data_t *)handle->data;
+            if (data)
+                free(data);
+            uv_close(handle, (uv_close_cb)free);
+        }
     }
     else if (handle->type == UV_POLL)
     {
         uv_poll_stop((uv_poll_t *)handle);
-        if (!uv_is_closing(handle))
-            uv_close(handle, NULL);
+        uv_close(handle, NULL);
     }
-    else if (handle->type == UV_TIMER && handle != (uv_handle_t *)g_server.cleanup_timer)
+    else if (handle->type == UV_ASYNC)
     {
-        uv_timer_stop((uv_timer_t *)handle);
-
-        timer_data_t *data = (timer_data_t *)handle->data;
-        if (data)
-            free(data);
-
-        uv_close(handle, (uv_close_cb)free);
+        uv_close(handle, NULL);
+    }
+    else if (handle->type == UV_SIGNAL)
+    {
+        uv_signal_stop((uv_signal_t *)handle);
+        uv_close(handle, NULL);
+    }
+    else
+    {
+        uv_close(handle, NULL);
     }
 }
 
@@ -878,6 +895,9 @@ static void on_server_closed(uv_handle_t *handle)
 static void on_signal(uv_signal_t *handle, int signum)
 {
     (void)handle;
+
+    if (g_server.shutdown_requested)
+        return;
 
     const char *signal_name = (signum == SIGINT) ? "SIGINT" : "SIGTERM";
     printf("Received %s, shutting down...\n", signal_name);

@@ -411,6 +411,9 @@ static void on_sigterm(uv_signal_t *handle, int signum)
     if (!cluster_state.is_master)
         return;
     
+    if (cluster_state.shutdown_requested)
+        return;
+    
     cluster_state.shutdown_requested = true;
     
     for (uint8_t i = 0; i < cluster_state.worker_count; i++)
@@ -428,6 +431,9 @@ static void on_sigint(uv_signal_t *handle, int signum)
     (void)signum;
     
     if (!cluster_state.is_master)
+        return;
+    
+    if (cluster_state.shutdown_requested)
         return;
     
     cluster_state.shutdown_requested = true;
@@ -481,16 +487,47 @@ static void setup_signal_handlers(void)
 
 static void cleanup_signal_handlers(void)
 {
-    uv_signal_stop(&cluster_state.sigterm);
-    uv_close((uv_handle_t *)&cluster_state.sigterm, NULL);
+    if (!uv_is_closing((uv_handle_t *)&cluster_state.sigterm))
+    {
+        uv_signal_stop(&cluster_state.sigterm);
+        uv_close((uv_handle_t *)&cluster_state.sigterm, NULL);
+    }
     
-    uv_signal_stop(&cluster_state.sigint);
-    uv_close((uv_handle_t *)&cluster_state.sigint, NULL);
+    if (!uv_is_closing((uv_handle_t *)&cluster_state.sigint))
+    {
+        uv_signal_stop(&cluster_state.sigint);
+        uv_close((uv_handle_t *)&cluster_state.sigint, NULL);
+    }
     
 #ifndef _WIN32
-    uv_signal_stop(&cluster_state.sigusr2);
-    uv_close((uv_handle_t *)&cluster_state.sigusr2, NULL);
+    if (!uv_is_closing((uv_handle_t *)&cluster_state.sigusr2))
+    {
+        uv_signal_stop(&cluster_state.sigusr2);
+        uv_close((uv_handle_t *)&cluster_state.sigusr2, NULL);
+    }
 #endif
+}
+
+static void close_handle_cb(uv_handle_t *handle, void *arg)
+{
+    (void)arg;
+    
+    if (uv_is_closing(handle))
+        return;
+    
+    if (handle->type == UV_SIGNAL)
+    {
+        uv_signal_stop((uv_signal_t *)handle);
+        uv_close(handle, NULL);
+    }
+    else if (handle->type == UV_PROCESS)
+    {
+        uv_close(handle, NULL);
+    }
+    else
+    {
+        uv_close(handle, NULL);
+    }
 }
 
 static void cluster_cleanup(void)
@@ -498,21 +535,32 @@ static void cluster_cleanup(void)
     if (!cluster_state.initialized)
         return;
     
-    cleanup_signal_handlers();
-    cleanup_original_args();
-    
     if (cluster_state.workers)
     {
         free(cluster_state.workers);
         cluster_state.workers = NULL;
     }
     
+    cleanup_original_args();
     uv_loop_t *loop = uv_default_loop();
-    while (uv_loop_alive(loop))
+    cleanup_signal_handlers();
+    uv_walk(loop, close_handle_cb, NULL);
+    
+    int iterations = 0;
+    while (uv_loop_alive(loop) && iterations < 50)
     {
         uv_run(loop, UV_RUN_NOWAIT);
+        uv_sleep(100);
+        iterations++;
     }
-    uv_loop_close(loop);
+    
+    int result = uv_loop_close(loop);
+    if (result != 0)
+    {
+        uv_walk(loop, close_handle_cb, NULL);
+        uv_run(loop, UV_RUN_NOWAIT);
+        uv_loop_close(loop);
+    }
     
     cluster_state.initialized = false;
 }
@@ -687,6 +735,8 @@ void cluster_wait_workers(void)
         return;
     }
     
+    uv_loop_t *loop = uv_default_loop();
+    
     while (1)
     {
         bool any_active = false;
@@ -702,7 +752,26 @@ void cluster_wait_workers(void)
         if (!any_active)
             break;
         
-        uv_run(uv_default_loop(), UV_RUN_ONCE);
+        if (cluster_state.shutdown_requested)
+        {
+            static int shutdown_wait_count = 0;
+            shutdown_wait_count++;
+            
+            if (shutdown_wait_count > 300)
+            {
+                for (uint8_t i = 0; i < cluster_state.worker_count; i++)
+                {
+                    if (cluster_state.workers[i].active)
+                        uv_process_kill(&cluster_state.workers[i].handle, SIGKILL);
+                }
+                break;
+            }
+        }
+        
+        uv_run(loop, UV_RUN_ONCE);
+        
+        if (!uv_loop_alive(loop) && any_active)
+            break;
     }
     
     cluster_cleanup();
