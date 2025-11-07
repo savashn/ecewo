@@ -1,9 +1,9 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
 #include <ctype.h>
 #include "request.h"
+#include "log.h"
 
 #define MIN_BUFFER_SIZE 64
 #define GROWTH_FACTOR 1.5
@@ -15,7 +15,6 @@
 #define MAX_HEADERS_COUNT 100
 #define MAX_QUERY_PARAMS 100
 
-// llhttp specific error reasons
 #define ERROR_REASON_URL_TOO_LONG "URL exceeds maximum allowed length"
 #define ERROR_REASON_HEADER_TOO_LARGE "HTTP header field or value too large"
 #define ERROR_REASON_TOO_MANY_HEADERS "Too many HTTP headers"
@@ -48,7 +47,7 @@ static size_t calculate_next_size(size_t current, size_t needed)
 
     if (needed > ABSOLUTE_MAX_REQUEST)
     {
-        fprintf(stderr, "Request too large: %zu bytes\n", needed);
+        LOG_DEBUG("Request too large: %zu bytes", needed);
         return 0;
     }
 
@@ -67,14 +66,13 @@ static size_t calculate_next_size(size_t current, size_t needed)
 
         next = (size_t)(new_size * GROWTH_FACTOR);
         if (next <= new_size)
-        { // Overflow protection
+        {
             new_size = needed + MIN_BUFFER_SIZE;
             break;
         }
         new_size = next;
     }
 
-    // Cap at maximum single allocation
     if (new_size > MAX_SINGLE_ALLOCATION && needed <= MAX_SINGLE_ALLOCATION)
         new_size = MAX_SINGLE_ALLOCATION;
 
@@ -97,7 +95,7 @@ static int ensure_buffer_capacity(Arena *arena, char **buffer, size_t *capacity,
 
     if (total_needed > ABSOLUTE_MAX_REQUEST)
     {
-        fprintf(stderr, "Request exceeds maximum size: %zu bytes\n", total_needed);
+        LOG_DEBUG("Request exceeds maximum size: %zu bytes", total_needed);
         return -2;
     }
 
@@ -150,7 +148,6 @@ int on_url_cb(llhttp_t *parser, const char *at, size_t length)
     return HPE_OK;
 }
 
-// llhttp callback for headers field
 int on_header_field_cb(llhttp_t *parser, const char *at, size_t length)
 {
     http_context_t *context;
@@ -184,7 +181,6 @@ int on_header_field_cb(llhttp_t *parser, const char *at, size_t length)
         }
     }
 
-    // Reset for new field
     context->header_field_length = 0;
 
     result = ensure_buffer_capacity(context->arena, &context->current_header_field,
@@ -228,7 +224,7 @@ int ensure_array_capacity(Arena *arena, request_t *array)
         new_capacity = MAX_HEADERS_COUNT;
 
     if (new_capacity <= array->capacity)
-        return -1; // Can't grow anymore
+        return -1;
 
     old_size = array->capacity * sizeof(request_item_t);
     new_size = new_capacity * sizeof(request_item_t);
@@ -237,7 +233,6 @@ int ensure_array_capacity(Arena *arena, request_t *array)
     if (!new_items)
         return -1;
 
-    // Initialize new elements
     for (i = array->capacity; i < new_capacity; i++)
     {
         new_items[i].key = NULL;
@@ -557,7 +552,7 @@ void parse_query(Arena *arena, const char *query_string, request_t *query)
     query_len = strlen(query_string);
     if (query_len > MAX_URL_LENGTH)
     {
-        fprintf(stderr, "Query string too long: %zu bytes\n", query_len);
+        LOG_DEBUG("Query string too long: %zu bytes", query_len);
         return;
     }
 

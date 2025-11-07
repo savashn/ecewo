@@ -4,6 +4,7 @@
 #include "middleware.h"
 #include "route-trie.h"
 #include "server.h"
+#include "log.h"
 
 MiddlewareHandler *global_middleware = NULL;
 uint16_t global_middleware_count = 0;
@@ -29,7 +30,7 @@ int next(Req *req, Res *res, Chain *chain)
 {
     if (!chain || !req || !res)
     {
-        fprintf(stderr, "Error: NULL middleware chain, request, or response\n");
+        LOG_ERROR("NULL middleware chain, request or response.");
         return -1;
     }
 
@@ -42,7 +43,7 @@ int next(Req *req, Res *res, Chain *chain)
         }
         else
         {
-            fprintf(stderr, "Warning: NULL middleware handler at position %d\n", chain->current - 1);
+            LOG_DEBUG("NULL middleware handler at position %d", chain->current - 1);
             return next(req, res, chain);
         }
     }
@@ -76,7 +77,7 @@ static int execute_sync(Req *req, Res *res, MiddlewareInfo *middleware_info)
 
     if (!combined_handlers)
     {
-        fprintf(stderr, "Arena allocation failed for middleware handlers\n");
+        LOG_ERROR("Arena allocation failed for middleware handlers.");
         middleware_info->handler(req, res);
         return -1;
     }
@@ -94,7 +95,7 @@ static int execute_sync(Req *req, Res *res, MiddlewareInfo *middleware_info)
     Chain *chain = arena_alloc(req->arena, sizeof(Chain));
     if (!chain)
     {
-        fprintf(stderr, "Arena allocation failed for middleware chain\n");
+        LOG_ERROR("Arena allocation failed for middleware chain.");
         middleware_info->handler(req, res);
         return -1;
     }
@@ -109,7 +110,7 @@ static int execute_sync(Req *req, Res *res, MiddlewareInfo *middleware_info)
 
     if (result == -1)
     {
-        fprintf(stderr, "Error: Middleware chain failed\n");
+        LOG_ERROR("Middleware chain failed.");
         return -1;
     }
 
@@ -131,7 +132,7 @@ static void async_execution_after_work(uv_work_t *req, int status)
 
     if (!ctx->req || !ctx->res || !ctx->req->arena || !ctx->req->client_socket)
     {
-        fprintf(stderr, "Async execution: Invalid context after work\n");
+        LOG_ERROR("Async execution: Invalid context after work.");
         return;
     }
 
@@ -140,24 +141,27 @@ static void async_execution_after_work(uv_work_t *req, int status)
 
     if (status < 0)
     {
-        fprintf(stderr, "Async execution work failed: %s\n", uv_strerror(status));
+        LOG_ERROR("Async execution work failed: %s", uv_strerror(status));
+
         if (server_is_running() && uv_is_writable((uv_stream_t *)ctx->req->client_socket))
         {
             const char *error_msg = "Internal Server Error";
             reply(ctx->res, 500, "text/plain", error_msg, strlen(error_msg));
         }
+
         return;
     }
 
     if (!ctx->completed || ctx->error_message)
     {
-        fprintf(stderr, "Handler execution failed: %s\n",
-                ctx->error_message ? ctx->error_message : "Unknown error");
+        LOG_ERROR("Handler execution failed: %s", ctx->error_message ? ctx->error_message : "Unknown error");
+
         if (server_is_running() && uv_is_writable((uv_stream_t *)ctx->req->client_socket))
         {
             const char *error_msg = "Internal Server Error";
             reply(ctx->res, 500, "text/plain", error_msg, strlen(error_msg));
         }
+
         return;
     }
 
@@ -289,7 +293,7 @@ int execute_handler_with_middleware(
 {
     if (!req || !res || !middleware_info)
     {
-        fprintf(stderr, "Error: NULL request, response, or middleware info\n");
+        LOG_ERROR("NULL request, response or middleware info");
         return -1;
     }
 
@@ -315,7 +319,7 @@ void hook(MiddlewareHandler middleware_handler)
         MiddlewareHandler *tmp = realloc(global_middleware, new_cap * sizeof *tmp);
         if (!tmp)
         {
-            perror("realloc");
+            LOG_DEBUG("Reallocation failed in hook");
             return;
         }
         global_middleware = tmp;
@@ -337,14 +341,14 @@ static void register_route(llhttp_method_t method,
 {
     if (!handler || !path || !global_route_trie)
     {
-        fprintf(stderr, "Error: Invalid route registration parameters\n");
+        LOG_ERROR("Invalid route registration parameters");
         return;
     }
 
     MiddlewareInfo *middleware_info = calloc(1, sizeof(MiddlewareInfo));
     if (!middleware_info)
     {
-        fprintf(stderr, "Memory allocation failed for middleware info\n");
+        LOG_DEBUG("Memory allocation failed for middleware info");
         return;
     }
 
@@ -356,7 +360,7 @@ static void register_route(llhttp_method_t method,
         middleware_info->middleware = malloc(sizeof(MiddlewareHandler) * middleware.count);
         if (!middleware_info->middleware)
         {
-            fprintf(stderr, "Memory allocation failed for middleware handlers\n");
+            LOG_DEBUG("Memory allocation failed for middleware handlers");
             free(middleware_info);
             return;
         }
@@ -368,7 +372,7 @@ static void register_route(llhttp_method_t method,
     int result = route_trie_add(global_route_trie, method, path, handler, middleware_info);
     if (result != 0)
     {
-        fprintf(stderr, "Failed to add route to trie: %d %s\n", method, path);
+        LOG_DEBUG("Failed to add route to trie: %d %s", method, path);
         free_middleware_info(middleware_info);
         return;
     }

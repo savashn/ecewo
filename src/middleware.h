@@ -6,7 +6,6 @@
 #include "llhttp.h"
 #include <stdint.h>
 
-// Chain structure
 struct Chain
 {
     MiddlewareHandler *handlers;  // Array of middleware handlers

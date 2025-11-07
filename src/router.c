@@ -1,5 +1,4 @@
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include <stddef.h>
 #include "router.h"
@@ -7,14 +6,13 @@
 #include "middleware.h"
 #include "server.h"
 #include "arena.h"
+#include "log.h"
 
 // Called when write operation is completed
 static void write_completion_cb(uv_write_t *req, int status)
 {
     if (status < 0)
-    {
-        fprintf(stderr, "Write error: %s\n", uv_strerror(status));
-    }
+        LOG_DEBUG("Write error: %s", uv_strerror(status));
 
     write_req_t *write_req = (write_req_t *)req;
     if (write_req)
@@ -105,7 +103,7 @@ static void send_error(Arena *request_arena, uv_tcp_t *client_socket, int error_
                            &write_req->buf, 1, write_completion_cb);
         if (res < 0)
         {
-            fprintf(stderr, "Write error: %s\n", uv_strerror(res));
+            LOG_DEBUG("Write error: %s", uv_strerror(res));
             arena_free(request_arena);
             free(request_arena);
         }
@@ -158,7 +156,7 @@ static void send_error(Arena *request_arena, uv_tcp_t *client_socket, int error_
                            &write_req->buf, 1, write_completion_cb);
         if (res < 0)
         {
-            fprintf(stderr, "Write error: %s\n", uv_strerror(res));
+            LOG_DEBUG("Write error: %s", uv_strerror(res));
             free(response);
             free(write_req);
         }
@@ -642,7 +640,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
 
     if (result < 0)
     {
-        fprintf(stderr, "Write error: %s\n", uv_strerror(result));
+        LOG_DEBUG("Write error: %s", uv_strerror(result));
         Arena *request_arena = res->arena;
         arena_free(request_arena);
         free(request_arena);
@@ -692,22 +690,27 @@ int router(client_t *client, const char *request_data, size_t request_len)
         break;
 
     case PARSE_INCOMPLETE:
-        fprintf(stderr, "HTTP parsing incomplete - need more data\n");
+        LOG_DEBUG("HTTP parsing incomplete - need more data");
         send_error(request_arena, (uv_tcp_t *)&client->handle, 400);
         return 1;
 
     case PARSE_OVERFLOW:
-        fprintf(stderr, "HTTP parsing failed: size limits exceeded\n");
+        LOG_DEBUG("HTTP parsing failed: size limits exceeded");
+
         if (persistent_ctx->error_reason)
-            fprintf(stderr, " - %s\n", persistent_ctx->error_reason);
+            LOG_DEBUG(" - %s", persistent_ctx->error_reason);
+
         send_error(request_arena, (uv_tcp_t *)&client->handle, 413);
         return 1;
 
+    // TODO: write an err msg for PARSE_ERROR
     case PARSE_ERROR:
     default:
-        fprintf(stderr, "HTTP parsing failed: %s\n", parse_result_to_string(parse_result));
+        LOG_DEBUG("HTTP parsing failed: %s", parse_result_to_string(parse_result));
+
         if (persistent_ctx->error_reason)
-            fprintf(stderr, " - %s\n", persistent_ctx->error_reason);
+            LOG_DEBUG(" - %s", persistent_ctx->error_reason);
+
         send_error(request_arena, (uv_tcp_t *)&client->handle, 400);
         return 1;
     }
@@ -718,10 +721,11 @@ int router(client_t *client, const char *request_data, size_t request_len)
         parse_result_t finish_result = http_finish_parsing(persistent_ctx);
         if (finish_result != PARSE_SUCCESS)
         {
-            fprintf(stderr, "HTTP finish parsing failed: %s\n",
-                    parse_result_to_string(finish_result));
+            LOG_DEBUG("HTTP finist parsing failed: %s", parse_result_to_string(finish_result));
+
             if (persistent_ctx->error_reason)
-                fprintf(stderr, " - %s\n", persistent_ctx->error_reason);
+                LOG_DEBUG(" - %s", persistent_ctx->error_reason);
+
             send_error(request_arena, (uv_tcp_t *)&client->handle, 400);
             return 1;
         }
@@ -745,9 +749,10 @@ int router(client_t *client, const char *request_data, size_t request_len)
 
     if (!global_route_trie || !persistent_ctx->method)
     {
-        fprintf(stderr, "ERROR: Missing route trie (%p) or method (%s)\n",
-                (void *)global_route_trie,
-                persistent_ctx->method ? persistent_ctx->method : "NULL");
+        LOG_DEBUG("Missing route trie (%p) or method (%s)",
+                 (void *)global_route_trie,
+                 persistent_ctx->method ? persistent_ctx->method : "NULL"
+        );
 
         // 404 but still success response
         bool keep_alive = res->keep_alive;
@@ -830,7 +835,7 @@ void set_header(Res *res, const char *name, const char *value)
 {
     if (!res || !res->arena || !name || !value)
     {
-        fprintf(stderr, "Error: Invalid argument(s) to set_header\n");
+        LOG_DEBUG("Invalid argument(s) to set_header");
         return;
     }
 
@@ -844,7 +849,7 @@ void set_header(Res *res, const char *name, const char *value)
 
         if (!tmp)
         {
-            fprintf(stderr, "Error: Failed to realloc headers array\n");
+            LOG_DEBUG("Failed to realloc headers array");
             return;
         }
 
@@ -858,14 +863,14 @@ void set_header(Res *res, const char *name, const char *value)
     res->headers[res->header_count].name = arena_strdup(res->arena, name);
     if (!res->headers[res->header_count].name)
     {
-        fprintf(stderr, "Error: Failed to allocate memory for name\n");
+        LOG_DEBUG("Failed to allocate memory for name in set_header");
         return;
     }
 
     res->headers[res->header_count].value = arena_strdup(res->arena, value);
     if (!res->headers[res->header_count].value)
     {
-        fprintf(stderr, "Error: Failed to allocate memory for value\n");
+        LOG_DEBUG("Failed to allocate memory for value in set_header");
         return;
     }
 
@@ -971,14 +976,14 @@ int task(
 {
     if (!arena || !context || !work_fn)
     {
-        fprintf(stderr, "async task: arena, context and work_fn are required\n");
+        LOG_DEBUG("Arena, context and work_fn are required in task()");
         return -1;
     }
 
     Task *task = arena_alloc(arena, sizeof(Task));
     if (!task)
     {
-        fprintf(stderr, "Failed to allocate memory for async task from arena\n");
+        LOG_DEBUG("Failed to allocate memory for async task from arena");
         return -1;
     }
 
@@ -999,7 +1004,7 @@ int task(
 
     if (result != 0)
     {
-        fprintf(stderr, "Failed to queue task: %s\n", uv_strerror(result));
+        LOG_DEBUG("Failed to queue task: %s\n", uv_strerror(result));
         decrement_async_work();
         return result;
     }

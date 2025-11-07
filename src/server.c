@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
@@ -10,6 +9,7 @@
 #include "request.h"
 #include "middleware.h"
 #include "arena.h"
+#include "log.h"
 
 // ============================================================================
 // INTERNAL STRUCTURES
@@ -99,7 +99,6 @@ static void cleanup_idle_connections(uv_timer_t *handle)
     time_t now = time(NULL);
     client_t *current = g_server.client_list_head;
     int checked = 0;
-    int closed = 0;
 
     while (current)
     {
@@ -110,21 +109,10 @@ static void cleanup_idle_connections(uv_timer_t *handle)
         {
             time_t idle_time = now - current->last_activity;
             if (idle_time > IDLE_TIMEOUT_SECONDS)
-            {
                 close_client(current);
-                closed++;
-            }
         }
         current = next;
     }
-
-#ifndef NDEBUG
-    if (closed > 0)
-    {
-        printf("[Cleanup] Checked %d connections, closed %d idle (timeout: %ds)\n",
-               checked, closed, IDLE_TIMEOUT_SECONDS);
-    }
-#endif
 }
 
 static int start_cleanup_timer(void)
@@ -379,7 +367,7 @@ static void server_shutdown(void)
     {
         if ((uv_now(g_server.loop) - start) >= SHUTDOWN_TIMEOUT_MS)
         {
-            fprintf(stderr, "Shutdown timeout: %d operations abandoned\n",
+            LOG_DEBUG("Shutdown timeout: %d operations abandoned",
                     get_pending_async_work());
             break;
         }
@@ -395,7 +383,7 @@ static void server_shutdown(void)
     {
         if ((uv_now(g_server.loop) - start) >= SHUTDOWN_TIMEOUT_MS)
         {
-            fprintf(stderr, "Shutdown timeout: %d connections force closed\n",
+            LOG_DEBUG("Shutdown timeout: %d connections force closed",
                     g_server.active_connections);
             break;
         }
@@ -421,7 +409,7 @@ static void server_cleanup(void)
     {
         if ((uv_now(g_server.loop) - start) >= CLEANUP_TIMEOUT_MS)
         {
-            fprintf(stderr, "Cleanup timeout: forcing loop close\n");
+            LOG_DEBUG("Cleanup timeout: forcing loop close");
             break;
         }
         
@@ -490,7 +478,7 @@ int server_listen(uint16_t port)
 {
     if (port == 0)
     {
-        fprintf(stderr, "Error: Invalid port %" PRIu16 " (must be 1-65535)\n", port);
+        LOG_ERROR("Invalid port %" PRIu16 " (must be 1-65535)", port);
         return SERVER_INVALID_PORT;
     }
 
@@ -526,7 +514,7 @@ int server_listen(uint16_t port)
     {
         free(g_server.server);
         g_server.server = NULL;
-        fprintf(stderr, "Error: Failed to bind to port %" PRIu16 " (may be in use)\n", port);
+        LOG_ERROR("Failed to bind to port %" PRIu16 " (may be in use)", port);
         return SERVER_BIND_FAILED;
     }
 
@@ -534,19 +522,19 @@ int server_listen(uint16_t port)
     {
         free(g_server.server);
         g_server.server = NULL;
-        fprintf(stderr, "Error: Failed to listen on port %" PRIu16 "\n", port);
+        LOG_ERROR("Failed to listen on port %" PRIu16, port);
         return SERVER_LISTEN_FAILED;
     }
 
     if (start_cleanup_timer() != 0)
-        printf("Warning: Failed to start cleanup timer\n");
+        LOG_DEBUG("Failed to start cleanup timer");
 
     g_server.running = 1;
     
     const char *is_worker = getenv("ECEWO_WORKER");
     if (!is_worker || strcmp(is_worker, "1") != 0)
     {
-        printf("Server listening on http://localhost:%" PRIu16 "\n", port);
+        LOG_SERVER("Server listening on http://localhost:%" PRIu16, port);
     }
     
     return SERVER_OK;
@@ -556,7 +544,7 @@ void server_run(void)
 {
     if (!g_server.initialized || !g_server.running)
     {
-        fprintf(stderr, "Error: Server not initialized or not listening\n");
+        LOG_ERROR("Server not initialized or not listening");
         return;
     }
     
@@ -808,7 +796,7 @@ static void on_connection(uv_stream_t *server, int status)
 
     if (status < 0)
     {
-        fprintf(stderr, "Error: Connection error\n");
+        LOG_ERROR("Connection error");
         return;
     }
 
@@ -817,7 +805,7 @@ static void on_connection(uv_stream_t *server, int status)
 
     if (g_server.active_connections >= MAX_CONNECTIONS)
     {
-        fprintf(stderr, "Error: Max connections (%d) reached\n", MAX_CONNECTIONS);
+        LOG_DEBUG("Max connections (%d) reached", MAX_CONNECTIONS);
         return;
     }
 
@@ -941,7 +929,7 @@ static void on_signal(uv_signal_t *handle, int signum)
         return;
 
     const char *signal_name = (signum == SIGINT) ? "SIGINT" : "SIGTERM";
-    printf("Received %s, shutting down...\n", signal_name);
+    LOG_DEBUG("Received %s, shutting down...", signal_name);
     
     uv_async_send(&g_server.shutdown_async);
 }
@@ -960,7 +948,7 @@ static int router_init(void)
     global_route_trie = route_trie_create();
     if (!global_route_trie)
     {
-        fprintf(stderr, "Error: Failed to create route trie\n");
+        LOG_ERROR("Failed to create route trie");
         return 1;
     }
 

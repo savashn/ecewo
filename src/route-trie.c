@@ -1,9 +1,9 @@
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include <inttypes.h>
 #include "route-trie.h"
 #include "middleware.h"
+#include "log.h"
 
 // Splits a path into segments (/users/123/posts -> ["users", "123", "posts"])
 int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result)
@@ -31,8 +31,7 @@ int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result)
 
             if (segment_count > MAX_PATH_SEGMENTS)
             {
-                fprintf(stderr, "Path too deep: %" PRIu8 " segments (max %d)\n",
-                        segment_count, MAX_PATH_SEGMENTS);
+                LOG_DEBUG("Path too deep: %" PRIu8 " segments (max %d)", segment_count, MAX_PATH_SEGMENTS);
                 return -1;
             }
 
@@ -304,7 +303,7 @@ int route_trie_add(route_trie_t *trie,
     int method_idx = method_to_index(method);
     if (method_idx < 0)
     {
-        fprintf(stderr, "Unsupported HTTP method: %d\n", method);
+        LOG_DEBUG("Unsupported HTTP method: %d", method);
         return -1;
     }
 
