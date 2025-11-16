@@ -1,6 +1,7 @@
 #include "ecewo/static.h"
 #include "ecewo/fs.h"
 #include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <time.h>
@@ -258,14 +259,20 @@ static void static_handler(Req *req, Res *res)
             return;
         }
 
-        int is_dir = (*rel_path == '\0' ||
-                      (strlen(rel_path) > 0 && rel_path[strlen(rel_path) - 1] == '/'));
+        bool is_dir = (*rel_path == '\0' || 
+                       (strlen(rel_path) > 0 && rel_path[strlen(rel_path) - 1] == '/'));
 
         char *filepath;
         if (is_dir)
         {
-            filepath = ecewo_sprintf(res, "%s/%s%s",
-                                     ctx->dir_path, rel_path, ctx->options.index_file);
+            if (strlen(rel_path) == 0)
+            {
+                filepath = ecewo_sprintf(res, "%s/%s", ctx->dir_path, ctx->options.index_file);
+            }
+            else
+            {
+                filepath = ecewo_sprintf(res, "%s/%s%s", ctx->dir_path, rel_path, ctx->options.index_file);
+            }
         }
         else
         {
@@ -295,17 +302,22 @@ void serve_static(const char *mount_path,
         return;
     }
 
-    Static default_opts = {
-        .index_file = "index.html",
-        .enable_etag = false,
-        .enable_cache = false,
-        .max_age = 3600,
-        .dot_files = false,
-    };
+    Static final_opts;
+    
+    final_opts.index_file = "index.html";
+    final_opts.enable_etag = false;
+    final_opts.enable_cache = false;
+    final_opts.max_age = 3600;
+    final_opts.dot_files = false;
 
-    if (!options)
+    if (options)
     {
-        options = &default_opts;
+        if (options->index_file)
+            final_opts.index_file = options->index_file;
+        final_opts.enable_etag = options->enable_etag;
+        final_opts.enable_cache = options->enable_cache;
+        final_opts.max_age = options->max_age;
+        final_opts.dot_files = options->dot_files;
     }
 
     ensure_static_capacity();
@@ -325,10 +337,12 @@ void serve_static(const char *mount_path,
     ctx->mount_path = strdup(mount_path);
     ctx->dir_path = strdup(dir_path);
     ctx->mount_len = strlen(mount_path);
-    ctx->options = *options;
+    ctx->options = final_opts;
 
     static_contexts.items[static_contexts.count++] = ctx;
 
+    get(mount_path, static_handler);
+    
     char *route_pattern = malloc(strlen(mount_path) + 4);
     if (mount_path[strlen(mount_path) - 1] == '/')
     {
@@ -336,13 +350,11 @@ void serve_static(const char *mount_path,
     }
     else
     {
-        sprintf(route_pattern, "%s//", mount_path);
+        sprintf(route_pattern, "%s/*", mount_path);
     }
 
     get(route_pattern, static_handler);
     free(route_pattern);
-
-    printf("Static files: %s -> %s\n", mount_path, dir_path);
 }
 
 void static_cleanup(void)
