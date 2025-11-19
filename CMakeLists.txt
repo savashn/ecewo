@@ -24,23 +24,7 @@ if(NOT DEFINED ECEWO_BUILD_SHARED)
     option(ECEWO_BUILD_SHARED "Build shared library instead of static" OFF)
 endif()
 
-option(ECEWO_COOKIE "Build cookie module" OFF)
-option(ECEWO_SESSION "Build session module" OFF)
-option(ECEWO_CORS "Build CORS module" OFF)
-option(ECEWO_HELMET "Build helmet module" OFF)
-option(ECEWO_FS "Build file serving module" OFF)
-option(ECEWO_STATIC "Build static file serving module" OFF)
-option(ECEWO_POSTGRES "Build PostgreSQL integration module" OFF)
-option(ECEWO_CLUSTER "Build cluster module" OFF)
-option(ECEWO_TEST "Build test module" OFF)
-
 option(ECEWO_BUILD_TESTS "Build tests" OFF)
-
-if(ECEWO_BUILD_TESTS)
-    set(ECEWO_TEST ON CACHE BOOL "Build test module" FORCE)
-    set(ECEWO_CLUSTER ON CACHE BOOL "Build cluster module" FORCE)
-endif()
-
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     message(STATUS "Applying production optimizations for web framework...")
@@ -105,67 +89,6 @@ if(NOT TARGET ecewo::ecewo)
         vendors/arena.c
     )
 
-    set(ECEWO_MODULE_DEFINITIONS "")
-    set(ECEWO_ENABLED_MODULES "")
-
-    if(ECEWO_COOKIE)
-        list(APPEND ECEWO_SOURCES src/modules/cookie.c)
-        list(APPEND ECEWO_MODULE_DEFINITIONS ECEWO_HAS_COOKIE)
-        list(APPEND ECEWO_ENABLED_MODULES "cookie")
-        message(STATUS "  + Cookie module enabled")
-    endif()
-
-    if(ECEWO_SESSION)
-        list(APPEND ECEWO_SOURCES src/modules/session.c)
-        list(APPEND ECEWO_MODULE_DEFINITIONS ECEWO_HAS_SESSION)
-        list(APPEND ECEWO_ENABLED_MODULES "session")
-        message(STATUS "  + Session module enabled")
-    endif()
-
-    if(ECEWO_CORS)
-        list(APPEND ECEWO_SOURCES src/modules/cors.c)
-        list(APPEND ECEWO_MODULE_DEFINITIONS ECEWO_HAS_CORS)
-        list(APPEND ECEWO_ENABLED_MODULES "cors")
-        message(STATUS "  + CORS module enabled")
-    endif()
-
-    if(ECEWO_HELMET)
-        list(APPEND ECEWO_SOURCES src/modules/helmet.c)
-        list(APPEND ECEWO_MODULE_DEFINITIONS ECEWO_HAS_HELMET)
-        list(APPEND ECEWO_ENABLED_MODULES "helmet")
-        message(STATUS "  + Helmet module enabled")
-    endif()
-
-    if(ECEWO_FS)
-        list(APPEND ECEWO_SOURCES src/modules/fs.c)
-        list(APPEND ECEWO_MODULE_DEFINITIONS ECEWO_HAS_FS)
-        list(APPEND ECEWO_ENABLED_MODULES "fs")
-        message(STATUS "  + File serving module enabled")
-    endif()
-
-    if(ECEWO_STATIC)
-        list(APPEND ECEWO_SOURCES src/modules/static.c)
-        list(APPEND ECEWO_MODULE_DEFINITIONS ECEWO_HAS_STATIC)
-        list(APPEND ECEWO_ENABLED_MODULES "static")
-        message(STATUS "  + Static file serving module enabled")
-    endif()
-
-    if(ECEWO_POSTGRES)
-        list(APPEND ECEWO_SOURCES src/modules/postgres.c)
-        list(APPEND ECEWO_MODULE_DEFINITIONS ECEWO_HAS_POSTGRES)
-        list(APPEND ECEWO_ENABLED_MODULES "postgres")
-        message(STATUS "  + PostgreSQL integration module enabled")
-    endif()
-
-    if(ECEWO_CLUSTER)
-        list(APPEND ECEWO_SOURCES src/modules/cluster.c)
-        list(APPEND ECEWO_MODULE_DEFINITIONS ECEWO_HAS_CLUSTER)
-        list(APPEND ECEWO_ENABLED_MODULES "cluster")
-        message(STATUS "  + Cluster module enabled")
-    endif()
-
-    list(TRANSFORM ECEWO_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
-
     if(ECEWO_BUILD_SHARED)
         add_library(ecewo SHARED ${ECEWO_SOURCES})
         message(STATUS "Building ecewo as SHARED library")
@@ -183,48 +106,6 @@ if(NOT TARGET ecewo::ecewo)
     elseif(UNIX AND NOT APPLE)
         target_compile_definitions(ecewo PRIVATE PLATFORM_LINUX)
     endif()
-
-    if(ECEWO_COOKIE)
-        set(ECEWO_HAS_COOKIE 1)
-    endif()
-
-    if(ECEWO_SESSION)
-        set(ECEWO_HAS_SESSION 1)
-    endif()
-
-    if(ECEWO_CORS)
-        set(ECEWO_HAS_CORS 1)
-    endif()
-
-    if(ECEWO_HELMET)
-        set(ECEWO_HAS_HELMET 1)
-    endif()
-
-    if(ECEWO_FS)
-        set(ECEWO_HAS_FS 1)
-    endif()
-
-    if(ECEWO_STATIC)
-        set(ECEWO_HAS_STATIC 1)
-    endif()
-
-    if(ECEWO_POSTGRES)
-        set(ECEWO_HAS_POSTGRES 1)
-    endif()
-
-    if(ECEWO_CLUSTER)
-        set(ECEWO_HAS_CLUSTER 1)
-    endif()
-
-    if(ECEWO_TEST)
-        set(ECEWO_HAS_TEST 1)
-    endif()
-
-    configure_file(
-        ${CMAKE_CURRENT_SOURCE_DIR}/config/ecewo-config.h.in
-        ${CMAKE_CURRENT_BINARY_DIR}/include/ecewo-config.h
-        @ONLY
-    )
 
     target_include_directories(ecewo 
         PUBLIC
@@ -416,12 +297,6 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
         message(STATUS "Library type: SHARED")
     else()
         message(STATUS "Library type: STATIC")
-    endif()
-    
-    if(ECEWO_ENABLED_MODULES)
-        message(STATUS "Modules: ${ECEWO_ENABLED_MODULES}")
-    else()
-        message(STATUS "Modules: None (core only)")
     endif()
     
     message(STATUS "Target system: ${CMAKE_SYSTEM_NAME}")

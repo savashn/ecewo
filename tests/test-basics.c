@@ -1,5 +1,5 @@
 #include "ecewo.h"
-#include "ecewo/mock.h"
+#include "ecewo-mock.h"
 #include "tester.h"
 #include <string.h>
 
