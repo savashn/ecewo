@@ -1,6 +1,6 @@
 #include "ecewo.h"
-#include "ecewo/mock.h"
-#include "unity.h"
+#include "ecewo-mock.h"
+#include "tester.h"
 #include <string.h>
 
 void handler_params(Req *req, Res *res)
@@ -12,7 +12,7 @@ void handler_params(Req *req, Res *res)
     send_json(res, 200, response);
 }
 
-void test_params(void)
+int test_params(void)
 {
     MockParams params = {
         .method = MOCK_GET,
@@ -21,11 +21,13 @@ void test_params(void)
 
     MockResponse res = request(&params);
 
-    TEST_ASSERT_EQUAL(200, res.status_code);
-    TEST_ASSERT_NOT_NULL(res.body);
-    TEST_ASSERT_EQUAL_STRING("{\"userId\": 123, \"postId\": 456}", res.body);
+    ASSERT_EQ(200, res.status_code);
+    ASSERT_NOT_NULL(res.body);
+    ASSERT_EQ_STR("{\"userId\": 123, \"postId\": 456}", res.body);
 
     free_request(&res);
+
+    RETURN_OK();
 }
 
 void handler_query(Req *req, Res *res)
@@ -43,7 +45,7 @@ void handler_query(Req *req, Res *res)
     send_text(res, 200, json);
 }
 
-void test_query(void)
+int test_query(void)
 {
     MockParams params = {
         .method = MOCK_GET,
@@ -52,11 +54,13 @@ void test_query(void)
 
     MockResponse res = request(&params);
 
-    TEST_ASSERT_EQUAL(200, res.status_code);
-    TEST_ASSERT_NOT_NULL(res.body);
-    TEST_ASSERT_EQUAL_STRING("Name: John, Age: 30", res.body);
+    ASSERT_EQ(200, res.status_code);
+    ASSERT_NOT_NULL(res.body);
+    ASSERT_EQ_STR("Name: John, Age: 30", res.body);
 
     free_request(&res);
+
+    RETURN_OK();
 }
 
 void handler_headers(Req *req, Res *res)
@@ -90,7 +94,7 @@ void handler_headers(Req *req, Res *res)
     send_text(res, CREATED, "Success!");
 }
 
-void test_headers(void)
+int test_headers(void)
 {
     MockHeaders headers[] = {
         {"Authorization", "Bearer secret-token"},
@@ -110,8 +114,10 @@ void test_headers(void)
 
     MockResponse res = request(&params);
 
-    TEST_ASSERT_EQUAL(201, res.status_code);
-    TEST_ASSERT_EQUAL_STRING("Success!", res.body);
+    ASSERT_EQ(201, res.status_code);
+    ASSERT_EQ_STR("Success!", res.body);
 
     free_request(&res);
+
+    RETURN_OK();
 }

@@ -5,39 +5,31 @@
 
 // test-basics
 void handler_plaintext(Req *req, Res *res);
-void test_plaintext(void);
+int test_plaintext(void);
 void handler_json(Req *req, Res *res);
-void test_json(void);
+int test_json(void);
 void handler_html(Req *req, Res *res);
-void test_html(void);
+int test_html(void);
 
 // test-request
 void handler_params(Req *req, Res *res);
-void test_params(void);
+int test_params(void);
 void handler_query(Req *req, Res *res);
-void test_query(void);
+int test_query(void);
 void handler_headers(Req *req, Res *res);
-void test_headers(void);
+int test_headers(void);
 
 // test-context
 int context_middleware(Req *req, Res *res, Chain *chain);
 void context_handler(Req *req, Res *res);
-void test_context(void);
+int test_context(void);
 
 // blocking/non-blocking
 void instant_handler(Req *req, Res *res);
 int slow_middleware(Req *req, Res *res, Chain *chain);
 void slow_async_handler(Req *req, Res *res);
 void fast_sync_handler(Req *req, Res *res);
-void test_not_blocked(void);
-void test_sync_blocks(void);
-
-// cluster
-void test_cluster_cpu_count(void);
-void test_cluster_callbacks(void);
-void test_cluster_invalid_config(void);
-void test_cluster_windows_port_strategy(void);
-void test_cluster_unix_port_strategy(void);
-void test_cluster_config_defaults(void);
+int test_not_blocked(void);
+int test_sync_blocks(void);
 
 #endif

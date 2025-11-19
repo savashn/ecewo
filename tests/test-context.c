@@ -1,6 +1,6 @@
 #include "ecewo.h"
-#include "ecewo/mock.h"
-#include "unity.h"
+#include "ecewo-mock.h"
+#include "tester.h"
 #include <string.h>
 
 typedef struct {
@@ -36,7 +36,7 @@ void context_handler(Req *req, Res *res)
     send_text(res, 200, "Success!");
 }
 
-void test_context(void)
+int test_context(void)
 {
     MockHeaders headers[] = {
         {"Authorization", "Bearer token"}
@@ -51,9 +51,11 @@ void test_context(void)
 
     MockResponse res = request(&params);
     
-    TEST_ASSERT_EQUAL(200, res.status_code);
-    TEST_ASSERT_NOT_NULL(res.body);
-    TEST_ASSERT_EQUAL_STRING("Success!", res.body);
+    ASSERT_EQ(200, res.status_code);
+    ASSERT_NOT_NULL(res.body);
+    ASSERT_EQ_STR("Success!", res.body);
 
     free_request(&res);
+
+    RETURN_OK();
 }

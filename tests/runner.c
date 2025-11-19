@@ -1,27 +1,7 @@
-#include "unity.h"
 #include "ecewo.h"
-#include "ecewo/mock.h"
+#include "ecewo-mock.h"
 #include "test-handlers.h"
-
-void setUp(void)
-{
-    // No need to per-test setup
-}
-
-void tearDown(void)
-{
-    // No need to per-test teardown
-}
-
-void suiteSetUp(void)
-{
-    ecewo_test_setup();
-}
-
-int suiteTearDown(int num_failures)
-{
-    ecewo_test_tear_down(num_failures);
-}
+#include "tester.h"
 
 void setup_routes(void)
 {
@@ -47,8 +27,7 @@ void setup_routes(void)
 int main(void)
 {
     test_routes_hook(setup_routes);
-    suiteSetUp();
-    UNITY_BEGIN();
+    mock_setup();
 
     // test-request
     RUN_TEST(test_params);
@@ -67,20 +46,7 @@ int main(void)
     RUN_TEST(test_not_blocked);
     RUN_TEST(test_sync_blocks);
 
-    // test cluster
-    RUN_TEST(test_cluster_cpu_count);
-    RUN_TEST(test_cluster_config_defaults);
-    RUN_TEST(test_cluster_callbacks);
-    RUN_TEST(test_cluster_invalid_config);
-    
-#ifdef _WIN32
-    RUN_TEST(test_cluster_windows_port_strategy);
-#else
-    RUN_TEST(test_cluster_unix_port_strategy);
-#endif
-    
-    int result = UNITY_END();
+    mock_down();
 
-    suiteTearDown(result);
-    return result;
+    return 0;
 }

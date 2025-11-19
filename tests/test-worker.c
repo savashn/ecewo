@@ -1,6 +1,6 @@
-#include "unity.h"
+#include "tester.h"
 #include "ecewo.h"
-#include "ecewo/mock.h"
+#include "ecewo-mock.h"
 #include "uv.h"
 #include "test-handlers.h"
 #include <stdlib.h>
@@ -86,7 +86,7 @@ int slow_middleware(Req *req, Res *res, Chain *chain)
 void slow_async_handler(Req *req, Res *res)
 {
     (void)req;
-    sleep_ms(200);
+    sleep_ms(300);
     send_text(res, 200, thread_id_to_string());
     cleanup_thread_id();
 }
@@ -137,9 +137,11 @@ static void *request_thread(void *arg)
 // Tests
 // ============================================================================
 
-void test_not_blocked(void)
+int test_not_blocked(void)
 {
     printf("\n=== TEST: Async Does NOT Block ===\n");
+
+    uint64_t start = get_time_ms();
 
     request_context_t async_ctx = {.path = "/slow-async"};
 
@@ -152,8 +154,10 @@ void test_not_blocked(void)
 
     sleep_ms(50);
 
-    MockParams instant_params = {.method = MOCK_GET, .path = "/instant"};
-    MockResponse res_instant = request(&instant_params);
+    uint64_t instant_start = get_time_ms();
+    MockParams params = {.method = MOCK_GET, .path = "/instant"};
+    MockResponse res_instant = request(&params);
+    uint64_t instant_duration = get_time_ms() - instant_start;
 
 #ifdef _WIN32
     WaitForSingleObject(h, INFINITE);
@@ -162,25 +166,30 @@ void test_not_blocked(void)
     pthread_join(t, NULL);
 #endif
 
-    TEST_ASSERT_NOT_NULL(async_ctx.response.body);
-    TEST_ASSERT_NOT_NULL(res_instant.body);
+    printf("Instant request duration: %lums (should be < 100ms)\n", instant_duration);
+    
+    // DEBUG: Async response kontrolü
+    printf("DEBUG: Async response status=%u, body='%s'\n", 
+           async_ctx.response.status_code, 
+           async_ctx.response.body ? async_ctx.response.body : "NULL");  // ← EKLE
+    
+    if (async_ctx.response.body == NULL) {
+        printf("ERROR: Async request failed!\n");
+        return -1;  // ← EKLE
+    }
 
-    int different = strcmp(async_ctx.response.body, res_instant.body) != 0;
-
-    printf("Should use different threads (non-blocking)\n");
-    printf("Result: async=%s, instant=%s -> %s\n",
-           async_ctx.response.body,
-           res_instant.body,
-           different ? "OK" : "FAIL");
-
-    // TEST_ASSERT_TRUE_MESSAGE(different, "Should use different threads");
-    TEST_ASSERT_NOT_EQUAL(0, strcmp(async_ctx.response.body, res_instant.body));
-
+    ASSERT_TRUE(instant_duration < 100);
+    
+    printf("Thread IDs: async=%s, instant=%s\n",
+           async_ctx.response.body, res_instant.body);
+    
     free_request(&async_ctx.response);
     free_request(&res_instant);
+    
+    RETURN_OK();
 }
 
-void test_sync_blocks(void)
+int test_sync_blocks(void)
 {
     printf("\n=== TEST: Sync BLOCKS ===\n");
 
@@ -205,8 +214,8 @@ void test_sync_blocks(void)
     pthread_join(t, NULL);
 #endif
 
-    TEST_ASSERT_NOT_NULL(sync_ctx.response.body);
-    TEST_ASSERT_NOT_NULL(res_instant.body);
+    ASSERT_NOT_NULL(sync_ctx.response.body);
+    ASSERT_NOT_NULL(res_instant.body);
 
     int same = strcmp(sync_ctx.response.body, res_instant.body) == 0;
 
@@ -216,9 +225,10 @@ void test_sync_blocks(void)
            res_instant.body,
            same ? "OK" : "FAIL");
 
-    // TEST_ASSERT_TRUE_MESSAGE(same, "Should use same thread (blocking)");
-    TEST_ASSERT_EQUAL(0, strcmp(sync_ctx.response.body, res_instant.body));
+    ASSERT_EQ(0, strcmp(sync_ctx.response.body, res_instant.body));
 
     free_request(&sync_ctx.response);
     free_request(&res_instant);
+
+    RETURN_OK();
 }

@@ -164,13 +164,6 @@ if(NOT TARGET ecewo::ecewo)
         message(STATUS "  + Cluster module enabled")
     endif()
 
-    if(ECEWO_TEST)
-        list(APPEND ECEWO_SOURCES src/modules/mock.c vendors/unity/unity.c)
-        list(APPEND ECEWO_MODULE_DEFINITIONS ECEWO_HAS_TEST)
-        list(APPEND ECEWO_ENABLED_MODULES "test")
-        message(STATUS "  + Test module enabled")
-    endif()
-
     list(TRANSFORM ECEWO_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
 
     if(ECEWO_BUILD_SHARED)
@@ -245,12 +238,6 @@ if(NOT TARGET ecewo::ecewo)
             ${CMAKE_CURRENT_SOURCE_DIR}/config
             ${CMAKE_BINARY_DIR}/_deps/llhttp-src/include
     )
-
-    if(ECEWO_TEST)
-        target_include_directories(ecewo PUBLIC
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vendors/unity>
-        )
-    endif()
 
     if(ECEWO_BUILD_SHARED)
         target_link_libraries(ecewo PUBLIC uv llhttp_shared)
