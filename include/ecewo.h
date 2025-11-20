@@ -91,6 +91,7 @@ struct Res
     uint16_t header_count;
     uint16_t header_capacity;
     void *async_buffer;
+    void *async_context;
 };
 
 typedef enum

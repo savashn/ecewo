@@ -45,4 +45,7 @@ void register_async_route(int method, const char *path, MiddlewareArray middlewa
 void reset_middleware(void);
 void free_middleware_info(MiddlewareInfo *info);
 
+void cleanup_async_context(uv_handle_t *handle);
+uv_async_t *get_async_handle_from_context(void *async_context);
+
 #endif

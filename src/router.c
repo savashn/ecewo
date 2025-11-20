@@ -9,30 +9,37 @@
 static void write_completion_cb(uv_write_t *req, int status)
 {
     if (status < 0)
-        LOG_DEBUG("Write error: %s", uv_strerror(status));
+        LOG_ERROR("Write error: %s", uv_strerror(status));
 
     write_req_t *write_req = (write_req_t *)req;
-    if (write_req)
+    if (!write_req)
+        return;
+
+    if (write_req->async_context)
     {
-        if (write_req->arena)
+        // Async route
+        // Arena will be cleaned up in cleanup_async_context
+        uv_async_t *async_handle = get_async_handle_from_context(write_req->async_context);
+        if (async_handle)
+            uv_close((uv_handle_t *)async_handle, cleanup_async_context);
+    }
+    else if (write_req->arena)
+    {
+        // Sync route
+        Arena *request_arena = write_req->arena;
+        arena_free(request_arena);
+        free(request_arena);
+    }
+    else
+    {
+        // Early error path
+        if (write_req->data)
         {
-            Arena *request_arena = write_req->arena;
-            arena_free(request_arena);
-            free(request_arena);
+            free(write_req->data);
+            write_req->data = NULL;
         }
-        else
-        {
-            // This is necessary for early errors
-            // that don't have arena yet
-            // and called send_error
-            if (write_req->data)
-            {
-                free(write_req->data);
-                write_req->data = NULL;
-            }
-            memset(write_req, 0, sizeof(write_req_t));
-            free(write_req);
-        }
+        memset(write_req, 0, sizeof(write_req_t));
+        free(write_req);
     }
 }
 
@@ -640,8 +647,9 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     }
 
     memset(write_req, 0, sizeof(write_req_t));
-    write_req->data = response; // Request arena memory pointer
-    write_req->arena = res->arena;
+    write_req->data = response;
+    write_req->async_context = res->async_context;
+    write_req->arena = res->async_context ? NULL : res->arena;
     write_req->buf = uv_buf_init(response, (unsigned int)total_len);
 
     if (uv_is_closing((uv_handle_t *)res->client_socket))
