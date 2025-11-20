@@ -66,8 +66,6 @@ static void server_thread_fn(void *arg)
     }
 
     server_ready = true;
-    printf("Server ready on port %d\n", TEST_PORT);
-
     server_run();
 }
 
@@ -171,7 +169,6 @@ static void on_write(uv_write_t *req, int status)
         return;
     }
     
-    // Start reading response
     LOG_DEBUG("Starting to read response");
     int result = uv_read_start((uv_stream_t *)&client->tcp, alloc_buffer, on_read);
     if (result < 0)
@@ -196,7 +193,6 @@ static void on_connect(uv_connect_t *req, int status)
         return;
     }
     
-    // Send HTTP request
     uv_buf_t buf = uv_buf_init(client->request_data, strlen(client->request_data));
     client->write_req.data = client;
     
@@ -278,7 +274,6 @@ static void parse_response(http_client_t *client)
     LOG_DEBUG("Response buffer content:\n--- START ---\n%.*s\n--- END ---\n", 
            (int)client->response_len, client->response_buffer);
 
-    // Parse status code
     unsigned short status;
     if (sscanf(client->response_buffer, "HTTP/1.1 %hu", &status) != 1)
     {
@@ -290,7 +285,6 @@ static void parse_response(http_client_t *client)
     client->response->status_code = status;
     LOG_DEBUG("Parsed status code: %hu\n", status);
 
-    // Find body
     char *body_start = strstr(client->response_buffer, "\r\n\r\n");
     if (body_start)
     {
@@ -365,32 +359,27 @@ void free_request(MockResponse *res)
 
 MockResponse request(MockParams *params)
 {
-    LOG_DEBUG("===== Starting HTTP request to %s =====\n", params->path);
     uint64_t start_time = uv_hrtime();
     
     MockResponse response = {0};
     
-    // Create HTTP request string
     char *request_data = build_http_request(params);
     if (!request_data)
     {
-        LOG_DEBUG("Failed to build HTTP request");
         response.status_code = -1;
         return response;
     }
 
-    // Setup libuv loop
     uv_loop_t loop;
     int result = uv_loop_init(&loop);
     if (result < 0)
     {
-        LOG_DEBUG("Failed to initialize event loop: %s\n", uv_strerror(result));
+        LOG_ERROR("Failed to initialize event loop: %s\n", uv_strerror(result));
         free(request_data);
         response.status_code = -1;
         return response;
     }
 
-    // Setup client context
     http_client_t client = {0};
     client.loop = &loop;
     client.response = &response;
@@ -402,18 +391,17 @@ MockResponse request(MockParams *params)
 
     if (!client.response_buffer)
     {
-        LOG_DEBUG("Failed to allocate response buffer");
+        LOG_ERROR("Failed to allocate response buffer");
         free(request_data);
         uv_loop_close(&loop);
         response.status_code = -1;
         return response;
     }
 
-    // Initialize TCP handle
     result = uv_tcp_init(&loop, &client.tcp);
     if (result < 0)
     {
-        LOG_DEBUG("Failed to initialize TCP handle: %s\n", uv_strerror(result));
+        LOG_ERROR("Failed to initialize TCP handle: %s\n", uv_strerror(result));
         free(request_data);
         free(client.response_buffer);
         uv_loop_close(&loop);
@@ -424,12 +412,11 @@ MockResponse request(MockParams *params)
     client.tcp.data = &client;
     client.connect_req.data = &client;
 
-    // Setup server address
     struct sockaddr_in addr;
     result = uv_ip4_addr("127.0.0.1", TEST_PORT, &addr);
     if (result < 0)
     {
-        LOG_DEBUG("Failed to create address: %s\n", uv_strerror(result));
+        LOG_ERROR("Failed to create address: %s\n", uv_strerror(result));
         free(request_data);
         free(client.response_buffer);
         uv_close((uv_handle_t *)&client.tcp, NULL);
@@ -439,13 +426,14 @@ MockResponse request(MockParams *params)
         return response;
     }
 
-    // Connect to server
-    LOG_DEBUG("Connecting to 127.0.0.1:%d\n", TEST_PORT);
-    result = uv_tcp_connect(&client.connect_req, &client.tcp,
-                           (const struct sockaddr *)&addr, on_connect);
+    result = uv_tcp_connect(&client.connect_req,
+                            &client.tcp,
+                            (const struct sockaddr *)&addr,
+                            on_connect);
+
     if (result < 0)
     {
-        LOG_DEBUG("Failed to initiate connection: %s\n", uv_strerror(result));
+        LOG_ERROR("Failed to initiate connection: %s\n", uv_strerror(result));
         free(request_data);
         free(client.response_buffer);
         uv_close((uv_handle_t *)&client.tcp, NULL);
@@ -455,8 +443,6 @@ MockResponse request(MockParams *params)
         return response;
     }
 
-    // Run event loop until done with improved logic
-    LOG_DEBUG("Starting event loop");
     uint64_t loop_start = uv_now(&loop);
     int loop_iterations = 0;
     int no_events_count = 0;
@@ -467,8 +453,6 @@ MockResponse request(MockParams *params)
         
         if (events == 0) {
             no_events_count++;
-            LOG_DEBUG("No events in loop iteration %d (total no-event iterations: %d)\n", 
-                   loop_iterations, no_events_count);
             
             // If we have no events for too many iterations, something might be wrong
             if (no_events_count >= 10) {
@@ -490,7 +474,6 @@ MockResponse request(MockParams *params)
             break;
         }
         
-        // Progress report every 100 iterations (for debugging very long loops)
         if (loop_iterations % 100 == 0) {
             LOG_DEBUG("Loop iteration %d, done=%d, status=%d\n", 
                    loop_iterations, client.done, client.status);
@@ -500,18 +483,13 @@ MockResponse request(MockParams *params)
     uint64_t end_time = uv_hrtime();
     uint64_t duration_ms = (end_time - start_time) / 1000000;
     
-    LOG_DEBUG("Event loop finished after %d iterations, took %llu ms\n", 
-           loop_iterations, duration_ms);
-    LOG_DEBUG("Final state - done=%d, status=%d\n", client.done, client.status);
-
-    // Parse response if successful
     if (client.status == 0 && client.response_buffer)
     {
         parse_response(&client);
     }
     else if (client.status != 0)
     {
-        LOG_DEBUG("Request failed with status %d\n", client.status);
+        LOG_ERROR("Request failed with status %d\n", client.status);
         response.status_code = -1;
     }
 
@@ -519,9 +497,6 @@ MockResponse request(MockParams *params)
     free(request_data);
     free(client.response_buffer);
     uv_loop_close(&loop);
-
-    LOG_DEBUG("===== Request completed - Status: %hu, Body: '%s' =====\n\n", 
-           response.status_code, response.body ? response.body : "NULL");
 
     return response;
 }

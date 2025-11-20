@@ -108,17 +108,15 @@ Refer to the [docs](/docs/) for usage.
 
 ## Modules
 
-| MODULE                                          | TODO                                                                                                  |
-|-------------------------------------------------|-------------------------------------------------------------------------------------------------------|
-| [`ecewo/postgres.h`](/include/ecewo/postgres.h) | [Async PostgreSQL integration](/docs/08.async-database.md)                                            |
-| [`ecewo/cookie.h`](/include/ecewo/cookie.h)     | [Cookie management](/docs/12.cookie.md)                                                               |
-| [`ecewo/session.h`](/include/ecewo/session.h)   | [Session management](/docs/13.session.md)                                                             |
-| [`ecewo/fs.h`](/include/ecewo/fs.h)             | [File operations](/docs/09.file-operations.md)                                                        |
-| [`ecewo/static.h`](/include/ecewo/static.h)     | [Static file serving](/docs/10.static-file-serving.md)                                                |
-| [`ecewo/cors.h`](/include/ecewo/cors.h)         | [CORS implementation](/docs/14.cors.md)                                                               |
-| [`ecewo/helmet.h`](/include/ecewo/helmet.h)     | [Automaticaly setting safety headers](/docs/15.helmet.md)                                             |
-| [`ecewo/mock.h`](/include/ecewo/mock.h)         | [Mocking requests](/docs/16.testing.md) (comes with [Unity](https://github.com/ThrowTheSwitch/Unity)) |
-| [`ecewo/cluster.h`](/include/ecewo/cluster.h) | [Multithreading](/docs/17.cluster.md)                                                                 |
+- [`ecewo-cluster`](https://github.com/savashn/ecewo-modules/tree/main/src/cluster) for multithreading.
+- [`ecewo-cookie`](https://github.com/savashn/ecewo-modules/tree/main/src/cookie) for cookie management.
+- [`ecewo-cors`](https://github.com/savashn/ecewo-modules/tree/main/src/cors) for CORS impelentation.
+- [`ecewo-fs`](https://github.com/savashn/ecewo-modules/tree/main/src/fs) for file operations.
+- [`ecewo-helmet`](https://github.com/savashn/ecewo-modules/tree/main/src/helmet) for automatically setting safety headers.
+- [`ecewo-mock`](https://github.com/savashn/ecewo-modules/tree/main/src/mock) for mocking requests.
+- [`ecewo-postgres`](https://github.com/savashn/ecewo-modules/tree/main/src/postgres) for async PostgreSQL integration.
+- [`ecewo-session`](https://github.com/savashn/ecewo-modules/tree/main/src/session) for session management.
+- [`ecewo-static`](https://github.com/savashn/ecewo-modules/tree/main/src/static) for static file serving.
 
 ## Example App
 
