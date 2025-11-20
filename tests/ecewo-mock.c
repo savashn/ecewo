@@ -1,11 +1,7 @@
 #include "ecewo.h"
 #include "ecewo-mock.h"
 #include "uv.h"
-
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
 
 #define MAX_RETRIES 10
 #define RETRY_DELAY_MS 100
@@ -507,7 +503,7 @@ void test_routes_hook(test_routes_cb_t callback)
 
 int mock_setup(void)
 {
-    printf("\n=== Starting Test Suite ===\n");
+    LOG_DEBUG("=== Starting Test Suite ===");
 
     server_ready = false;
     shutdown_requested = false;
@@ -530,7 +526,7 @@ int mock_setup(void)
 
 void mock_down(void)
 {
-    printf("\n=== Cleaning Up Test Suite ===\n");
+    LOG_DEBUG("=== Cleaning Up Test Suite ===");
     
     MockParams params = {
         .method = MOCK_GET,
@@ -544,7 +540,7 @@ void mock_down(void)
     
     uv_thread_join(&server_thread);
     
-    printf("Cleanup complete\n\n");
+    LOG_DEBUG("Cleanup complete");
     
     return;
 }

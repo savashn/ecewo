@@ -4,10 +4,6 @@
 #include "ecewo.h"
 #include "router.h"
 #include "llhttp.h"
-#include "uv.h"
-#include <stddef.h>
-#include <stdbool.h>
-#include <stdint.h>
 
 #define MAX_PATH_SEGMENTS 128
 

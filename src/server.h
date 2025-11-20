@@ -5,8 +5,6 @@
 #include "request.h"
 #include "uv.h"
 #include "llhttp.h"
-#include <stdbool.h>
-#include <time.h>
 
 #ifndef READ_BUFFER_SIZE
 #define READ_BUFFER_SIZE 16384

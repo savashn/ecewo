@@ -1,7 +1,5 @@
 #include <stdlib.h>
-#include <string.h>
 #include <signal.h>
-#include <time.h>
 #include <inttypes.h>
 #include "server.h"
 #include "route-trie.h"

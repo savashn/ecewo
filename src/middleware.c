@@ -1,6 +1,4 @@
 #include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
 #include "middleware.h"
 #include "route-trie.h"
 #include "server.h"

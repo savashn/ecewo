@@ -4,7 +4,6 @@
 #include "ecewo.h"
 #include "router.h"
 #include "llhttp.h"
-#include <stdint.h>
 
 struct Chain
 {

@@ -3,9 +3,6 @@
 
 #include "ecewo.h"
 #include "llhttp.h"
-#include <stdbool.h>
-#include <stdint.h>
-#include <stddef.h>
 
 // Parse result enumeration
 typedef enum
