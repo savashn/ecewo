@@ -67,14 +67,12 @@ static void server_thread_fn(void *arg)
 static void on_close(uv_handle_t *handle)
 {
     http_client_t *client = (http_client_t *)handle->data;
-    LOG_DEBUG("on_close called - connection fully closed");
     client->done = true;
 }
 
 static void on_shutdown(uv_shutdown_t *req, int status)
 {
     http_client_t *client = (http_client_t *)req->data;
-    LOG_DEBUG("on_shutdown called, status=%d", status);
     uv_close((uv_handle_t *)&client->tcp, on_close);
 }
 
@@ -104,7 +102,6 @@ static void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *b
 static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 {
     http_client_t *client = (http_client_t *)stream->data;
-    LOG_DEBUG("on_read called, nread=%zd", nread);
     
     if (nread < 0)
     {
@@ -113,10 +110,6 @@ static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
             LOG_ERROR("Read error: %s", uv_strerror((int)nread));
             client->status = -1;
         }
-        else
-        {
-            LOG_DEBUG("Received EOF, connection closed by server");
-        }
         
         uv_shutdown(&client->shutdown_req, stream, on_shutdown);
         client->shutdown_req.data = client;
@@ -124,37 +117,23 @@ static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
     }
     
     if (nread == 0)
-    {
-        LOG_DEBUG("Read 0 bytes (would block)");
         return;
-    }
     
     client->response_len += nread;
     client->response_buffer[client->response_len] = '\0';
     
-    LOG_DEBUG("Read %zd bytes, total: %zu\n", nread, client->response_len);
-    LOG_DEBUG("Current buffer content: %.100s%s\n", 
-           client->response_buffer, client->response_len > 100 ? "..." : "");
-    
     // Check if we have complete HTTP response
     if (strstr(client->response_buffer, "\r\n\r\n"))
     {
-        LOG_DEBUG("Complete HTTP response detected (found \\r\\n\\r\\n)\n");
         uv_read_stop(stream);
         uv_shutdown(&client->shutdown_req, stream, on_shutdown);
         client->shutdown_req.data = client;
-    }
-    else
-    {
-        LOG_DEBUG("Incomplete response, waiting for more data");
     }
 }
 
 static void on_write(uv_write_t *req, int status)
 {
     http_client_t *client = (http_client_t *)req->data;
-    LOG_DEBUG("on_write called, status=%d (%s)\n", status, 
-           status < 0 ? uv_strerror(status) : "OK");
     
     if (status < 0)
     {
@@ -164,7 +143,6 @@ static void on_write(uv_write_t *req, int status)
         return;
     }
     
-    LOG_DEBUG("Starting to read response");
     int result = uv_read_start((uv_stream_t *)&client->tcp, alloc_buffer, on_read);
     if (result < 0)
     {
@@ -177,8 +155,6 @@ static void on_write(uv_write_t *req, int status)
 static void on_connect(uv_connect_t *req, int status)
 {
     http_client_t *client = (http_client_t *)req->data;
-    LOG_DEBUG("on_connect called, status=%d (%s)\n", status, 
-           status < 0 ? uv_strerror(status) : "OK");
     
     if (status < 0)
     {
@@ -190,9 +166,6 @@ static void on_connect(uv_connect_t *req, int status)
     
     uv_buf_t buf = uv_buf_init(client->request_data, strlen(client->request_data));
     client->write_req.data = client;
-    
-    LOG_DEBUG("Sending request (%zu bytes):\n%.200s\n", 
-           strlen(client->request_data), client->request_data);
     
     int result = uv_write(&client->write_req, (uv_stream_t *)&client->tcp, &buf, 1, on_write);
     if (result < 0)
@@ -256,37 +229,26 @@ static char *build_http_request(MockParams *params)
 
 static void parse_response(http_client_t *client)
 {
-    LOG_DEBUG("parse_response called");
-    LOG_DEBUG("Response buffer length: %zu\n", client->response_len);
-    
     if (!client->response_buffer || client->response_len == 0)
     {
-        LOG_DEBUG("No response buffer or empty response");
         client->response->status_code = -1;
         return;
     }
 
-    LOG_DEBUG("Response buffer content:\n--- START ---\n%.*s\n--- END ---\n", 
-           (int)client->response_len, client->response_buffer);
-
     unsigned short status;
     if (sscanf(client->response_buffer, "HTTP/1.1 %hu", &status) != 1)
     {
-        LOG_DEBUG("Failed to parse HTTP status line");
         client->response->status_code = -1;
         return;
     }
     
     client->response->status_code = status;
-    LOG_DEBUG("Parsed status code: %hu\n", status);
 
     char *body_start = strstr(client->response_buffer, "\r\n\r\n");
     if (body_start)
     {
         body_start += 4;
         size_t body_len = strlen(body_start);
-        LOG_DEBUG("Found body separator, body length: %zu\n", body_len);
-        LOG_DEBUG("Body content: '%s'\n", body_start);
         
         if (body_len > 0)
         {
@@ -295,21 +257,8 @@ static void parse_response(http_client_t *client)
             {
                 strcpy(client->response->body, body_start);
                 client->response->body_len = body_len;
-                LOG_DEBUG("Body copied successfully");
-            }
-            else
-            {
-                LOG_DEBUG("Failed to allocate memory for body");
             }
         }
-        else
-        {
-            LOG_DEBUG("Empty body");
-        }
-    }
-    else
-    {
-        LOG_DEBUG("No body separator found in response");
     }
 }
 
@@ -451,7 +400,6 @@ MockResponse request(MockParams *params)
             
             // If we have no events for too many iterations, something might be wrong
             if (no_events_count >= 10) {
-                LOG_DEBUG("Too many iterations with no events, breaking");
                 client.status = -1;
                 break;
             }
@@ -464,14 +412,8 @@ MockResponse request(MockParams *params)
         
         // Check for timeout (5 seconds)
         if ((uv_now(&loop) - loop_start) > 5000) {
-            LOG_DEBUG("Request timeout after %d iterations\n", loop_iterations);
             client.status = -1;
             break;
-        }
-        
-        if (loop_iterations % 100 == 0) {
-            LOG_DEBUG("Loop iteration %d, done=%d, status=%d\n", 
-                   loop_iterations, client.done, client.status);
         }
     }
     

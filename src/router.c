@@ -786,22 +786,16 @@ int router(client_t *client, const char *request_data, size_t request_len)
         return 1;
     }
 
-    fprintf(stderr, "Trying to match route: method=%s, path=%s\n", 
-        persistent_ctx->method, path);
-
     route_match_t match;
     if (!route_trie_match(global_route_trie, persistent_ctx->parser, &tokenized_path, &match))
     {
-        fprintf(stderr, "Route NOT FOUND: %s %s\n", persistent_ctx->method, path);
+        LOG_DEBUG("Route not found: %s %s", persistent_ctx->method, path);
 
         bool keep_alive = res->keep_alive;
         const char *not_found_msg = "404 Not Found";
         reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
         return keep_alive ? 0 : 1;
     }
-
-    fprintf(stderr, "Route MATCHED: handler=%p, middleware_ctx=%p\n", 
-        (void*)match.handler, match.middleware_ctx);
 
     if (extract_url_params(request_arena, &match, &persistent_ctx->url_params) != 0)
     {
@@ -829,30 +823,25 @@ int router(client_t *client, const char *request_data, size_t request_len)
 
     if (!middleware_info)
     {
-        fprintf(stderr, "ERROR: No middleware info!\n");
+        LOG_DEBUG("No middleware info");
         match.handler(req, res);
         return res->keep_alive ? 0 : 1;
     }
 
-    fprintf(stderr, "Calling execute_handler_with_middleware, handler_type=%d\n", 
-            middleware_info->handler_type);
-
     int execution_result = execute_handler_with_middleware(req, res, middleware_info);
-
-    fprintf(stderr, "execute_handler_with_middleware returned: %d\n", execution_result);
 
     if (execution_result != 0)
     {
-        fprintf(stderr, "ERROR: Handler execution failed!\n");
+        LOG_ERROR("Handler execution failed");
         // Handler execution failed
         if (middleware_info->handler_type == HANDLER_ASYNC)
         {
-            fprintf(stderr, "Async handler failed\n");
+            LOG_ERROR("Async execution failed");
             return 1;
         }
         else
         {
-            fprintf(stderr, "Sync handler failed, sending error\n");
+            LOG_ERROR("Sync handler failed");
             send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
             return 1;
         }
@@ -865,7 +854,6 @@ int router(client_t *client, const char *request_data, size_t request_len)
         return 0;
     }
 
-    fprintf(stderr, "Handler execution successful, keep_alive=%d\n", res->keep_alive);
     return res->keep_alive ? 0 : 1;
 }
 
