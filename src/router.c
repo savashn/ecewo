@@ -481,6 +481,28 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     if (!res)
         return;
 
+    if (res->async_buffer)
+    {
+        async_response_buffer_t *buffer = (async_response_buffer_t *)res->async_buffer;
+        
+        buffer->status_code = status;
+        buffer->content_type = content_type ? arena_strdup(res->arena, content_type) : NULL;
+        
+        if (body && body_len > 0)
+        {
+            buffer->response_body = arena_alloc(res->arena, body_len);
+            if (buffer->response_body)
+            {
+                arena_memcpy(buffer->response_body, body, body_len);
+                buffer->response_body_len = body_len;
+            }
+        }
+        
+        buffer->response_ready = true;
+        uv_async_send(&buffer->async_send);
+        return;
+    }
+
     if (!res->client_socket)
     {
         Arena *request_arena = res->arena;
@@ -767,14 +789,22 @@ int router(client_t *client, const char *request_data, size_t request_len)
         return 1;
     }
 
+    fprintf(stderr, "Trying to match route: method=%s, path=%s\n", 
+        persistent_ctx->method, path);
+
     route_match_t match;
     if (!route_trie_match(global_route_trie, persistent_ctx->parser, &tokenized_path, &match))
     {
+        fprintf(stderr, "Route NOT FOUND: %s %s\n", persistent_ctx->method, path);
+
         bool keep_alive = res->keep_alive;
         const char *not_found_msg = "404 Not Found";
         reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
         return keep_alive ? 0 : 1;
     }
+
+    fprintf(stderr, "Route MATCHED: handler=%p, middleware_ctx=%p\n", 
+        (void*)match.handler, match.middleware_ctx);
 
     if (extract_url_params(request_arena, &match, &persistent_ctx->url_params) != 0)
     {
@@ -802,32 +832,43 @@ int router(client_t *client, const char *request_data, size_t request_len)
 
     if (!middleware_info)
     {
-        // Fallback: No middleware info, call handler directly
+        fprintf(stderr, "ERROR: No middleware info!\n");
         match.handler(req, res);
         return res->keep_alive ? 0 : 1;
     }
 
-    // Single function call - middleware.c handles all sync/async logic
+    fprintf(stderr, "Calling execute_handler_with_middleware, handler_type=%d\n", 
+            middleware_info->handler_type);
+
     int execution_result = execute_handler_with_middleware(req, res, middleware_info);
+
+    fprintf(stderr, "execute_handler_with_middleware returned: %d\n", execution_result);
 
     if (execution_result != 0)
     {
+        fprintf(stderr, "ERROR: Handler execution failed!\n");
         // Handler execution failed
         if (middleware_info->handler_type == HANDLER_ASYNC)
         {
-            // Async handler - error already sent or will be sent by callback
+            fprintf(stderr, "Async handler failed\n");
             return 1;
         }
         else
         {
-            // Sync handler - send error
+            fprintf(stderr, "Sync handler failed, sending error\n");
             send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
             return 1;
         }
     }
 
-    // Success
-    // Arena cleanup in write_completion_cb, connection management by keep_alive
+    if (middleware_info->handler_type == HANDLER_ASYNC)
+    {
+        // Async handler - don't close connection yet
+        // Callback will handle response and connection management
+        return 0;
+    }
+
+    fprintf(stderr, "Handler execution successful, keep_alive=%d\n", res->keep_alive);
     return res->keep_alive ? 0 : 1;
 }
 

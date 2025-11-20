@@ -20,6 +20,7 @@ typedef struct
     uint16_t middleware_count;
     bool completed;
     const char *error_message;
+    async_response_buffer_t resbuf;
 } async_execution_context_t;
 
 // ============================================================================
@@ -117,6 +118,27 @@ static int execute_sync(Req *req, Res *res, MiddlewareInfo *middleware_info)
     return 0;
 }
 
+static void async_send_response_cb(uv_async_t *handle)
+{
+    async_execution_context_t *ctx = (async_execution_context_t *)handle->data;
+    
+    if (!ctx || !ctx->resbuf.response_ready)
+        return;
+        
+    if (!server_is_running() || uv_is_closing((uv_handle_t *)ctx->req->client_socket))
+        return;
+
+    ctx->res->async_buffer = NULL;
+    
+    reply(ctx->res, 
+          ctx->resbuf.status_code,
+          ctx->resbuf.content_type, 
+          ctx->resbuf.response_body, 
+          ctx->resbuf.response_body_len);
+    
+    uv_close((uv_handle_t *)&ctx->resbuf.async_send, NULL);
+}
+
 // ============================================================================
 // ASYNC EXECUTION
 // ============================================================================
@@ -124,47 +146,63 @@ static int execute_sync(Req *req, Res *res, MiddlewareInfo *middleware_info)
 static void async_execution_after_work(uv_work_t *req, int status)
 {
     async_execution_context_t *ctx = (async_execution_context_t *)req->data;
-
+    
     decrement_async_work();
-
+    
     if (!ctx || !server_is_running())
         return;
-
+    
     if (!ctx->req || !ctx->res || !ctx->req->arena || !ctx->req->client_socket)
     {
         LOG_ERROR("Async execution: Invalid context after work.");
         return;
     }
-
+    
     if (uv_is_closing((uv_handle_t *)ctx->req->client_socket))
         return;
-
+    
     if (status < 0)
     {
         LOG_ERROR("Async execution work failed: %s", uv_strerror(status));
-
+        
         if (server_is_running() && uv_is_writable((uv_stream_t *)ctx->req->client_socket))
         {
             const char *error_msg = "Internal Server Error";
+            ctx->res->async_buffer = NULL;  // Thread check bypass
             reply(ctx->res, 500, "text/plain", error_msg, strlen(error_msg));
         }
-
+        
+        uv_close((uv_handle_t *)&ctx->resbuf.async_send, NULL);
         return;
     }
-
+    
     if (!ctx->completed || ctx->error_message)
     {
-        LOG_ERROR("Handler execution failed: %s", ctx->error_message ? ctx->error_message : "Unknown error");
-
+        LOG_ERROR("Handler execution failed: %s",
+                  ctx->error_message ?
+                  ctx->error_message :
+                  "Unknown error");
+        
         if (server_is_running() && uv_is_writable((uv_stream_t *)ctx->req->client_socket))
         {
             const char *error_msg = "Internal Server Error";
+            ctx->res->async_buffer = NULL;  // Thread check bypass
             reply(ctx->res, 500, "text/plain", error_msg, strlen(error_msg));
         }
-
+        
+        uv_close((uv_handle_t *)&ctx->resbuf.async_send, NULL);
         return;
     }
-
+    
+    if (!ctx->resbuf.response_ready)
+    {
+        LOG_ERROR("Handler completed but did not send response");
+        const char *error_msg = "Internal Server Error";
+        ctx->res->async_buffer = NULL;  // Thread check bypass
+        reply(ctx->res, 500, "text/plain", error_msg, strlen(error_msg));
+        uv_close((uv_handle_t *)&ctx->resbuf.async_send, NULL);
+    }
+    
     // Success: response should have been sent by handler
     // Arena cleanup is handled by write_completion_cb
 }
@@ -211,16 +249,22 @@ static void async_execution_work(uv_work_t *req)
 
 static int execute_async(Req *req, Res *res, MiddlewareInfo *middleware_info)
 {
+    fprintf(stderr, "=== execute_async() START ===\n");
+    
     if (!req || !res || !middleware_info || !middleware_info->handler)
+    {
+        LOG_ERROR("NULL pointer check failed");
         return -1;
+    }
 
     if (!server_is_running())
     {
+        LOG_ERROR("Server not running");
         const char *error_msg = "Service Unavailable";
         reply(res, 503, "text/plain", error_msg, strlen(error_msg));
         return -1;
     }
-
+    
     // Combine global and route-specific middleware
     int total_mw_count = global_middleware_count + middleware_info->middleware_count;
     MiddlewareHandler *combined_mw = NULL;
@@ -230,6 +274,7 @@ static int execute_async(Req *req, Res *res, MiddlewareInfo *middleware_info)
         combined_mw = arena_alloc(req->arena, sizeof(MiddlewareHandler) * total_mw_count);
         if (!combined_mw)
         {
+            LOG_ERROR("Arena allocation failed for middleware");
             const char *error_msg = "Internal Server Error";
             reply(res, 500, "text/plain", error_msg, strlen(error_msg));
             return -1;
@@ -250,11 +295,12 @@ static int execute_async(Req *req, Res *res, MiddlewareInfo *middleware_info)
                                                  sizeof(async_execution_context_t));
     if (!ctx)
     {
+        LOG_ERROR("Arena allocation failed for context");
         const char *error_msg = "Internal Server Error";
         reply(res, 500, "text/plain", error_msg, strlen(error_msg));
         return -1;
     }
-
+    
     ctx->work_req.data = ctx;
     ctx->handler = middleware_info->handler;
     ctx->req = req;
@@ -263,7 +309,22 @@ static int execute_async(Req *req, Res *res, MiddlewareInfo *middleware_info)
     ctx->middleware_count = total_mw_count;
     ctx->completed = false;
     ctx->error_message = NULL;
+    ctx->resbuf.response_ready = false;
+    ctx->resbuf.async_send.data = ctx;
 
+    int init_async = uv_async_init(uv_default_loop(),
+                 &ctx->resbuf.async_send,
+                 async_send_response_cb);
+    
+    if (init_async != 0)
+    {
+        LOG_ERROR("uv_async_init failed: %s", uv_strerror(init_async));
+        decrement_async_work();
+        return -1;
+    }
+
+    res->async_buffer = (void *)&ctx->resbuf;
+    
     increment_async_work();
 
     // Queue work in thread pool
@@ -275,6 +336,7 @@ static int execute_async(Req *req, Res *res, MiddlewareInfo *middleware_info)
 
     if (result != 0)
     {
+        LOG_ERROR("uv_queue_work failed: %s", uv_strerror(result));
         decrement_async_work();
         return -1;
     }

@@ -79,6 +79,7 @@ struct Res
     http_header_t *headers;
     uint16_t header_count;
     uint16_t header_capacity;
+    void *async_buffer;
 };
 
 typedef enum

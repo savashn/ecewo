@@ -23,6 +23,16 @@ typedef struct MiddlewareInfo
     handler_type_t handler_type;
 } MiddlewareInfo;
 
+typedef struct
+{
+    uv_async_t async_send;
+    bool response_ready;
+    int status_code;
+    char *content_type;
+    void *response_body;
+    size_t response_body_len;
+} async_response_buffer_t;
+
 #define INITIAL_MW_CAPACITY 4
 
 extern MiddlewareHandler *global_middleware;
