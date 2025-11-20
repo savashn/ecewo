@@ -65,6 +65,24 @@ static void remove_client_from_list(client_t *client)
         current->next = client->next;
 }
 
+static void on_client_closed(uv_handle_t *handle)
+{
+    client_t *client = (client_t *)handle->data;
+    if (client)
+    {
+        remove_client_from_list(client);
+        g_server.active_connections--;
+
+        if (client->connection_arena)
+        {
+            arena_free(client->connection_arena);
+            free(client->connection_arena);
+        }
+
+        free(client);
+    }
+}
+
 static void close_client(client_t *client)
 {
     if (!client || client->closing)
@@ -599,6 +617,21 @@ static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
     }
 }
 
+static void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
+{
+    (void)suggested_size;
+    client_t *client = (client_t *)handle->data;
+
+    if (!client || client->closing || g_server.shutdown_requested)
+    {
+        buf->base = NULL;
+        buf->len = 0;
+        return;
+    }
+
+    *buf = client->read_buf;
+}
+
 static void on_connection(uv_stream_t *server, int status)
 {
     (void)server;
@@ -870,37 +903,4 @@ void clear_timer(Timer *timer)
     }
 
     uv_close((uv_handle_t *)timer, (uv_close_cb)free);
-}
-
-static void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
-{
-    (void)suggested_size;
-    client_t *client = (client_t *)handle->data;
-
-    if (!client || client->closing || g_server.shutdown_requested)
-    {
-        buf->base = NULL;
-        buf->len = 0;
-        return;
-    }
-
-    *buf = client->read_buf;
-}
-
-static void on_client_closed(uv_handle_t *handle)
-{
-    client_t *client = (client_t *)handle->data;
-    if (client)
-    {
-        remove_client_from_list(client);
-        g_server.active_connections--;
-
-        if (client->connection_arena)
-        {
-            arena_free(client->connection_arena);
-            free(client->connection_arena);
-        }
-
-        free(client);
-    }
 }
