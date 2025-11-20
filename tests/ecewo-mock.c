@@ -1,7 +1,6 @@
 #include "ecewo.h"
 #include "ecewo-mock.h"
 #include "uv.h"
-#include "../src/log.h"
 
 #include <stdio.h>
 #include <stdlib.h>

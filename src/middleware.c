@@ -4,7 +4,6 @@
 #include "middleware.h"
 #include "route-trie.h"
 #include "server.h"
-#include "log.h"
 
 MiddlewareHandler *global_middleware = NULL;
 uint16_t global_middleware_count = 0;

@@ -3,7 +3,6 @@
 #include <inttypes.h>
 #include "route-trie.h"
 #include "middleware.h"
-#include "log.h"
 
 // Splits a path into segments (/users/123/posts -> ["users", "123", "posts"])
 int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result)

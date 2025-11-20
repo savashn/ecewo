@@ -3,7 +3,6 @@
 #include <limits.h>
 #include <ctype.h>
 #include "request.h"
-#include "log.h"
 
 #define MIN_BUFFER_SIZE 64
 #define GROWTH_FACTOR 1.5

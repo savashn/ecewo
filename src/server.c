@@ -3,13 +3,11 @@
 #include <signal.h>
 #include <time.h>
 #include <inttypes.h>
-#include "ecewo.h"
 #include "server.h"
 #include "route-trie.h"
 #include "request.h"
 #include "middleware.h"
 #include "arena.h"
-#include "log.h"
 
 // ============================================================================
 // INTERNAL STRUCTURES
@@ -533,9 +531,7 @@ int server_listen(uint16_t port)
     
     const char *is_worker = getenv("ECEWO_WORKER");
     if (!is_worker || strcmp(is_worker, "1") != 0)
-    {
-        LOG_SERVER("Server listening on http://localhost:%" PRIu16, port);
-    }
+        printf("Server listening on http://localhost:%" PRIu16 "\n", port);
     
     return SERVER_OK;
 }
