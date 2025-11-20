@@ -53,6 +53,7 @@ static void close_walk_cb(uv_handle_t *handle, void *arg);
 static void on_server_closed(uv_handle_t *handle);
 static int router_init(void);
 static void router_cleanup(void);
+static void client_context_init(client_t *client);
 
 // ============================================================================
 // CONNECTION MANAGEMENT
@@ -220,6 +221,9 @@ static void client_context_reset(client_t *client)
 {
     if (!client || !client->connection_arena)
         return;
+
+    arena_reset(client->connection_arena);
+    client_context_init(client);
 
     http_context_t *ctx = &client->persistent_context;
 
