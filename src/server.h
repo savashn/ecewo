@@ -18,8 +18,12 @@
 #define LISTEN_BACKLOG 511
 #endif
 
-#ifndef IDLE_TIMEOUT_SECONDS
-#define IDLE_TIMEOUT_SECONDS 120
+#ifndef IDLE_TIMEOUT_MS
+#define IDLE_TIMEOUT_MS 120000
+#endif
+
+#ifndef ARENA_TRIM_MS
+#define ARENA_TRIM_MS 60000
 #endif
 
 #ifndef CLEANUP_INTERVAL_MS
@@ -40,7 +44,7 @@ typedef struct client_s
     uv_buf_t read_buf;
     char buffer[READ_BUFFER_SIZE];
     bool closing;
-    time_t last_activity;
+    uint64_t last_activity;
     bool keep_alive_enabled;
     struct client_s *next;
 

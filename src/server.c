@@ -102,19 +102,25 @@ static void cleanup_idle_connections(uv_timer_t *handle)
     if (g_server.shutdown_requested)
         return;
 
-    time_t now = time(NULL);
+    uint64_t now = uv_now(g_server.loop);
     client_t *current = g_server.client_list_head;
-    int checked = 0;
 
     while (current)
     {
         client_t *next = current->next;
-        checked++;
 
         if (current->keep_alive_enabled && !current->closing)
         {
-            time_t idle_time = now - current->last_activity;
-            if (idle_time > IDLE_TIMEOUT_SECONDS)
+            uint64_t idle_time = now - current->last_activity;
+            
+            if (idle_time > ARENA_TRIM_MS &&
+                idle_time < IDLE_TIMEOUT_MS && 
+                current->connection_arena
+            ) {
+                arena_trim(current->connection_arena);
+            }
+            
+            if (idle_time > IDLE_TIMEOUT_MS)
                 close_client(current);
         }
         current = next;
@@ -590,7 +596,7 @@ static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
     if (nread == 0)
         return; // EAGAIN/EWOULDBLOCK
 
-    client->last_activity = time(NULL);
+    client->last_activity = uv_now(g_server.loop);
 
     if (!client->parser_initialized)
     {
@@ -655,7 +661,7 @@ static void on_connection(uv_stream_t *server, int status)
     if (!client)
         return;
 
-    client->last_activity = time(NULL);
+    client->last_activity = uv_now(g_server.loop);
     client->keep_alive_enabled = false;
     client->next = NULL;
     client->parser_initialized = false;
