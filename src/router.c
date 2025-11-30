@@ -675,6 +675,10 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     }
 }
 
+// Return values:
+//   0 = success, keep connection open (keep-alive)
+//   1 = close connection (error or Connection: close)
+//   2 = need more data (PARSE_INCOMPLETE)
 int router(client_t *client, const char *request_data, size_t request_len)
 {
     if (!client || !request_data || request_len == 0)
@@ -689,6 +693,39 @@ int router(client_t *client, const char *request_data, size_t request_len)
 
     http_context_t *persistent_ctx = &client->persistent_context;
 
+    // Parse the incoming data (appends to existing parsed data if partial)
+    parse_result_t parse_result = http_parse_request(persistent_ctx, request_data, request_len);
+
+    switch (parse_result)
+    {
+    case PARSE_SUCCESS:
+        break;
+
+    case PARSE_INCOMPLETE:
+        // Need more data - don't create arena, don't send error
+        // Just return and wait for more data
+        LOG_DEBUG("HTTP parsing incomplete - waiting for more data");
+        return 2;
+
+    case PARSE_OVERFLOW:
+        LOG_DEBUG("HTTP parsing failed: size limits exceeded");
+
+        if (persistent_ctx->error_reason)
+            LOG_DEBUG(" - %s", persistent_ctx->error_reason);
+        send_error(NULL, (uv_tcp_t *)&client->handle, 413);
+        return 1;
+
+    case PARSE_ERROR:
+    default:
+        LOG_DEBUG("HTTP parsing failed: %s", parse_result_to_string(parse_result));
+        if (persistent_ctx->error_reason)
+            LOG_DEBUG(" - %s", persistent_ctx->error_reason);
+        send_error(NULL, (uv_tcp_t *)&client->handle, 400);
+        return 1;
+    }
+
+    // From here on, we have a complete HTTP message
+    // Create request arena for processing
     Arena *request_arena = calloc(1, sizeof(Arena));
     if (!request_arena)
     {
@@ -709,46 +746,13 @@ int router(client_t *client, const char *request_data, size_t request_len)
         return 1;
     }
 
-    parse_result_t parse_result = http_parse_request(persistent_ctx, request_data, request_len);
-
-    switch (parse_result)
-    {
-    case PARSE_SUCCESS:
-        break;
-
-    case PARSE_INCOMPLETE:
-        LOG_DEBUG("HTTP parsing incomplete - need more data");
-        send_error(request_arena, (uv_tcp_t *)&client->handle, 400);
-        return 1;
-
-    case PARSE_OVERFLOW:
-        LOG_DEBUG("HTTP parsing failed: size limits exceeded");
-
-        if (persistent_ctx->error_reason)
-            LOG_DEBUG(" - %s", persistent_ctx->error_reason);
-
-        send_error(request_arena, (uv_tcp_t *)&client->handle, 413);
-        return 1;
-
-    // TODO: write an err msg for PARSE_ERROR
-    case PARSE_ERROR:
-    default:
-        LOG_DEBUG("HTTP parsing failed: %s", parse_result_to_string(parse_result));
-
-        if (persistent_ctx->error_reason)
-            LOG_DEBUG(" - %s", persistent_ctx->error_reason);
-
-        send_error(request_arena, (uv_tcp_t *)&client->handle, 400);
-        return 1;
-    }
-
     // Check if we need to finish parsing
     if (http_message_needs_eof(persistent_ctx))
     {
         parse_result_t finish_result = http_finish_parsing(persistent_ctx);
         if (finish_result != PARSE_SUCCESS)
         {
-            LOG_DEBUG("HTTP finist parsing failed: %s", parse_result_to_string(finish_result));
+            LOG_DEBUG("HTTP finish parsing failed: %s", parse_result_to_string(finish_result));
 
             if (persistent_ctx->error_reason)
                 LOG_DEBUG(" - %s", persistent_ctx->error_reason);

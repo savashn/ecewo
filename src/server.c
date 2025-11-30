@@ -598,27 +598,48 @@ static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 
     client->last_activity = uv_now(g_server.loop);
 
+    // Initialize parser only once per connection
     if (!client->parser_initialized)
     {
         client_parser_init(client);
         client_context_init(client);
+        client->request_in_progress = false;
     }
-    else
+
+    // Only reset context when starting a NEW request
+    // Don't reset if we're continuing a partial request
+    if (!client->request_in_progress)
     {
         client_context_reset(client);
+        client->request_in_progress = true;
     }
 
     if (buf && buf->base)
     {
-        int should_close = router(client, buf->base, (size_t)nread);
+        int result = router(client, buf->base, (size_t)nread);
 
-        if (should_close)
+        switch (result)
         {
-            close_client(client);
-        }
-        else
-        {
+        case 0:
+            // Request completed successfully, keep-alive
             client->keep_alive_enabled = true;
+            client->request_in_progress = false;
+            break;
+
+        case 1:
+            // Close connection (error or Connection: close)
+            close_client(client);
+            break;
+
+        case 2:
+            // PARSE_INCOMPLETE - wait for more data
+            // request_in_progress stays true
+            // Don't close, don't reset
+            break;
+
+        default:
+            close_client(client);
+            break;
         }
     }
 }
@@ -665,6 +686,7 @@ static void on_connection(uv_stream_t *server, int status)
     client->keep_alive_enabled = false;
     client->next = NULL;
     client->parser_initialized = false;
+    client->request_in_progress = false;
     client->connection_arena = NULL;
 
     if (client_connection_init(client) != 0)

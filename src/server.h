@@ -55,6 +55,7 @@ typedef struct client_s
     llhttp_settings_t persistent_settings;
     http_context_t persistent_context; // Lives in connection_arena
     bool parser_initialized;
+    bool request_in_progress;  // True while parsing a multi-packet request
 } client_t;
 
 #endif
