@@ -93,11 +93,14 @@ static trie_node_t *match_segments(trie_node_t *node,
     if (!node || depth > MAX_PATH_SEGMENTS)
         return NULL;
 
+    // Path is completely finished
     if (segment_idx >= path->count)
         return node->is_end ? node : NULL;
 
     const path_segment_t *segment = &path->segments[segment_idx];
+    trie_node_t *result = NULL;
 
+    // Try exact (literal) match
     if (!segment->is_param && !segment->is_wildcard)
     {
         trie_node_t *current = node;
@@ -112,15 +115,18 @@ static trie_node_t *match_segments(trie_node_t *node,
         {
             if (segment_idx + 1 >= path->count)
             {
+                // The last segment
+                // Is the exact match is_end?
                 if (current->is_end)
                     return current;
             }
             else
             {
+                // There are more segments, continue
                 unsigned char sep = '/';
                 if (current->children[sep])
                 {
-                    trie_node_t *result = match_segments(
+                    result = match_segments(
                         current->children[sep], path, segment_idx + 1, match, depth + 1);
                     if (result)
                         return result;
@@ -129,10 +135,12 @@ static trie_node_t *match_segments(trie_node_t *node,
         }
     }
 
+    // Try param match
     if (node->param_child)
     {
         uint8_t original_param_count = match ? match->param_count : 0;
 
+        // Add the param
         if (match && match->param_count < 32)
         {
             match->params[match->param_count].key.data = node->param_child->param_name;
@@ -142,27 +150,30 @@ static trie_node_t *match_segments(trie_node_t *node,
             match->param_count++;
         }
 
-        if (segment_idx + 1 >= path->count)
-        {
-            if (node->param_child->is_end)
-                return node->param_child;
-        }
-        else
+        // Try the longer path first
+        if (segment_idx + 1 < path->count)
         {
             unsigned char sep = '/';
             if (node->param_child->children[sep])
             {
-                trie_node_t *result = match_segments(
+                result = match_segments(
                     node->param_child->children[sep], path, segment_idx + 1, match, depth + 1);
                 if (result)
                     return result;
             }
         }
+        
+        // There is no longer path
+        // Is this node is_end and the path has finished?
+        if (segment_idx + 1 >= path->count && node->param_child->is_end)
+            return node->param_child;
 
-        if (match && match->param_count > original_param_count)
+        // None of them works, rollback
+        if (match)
             match->param_count = original_param_count;
     }
 
+    // Wildcard
     if (node->wildcard_child && node->wildcard_child->is_end)
         return node->wildcard_child;
 
