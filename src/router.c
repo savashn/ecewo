@@ -485,6 +485,8 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     if (!res)
         return;
 
+    res->replied = true;
+
     if (res->async_buffer)
     {
         async_response_buffer_t *buffer = (async_response_buffer_t *)res->async_buffer;
@@ -866,6 +868,9 @@ int router(client_t *client, const char *request_data, size_t request_len)
         return 0;
     }
 
+    if (!res->replied)
+        return 0;
+
     return res->keep_alive ? 0 : 1;
 }
 
@@ -971,66 +976,66 @@ void redirect(Res *res, int status, const char *url)
     reply(res, status, "text/plain", message, message_len);
 }
 
-static void task_work_cb(uv_work_t *req)
+static void task_cleanup_cb(uv_handle_t *handle)
 {
-    Task *task = (Task *)req->data;
-    if (task && task->work_fn)
-        task->work_fn(task, task->context);
+    Task *t = (Task *)handle->data;
+    if (t)
+        free(t);
 }
 
-static void task_completion_cb(uv_work_t *req, int status)
+static void task_async_cb(uv_async_t *handle)
 {
-    Task *task = (Task *)req->data;
-    if (!task)
+    Task *t = (Task *)handle->data;
+    if (!t)
+        return;
+
+    if (t->result_fn)
+        t->result_fn(t->context, t->error);
+
+    decrement_async_work();
+    uv_close((uv_handle_t *)handle, task_cleanup_cb);
+}
+
+static void task_work_cb(uv_work_t *req)
+{
+    Task *t = (Task *)req->data;
+    if (t && t->work_fn)
+        t->work_fn(t, t->context);
+}
+
+static void task_after_work_cb(uv_work_t *req, int status)
+{
+    Task *t = (Task *)req->data;
+    if (!t)
         return;
 
     if (status < 0)
-    {
-        if (task->arena)
-        {
-            task->error = arena_sprintf(task->arena,
-                                        "libuv error: %s",
-                                        uv_strerror(status));
-        }
-        else
-        {
-            task->error = "Task failed";
-        }
-    }
+        t->error = "Task execution failed";
 
-    if (task->result_fn)
-    {
-        task->result_fn(task->context, task->error);
-    }
-
-    decrement_async_work();
+    uv_async_send(&t->async_send);
 }
 
-int task(
-    Arena *arena,                 // Arena for memory allocation
-    void *context,                // User context
-    work_handler_t work_fn,       // Function to execute in the thread pool
-    result_handler_t res_handler) // Result handler
+int task(void *context, work_handler_t work_fn, result_handler_t done_fn)
 {
-    if (!arena || !context || !work_fn)
-    {
-        LOG_DEBUG("Arena, context and work_fn are required in task()");
+    if (!context || !work_fn)
         return -1;
-    }
 
-    Task *task = arena_alloc(arena, sizeof(Task));
+    Task *task = calloc(1, sizeof(Task));
     if (!task)
+        return -1;
+
+    if (uv_async_init(uv_default_loop(), &task->async_send, task_async_cb) != 0)
     {
-        LOG_DEBUG("Failed to allocate memory for async task from arena");
+        free(task);
         return -1;
     }
 
     task->work.data = task;
+    task->async_send.data = task;
     task->context = context;
-    task->arena = arena; // Store arena reference for error handling
     task->error = NULL;
     task->work_fn = work_fn;
-    task->result_fn = res_handler;
+    task->result_fn = done_fn;
 
     increment_async_work();
 
@@ -1038,12 +1043,13 @@ int task(
         uv_default_loop(),
         &task->work,
         task_work_cb,
-        task_completion_cb);
+        task_after_work_cb);
 
     if (result != 0)
     {
-        LOG_DEBUG("Failed to queue task: %s\n", uv_strerror(result));
+        uv_close((uv_handle_t *)&task->async_send, NULL);
         decrement_async_work();
+        free(task);
         return result;
     }
 

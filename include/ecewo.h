@@ -92,6 +92,7 @@ struct Res
     uint16_t header_capacity;
     void *async_buffer;
     void *async_context;
+    bool replied;
 };
 
 typedef enum
@@ -296,10 +297,10 @@ int next(Req *req, Res *res, Chain *chain);
 // Task Functions
 // ============================================================================
 
-int task(Arena *arena, void *context, work_handler_t work_fn, result_handler_t result_fn);
+int task(void *context, work_handler_t work_fn, result_handler_t done_fn);
 
-#define worker(context, work_fn, result_fn) \
-    task((context)->res->arena, (context), (work_fn), (result_fn))
+#define worker(ctx, work_fn, done_fn) \
+    task((ctx), (work_fn), (done_fn))
 
 // ============================================================================
 // Route Registration

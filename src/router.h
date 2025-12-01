@@ -23,14 +23,14 @@ typedef enum
 
 struct task_s
 {
-    uv_work_t work; // libuv requirement
-    void *context;  // User provided context data
-    Arena *arena;   // Arena reference for error handling
-    char *error;    // libuv error message
+    uv_work_t work;
+    uv_async_t async_send;
+    void *context;
+    char *error;
 
     // Task callbacks
-    work_handler_t work_fn;     // Work to be done in thread pool
-    result_handler_t result_fn; // Result handler
+    work_handler_t work_fn;
+    result_handler_t result_fn;
 };
 
 int router(client_t *client, const char *request_data, size_t request_len);
