@@ -113,13 +113,6 @@ static void cleanup_idle_connections(uv_timer_t *handle)
         {
             uint64_t idle_time = now - current->last_activity;
             
-            if (idle_time > ARENA_TRIM_MS &&
-                idle_time < IDLE_TIMEOUT_MS && 
-                current->connection_arena
-            ) {
-                arena_trim(current->connection_arena);
-            }
-            
             if (idle_time > IDLE_TIMEOUT_MS)
                 close_client(current);
         }

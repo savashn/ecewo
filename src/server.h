@@ -19,11 +19,7 @@
 #endif
 
 #ifndef IDLE_TIMEOUT_MS
-#define IDLE_TIMEOUT_MS 120000
-#endif
-
-#ifndef ARENA_TRIM_MS
-#define ARENA_TRIM_MS 60000
+#define IDLE_TIMEOUT_MS 60000
 #endif
 
 #ifndef CLEANUP_INTERVAL_MS
