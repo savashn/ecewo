@@ -178,7 +178,20 @@ static void on_connect(uv_connect_t *req, int status)
 
 static char *build_http_request(MockParams *params)
 {
-    char *request = malloc(BUFFER_SIZE);
+    size_t body_len = (params->body) ? strlen(params->body) : 0;
+    size_t headers_estimate = 512;
+    
+    if (params->headers && params->header_count > 0)
+    {
+        for (size_t i = 0; i < params->header_count; i++)
+        {
+            headers_estimate += strlen(params->headers[i].key) + strlen(params->headers[i].value) + 4;
+        }
+    }
+    
+    size_t buffer_size = headers_estimate + body_len + 256;
+    
+    char *request = malloc(buffer_size);
     if (!request) return NULL;
     
     int len = 0;
@@ -193,7 +206,7 @@ static char *build_http_request(MockParams *params)
         case MOCK_DELETE: method = "DELETE"; break;
     }
 
-    len += snprintf(request + len, BUFFER_SIZE - len,
+    len += snprintf(request + len, buffer_size - len,
                     "%s %s HTTP/1.1\r\n"
                     "Host: localhost:%d\r\n"
                     "Connection: close\r\n",
@@ -203,25 +216,27 @@ static char *build_http_request(MockParams *params)
     {
         for (size_t i = 0; i < params->header_count; i++)
         {
-            len += snprintf(request + len, BUFFER_SIZE - len,
+            len += snprintf(request + len, buffer_size - len,
                            "%s: %s\r\n",
                            params->headers[i].key,
                            params->headers[i].value);
         }
     }
 
-    if (params->body && strlen(params->body) > 0)
+    if (params->body && body_len > 0)
     {
-        len += snprintf(request + len, BUFFER_SIZE - len,
+        len += snprintf(request + len, buffer_size - len,
                        "Content-Length: %zu\r\n",
-                       strlen(params->body));
+                       body_len);
     }
 
-    len += snprintf(request + len, BUFFER_SIZE - len, "\r\n");
+    len += snprintf(request + len, buffer_size - len, "\r\n");
 
-    if (params->body && strlen(params->body) > 0)
+    if (params->body && body_len > 0)
     {
-        len += snprintf(request + len, BUFFER_SIZE - len, "%s", params->body);
+        memcpy(request + len, params->body, body_len);
+        len += body_len;
+        request[len] = '\0';
     }
 
     return request;
@@ -438,17 +453,13 @@ MockResponse request(MockParams *params)
     return response;
 }
 
-void test_routes_hook(test_routes_cb_t callback)
-{
-    test_routes = callback;
-}
-
-int mock_setup(void)
+int mock_init(test_routes_cb_t routes_callback)
 {
     LOG_DEBUG("=== Starting Test Suite ===");
 
     server_ready = false;
     shutdown_requested = false;
+    test_routes = routes_callback;
 
     int result = uv_thread_create(&server_thread, server_thread_fn, NULL);
     if (result != 0)
@@ -466,7 +477,7 @@ int mock_setup(void)
     return 0;
 }
 
-void mock_down(void)
+void mock_cleanup(void)
 {
     LOG_DEBUG("=== Cleaning Up Test Suite ===");
     

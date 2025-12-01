@@ -38,9 +38,7 @@ typedef void (*test_routes_cb_t)(void);
 void free_request(MockResponse *res);
 MockResponse request(MockParams *params);
 
-int mock_setup(void);
-void mock_down(void);
-
-void test_routes_hook(test_routes_cb_t callback);
+int mock_init(test_routes_cb_t routes_callback);
+void mock_cleanup(void);
 
 #endif

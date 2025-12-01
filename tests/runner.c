@@ -5,48 +5,126 @@
 
 void setup_routes(void)
 {
-    // test-request
-    get("/users/:userId/posts/:postId", handler_params);
-    get("/search", handler_query);
-    post("/headers", handler_headers);
+    // test-params
+    get("/users/:userId/posts/:postId/comments/:commentId", handler_multi_param);
+    get("/users/:userId", handler_single_param);
 
-    // test-basics
-    get("/plaintext", handler_plaintext);
-    get("/json", handler_json);
-    get("/html", handler_html);
+    // test-query
+    get("/search", handler_query_params);
+
+    // test-methods
+    get("/method", handler_method_echo);
+    post("/method", handler_method_echo);
+    put("/method", handler_method_echo);
+    del("/method", handler_method_echo);
+    patch("/method", handler_method_echo);
+    post("/echo-body", handler_post_body);
+
+    // test-middleware
+    get("/mw-order", use(middleware_first, middleware_second, middleware_third), handler_middleware_order);
+    get("/mw-abort", use(middleware_abort), handler_should_not_reach);
 
     // test-context
     get("/context", use(context_middleware), context_handler);
 
-    // blocking/non-blocking
-    get("/instant", instant_handler);
-    get_worker("/slow-async", use(slow_middleware), slow_async_handler);
-    get("/fast-sync", use(slow_middleware), fast_sync_handler);
+    // test-response
+    get("/json-response", handler_json_response);
+    get("/html-response", handler_html_response);
+    get("/custom-headers", handler_custom_header);
+    get("/status", handler_status_codes);
+
+    // test-headers
+    get("/headers", handler_echo_headers);
+
+    // test-body
+    post("/large-body", handler_large_body);
+
+    // test-redirect
+    get("/old-path", handler_redirect);
+    
+    // test-concurrent request
+    get("/counter", handler_counter);
+    
+    // test-task
+    get("/compute", handler_compute);
+    post("/background", handler_fire_and_forget);
+    get("/check-counter", handler_check_counter);
+    get("/parallel", handler_parallel);
+
+    // test-blocking
+    get("/thread-test", handler_thread_test);
+    get("/main-thread", handler_get_main_thread);
+    get("/fast", handler_fast);
+    get("/slow-sync", handler_slow_sync);
+    
+    // test-root
+    get("/", handler_root);
 }
 
 int main(void)
 {
-    test_routes_hook(setup_routes);
-    mock_setup();
+    mock_init(setup_routes);
 
-    // test-request
-    RUN_TEST(test_params);
-    RUN_TEST(test_query);
-    RUN_TEST(test_headers);
+    // Route Parameters
+    RUN_TEST(test_single_param);
+    RUN_TEST(test_multi_param);
+    RUN_TEST(test_param_special_chars);
 
-    // test-basics
-    RUN_TEST(test_plaintext);
-    RUN_TEST(test_json);
-    RUN_TEST(test_html);
+    // Query String
+    RUN_TEST(test_query_multiple);
+    RUN_TEST(test_query_empty_value);
+    RUN_TEST(test_query_no_params);
 
-    // test-context
+    // HTTP Methods
+    RUN_TEST(test_method_get);
+    RUN_TEST(test_method_post);
+    RUN_TEST(test_method_put);
+    RUN_TEST(test_method_delete);
+    RUN_TEST(test_method_patch);
+    RUN_TEST(test_post_with_body);
+
+    // Middleware
+    RUN_TEST(test_middleware_execution_order);
+    RUN_TEST(test_middleware_abort);
+
+    // Middleware Context
     RUN_TEST(test_context);
 
-    // test-worker
-    RUN_TEST(test_not_blocked);
-    RUN_TEST(test_sync_blocks);
+    // Response Types
+    RUN_TEST(test_json_content_type);
+    RUN_TEST(test_html_content_type);
+    RUN_TEST(test_status_201);
+    RUN_TEST(test_status_404);
+    RUN_TEST(test_status_500);
+    RUN_TEST(test_404_unknown_path);
+    RUN_TEST(test_404_wrong_method);
 
-    mock_down();
+    // Request Headers
+    RUN_TEST(test_request_headers);
+
+    // Large Body Handling
+    RUN_TEST(test_large_body);
+
+    // Redirect
+    RUN_TEST(test_redirect_301);
+    
+    // Sequential Request
+    RUN_TEST(test_sequential_requests);
+    
+    // Task
+    RUN_TEST(test_task_with_response);
+    RUN_TEST(test_task_fire_and_forget);
+    RUN_TEST(test_task_parallel);
+
+    // Blocking and Non-Blocking
+    RUN_TEST(test_task_thread_ids);
+    RUN_TEST(test_task_not_blocking);
+    RUN_TEST(test_sync_blocking);
+    
+    // Root
+    RUN_TEST(test_root_path);
+
+    mock_cleanup();
 
     return 0;
 }
