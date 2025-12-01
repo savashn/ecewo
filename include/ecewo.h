@@ -24,7 +24,12 @@ typedef struct uv_tcp_s uv_tcp_t;
 
 typedef uv_timer_t Timer;
 
-typedef struct Arena Arena;
+typedef struct ArenaRegion ArenaRegion;
+
+typedef struct Arena
+{
+    ArenaRegion *begin, *end;
+} Arena;
 
 typedef struct Req Req;
 typedef struct Res Res;
@@ -270,6 +275,7 @@ char *arena_strdup(Arena *a, const char *cstr);
 void *arena_memdup(Arena *a, void *data, size_t size);
 char *arena_sprintf(Arena *a, const char *format, ...);
 void *arena_memcpy(void *dest, const void *src, size_t n);
+void arena_free(Arena *a);
 
 #define ecewo_alloc(x, size_bytes) \
     arena_alloc((x)->arena, size_bytes)

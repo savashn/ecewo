@@ -86,7 +86,7 @@ if(NOT TARGET ecewo::ecewo)
         src/router.c
         src/middleware.c
         src/route-trie.c
-        vendors/arena.c
+        src/arena.c
     )
 
     if(ECEWO_BUILD_SHARED)
@@ -115,8 +115,6 @@ if(NOT TARGET ecewo::ecewo)
             $<INSTALL_INTERFACE:include>
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/src
-            ${CMAKE_CURRENT_SOURCE_DIR}/vendors
-            ${CMAKE_CURRENT_SOURCE_DIR}/config
             ${CMAKE_BINARY_DIR}/_deps/llhttp-src/include
     )
 
