@@ -21,19 +21,15 @@
 typedef struct uv_loop_s uv_loop_t;
 typedef struct uv_timer_s uv_timer_t;
 typedef struct uv_tcp_s uv_tcp_t;
-
 typedef uv_timer_t Timer;
 
+typedef struct Chain Chain;
 typedef struct ArenaRegion ArenaRegion;
 
 typedef struct Arena
 {
     ArenaRegion *begin, *end;
 } Arena;
-
-typedef struct Req Req;
-typedef struct Res Res;
-typedef struct Chain Chain;
 
 typedef struct
 {
@@ -63,7 +59,7 @@ typedef struct
     uint16_t capacity;
 } request_t;
 
-struct Req
+typedef struct
 {
     Arena *arena;
     uv_tcp_t *client_socket;
@@ -75,7 +71,7 @@ struct Req
     request_t query;
     request_t params;
     context_t ctx; // Middleware context
-};
+} Req;
 
 typedef struct
 {
@@ -83,7 +79,7 @@ typedef struct
     char *value;
 } http_header_t;
 
-struct Res
+typedef struct
 {
     Arena *arena;
     uv_tcp_t *client_socket;
@@ -98,7 +94,7 @@ struct Res
     void *async_buffer;
     void *async_context;
     bool replied;
-};
+} Res;
 
 typedef enum
 {
@@ -176,7 +172,6 @@ typedef enum
 } http_status_t;
 
 typedef void (*RequestHandler)(Req *req, Res *res);
-
 typedef int (*MiddlewareHandler)(Req *req, Res *res, Chain *chain);
 
 typedef struct
