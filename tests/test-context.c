@@ -12,10 +12,10 @@ int context_middleware(Req *req, Res *res, Chain *chain)
 {
     const char *token = get_header(req, "Authorization");
     
-    user_ctx_t *ctx = ecewo_alloc(req, sizeof(user_ctx_t));
+    user_ctx_t *ctx = arena_alloc(req->arena, sizeof(user_ctx_t));
 
-    ctx->user_id = ecewo_strdup(req, "user123");
-    ctx->role = ecewo_strdup(req, "admin");
+    ctx->user_id = arena_strdup(req->arena, "user123");
+    ctx->role = arena_strdup(req->arena, "admin");
     
     set_context(req, "user_ctx", ctx, sizeof(user_ctx_t));
     

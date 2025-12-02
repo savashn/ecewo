@@ -4,8 +4,6 @@
 #include "uv.h"
 #include <stdlib.h>
 
-#define sleep_ms(ms) uv_sleep(ms)
-
 static inline uint64_t get_time_ms(void)
 {
     return uv_hrtime() / 1000000;
@@ -21,7 +19,6 @@ static inline unsigned long get_thread_id(void)
 // ============================================================================
 
 typedef struct {
-    Req *req;
     Res *res;
     unsigned long main_thread_id;
     unsigned long work_thread_id;
@@ -33,7 +30,7 @@ static void thread_test_work(Task *task, void *context)
     (void)task;
     thread_test_ctx_t *ctx = context;
     ctx->work_thread_id = get_thread_id();
-    sleep_ms(100);
+    uv_sleep(100);
 }
 
 static void thread_test_done(void *context, char *error)
@@ -47,7 +44,7 @@ static void thread_test_done(void *context, char *error)
         return;
     }
     
-    char *response = ecewo_sprintf(ctx->res, "%lu,%lu,%lu",
+    char *response = arena_sprintf(ctx->res->arena, "%lu,%lu,%lu",
         ctx->main_thread_id,
         ctx->work_thread_id,
         ctx->done_thread_id);
@@ -57,8 +54,7 @@ static void thread_test_done(void *context, char *error)
 
 void handler_thread_test(Req *req, Res *res)
 {
-    thread_test_ctx_t *ctx = ecewo_alloc(req, sizeof(thread_test_ctx_t));
-    ctx->req = req;
+    thread_test_ctx_t *ctx = arena_alloc(res->arena, sizeof(thread_test_ctx_t));
     ctx->res = res;
     ctx->main_thread_id = get_thread_id();
     ctx->work_thread_id = 0;
@@ -70,7 +66,7 @@ void handler_thread_test(Req *req, Res *res)
 void handler_get_main_thread(Req *req, Res *res)
 {
     (void)req;
-    char *response = ecewo_sprintf(res, "%lu", get_thread_id());
+    char *response = arena_sprintf(res->arena, "%lu", get_thread_id());
     send_text(res, 200, response);
 }
 
@@ -83,7 +79,7 @@ void handler_fast(Req *req, Res *res)
 void handler_slow_sync(Req *req, Res *res)
 {
     (void)req;
-    sleep_ms(300);
+    uv_sleep(300);
     send_text(res, 200, "slow-sync");
 }
 
@@ -148,7 +144,7 @@ int test_task_not_blocking(void)
     uv_thread_t thread;
     uv_thread_create(&thread, background_request, &slow_ctx);
 
-    sleep_ms(30);
+    uv_sleep(30);
 
     uint64_t fast_start = get_time_ms();
     MockParams fast_params = {.method = MOCK_GET, .path = "/fast"};
@@ -176,7 +172,7 @@ int test_sync_blocking(void)
     uv_thread_t thread;
     uv_thread_create(&thread, background_request, &slow_ctx);
 
-    sleep_ms(30);
+    uv_sleep(30);
 
     uint64_t fast_start = get_time_ms();
     MockParams fast_params = {.method = MOCK_GET, .path = "/fast"};

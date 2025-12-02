@@ -37,8 +37,7 @@ void handler_fire_and_forget(Req *req, Res *res)
 
 void handler_check_counter(Req *req, Res *res)
 {
-    (void)req;
-    char *response = ecewo_sprintf(res, "{\"counter\":%d}", background_counter);
+    char *response = arena_sprintf(req->arena, "{\"counter\":%d}", background_counter);
     send_json(res, 200, response);
 }
 

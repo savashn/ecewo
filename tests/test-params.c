@@ -10,7 +10,7 @@ void handler_single_param(Req *req, Res *res)
         send_text(res, 400, "Missing id");
         return;
     }
-    char *response = ecewo_sprintf(res, "id=%s", id);
+    char *response = arena_sprintf(req->arena, "id=%s", id);
     send_text(res, 200, response);
 }
 
@@ -25,7 +25,7 @@ void handler_multi_param(Req *req, Res *res)
         return;
     }
     
-    char *response = ecewo_sprintf(res, "%s/%s/%s", userId, postId, commentId);
+    char *response = arena_sprintf(req->arena, "%s/%s/%s", userId, postId, commentId);
     send_text(res, 200, response);
 }
 

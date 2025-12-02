@@ -272,21 +272,6 @@ char *arena_sprintf(Arena *a, const char *format, ...);
 void *arena_memcpy(void *dest, const void *src, size_t n);
 void arena_free(Arena *a);
 
-#define ecewo_alloc(x, size_bytes) \
-    arena_alloc((x)->arena, size_bytes)
-
-#define ecewo_realloc(x, oldptr, oldsz, newsz) \
-    arena_realloc((x)->arena, oldptr, oldsz, newsz)
-
-#define ecewo_strdup(x, cstr) \
-    arena_strdup((x)->arena, cstr)
-
-#define ecewo_memdup(x, data, size) \
-    arena_memdup((x)->arena, data, size)
-
-#define ecewo_sprintf(x, format, ...) \
-    arena_sprintf((x)->arena, format, ##__VA_ARGS__)
-
 // ============================================================================
 // Middleware Functions
 // ============================================================================

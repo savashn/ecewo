@@ -9,7 +9,7 @@ void handler_query_params(Req *req, Res *res)
     const char *limit = get_query(req, "limit");
     const char *sort = get_query(req, "sort");
     
-    char *response = ecewo_sprintf(res, "page=%s,limit=%s,sort=%s",
+    char *response = arena_sprintf(req->arena, "page=%s,limit=%s,sort=%s",
         page ? page : "null",
         limit ? limit : "null",
         sort ? sort : "null");

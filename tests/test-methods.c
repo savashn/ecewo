@@ -15,7 +15,7 @@ void handler_post_body(Req *req, Res *res)
         return;
     }
     
-    char *response = ecewo_sprintf(res, "len=%zu,body=%s", 
+    char *response = arena_sprintf(req->arena, "len=%zu,body=%s", 
         req->body_len, req->body);
     send_text(res, 200, response);
 }

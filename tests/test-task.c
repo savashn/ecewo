@@ -3,7 +3,6 @@
 #include "tester.h"
 
 typedef struct {
-    Req *req;
     Res *res;
     int result;
 } compute_ctx_t;
@@ -25,14 +24,13 @@ static void compute_done(void *context, char *error)
         return;
     }
     
-    char *response = ecewo_sprintf(ctx->res, "result=%d", ctx->result);
+    char *response = arena_sprintf(ctx->res->arena, "result=%d", ctx->result);
     send_text(ctx->res, 200, response);
 }
 
 void handler_compute(Req *req, Res *res)
 {
-    compute_ctx_t *ctx = ecewo_alloc(req, sizeof(compute_ctx_t));
-    ctx->req = req;
+    compute_ctx_t *ctx = arena_alloc(req->arena, sizeof(compute_ctx_t));
     ctx->res = res;
     ctx->result = 0;
     

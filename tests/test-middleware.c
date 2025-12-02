@@ -6,7 +6,7 @@ static int middleware_order_tracker = 0;
 
 int middleware_first(Req *req, Res *res, Chain *chain)
 {
-    int *order = ecewo_alloc(req, sizeof(int));
+    int *order = arena_alloc(req->arena, sizeof(int));
     *order = ++middleware_order_tracker;
     set_context(req, "first", order, sizeof(int));
     return next(req, res, chain);
@@ -14,7 +14,7 @@ int middleware_first(Req *req, Res *res, Chain *chain)
 
 int middleware_second(Req *req, Res *res, Chain *chain)
 {
-    int *order = ecewo_alloc(req, sizeof(int));
+    int *order = arena_alloc(req->arena, sizeof(int));
     *order = ++middleware_order_tracker;
     set_context(req, "second", order, sizeof(int));
     return next(req, res, chain);
@@ -22,7 +22,7 @@ int middleware_second(Req *req, Res *res, Chain *chain)
 
 int middleware_third(Req *req, Res *res, Chain *chain)
 {
-    int *order = ecewo_alloc(req, sizeof(int));
+    int *order = arena_alloc(req->arena, sizeof(int));
     *order = ++middleware_order_tracker;
     set_context(req, "third", order, sizeof(int));
     return next(req, res, chain);
@@ -34,7 +34,7 @@ void handler_middleware_order(Req *req, Res *res)
     int *second = get_context(req, "second");
     int *third = get_context(req, "third");
     
-    char *response = ecewo_sprintf(res, "%d,%d,%d",
+    char *response = arena_sprintf(req->arena, "%d,%d,%d",
         first ? *first : 0,
         second ? *second : 0,
         third ? *third : 0);
