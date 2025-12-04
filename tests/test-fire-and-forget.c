@@ -9,17 +9,10 @@ typedef struct {
     int increment;
 } background_ctx_t;
 
-static void background_work(Task *task, void *context)
+static void background_work(void *context)
 {
-    (void)task;
     background_ctx_t *ctx = context;
     background_counter += ctx->increment;
-}
-
-static void background_done(void *context, char *error)
-{
-    (void)error;
-    background_ctx_t *ctx = context;
     free(ctx);
 }
 
@@ -30,7 +23,7 @@ void handler_fire_and_forget(Req *req, Res *res)
     background_ctx_t *ctx = malloc(sizeof(background_ctx_t));
     ctx->increment = 10;
     
-    task(ctx, background_work, background_done);
+    task(ctx, background_work, NULL);
     
     send_json(res, 202, "{\"status\":\"accepted\"}");
 }

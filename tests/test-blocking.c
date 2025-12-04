@@ -25,24 +25,17 @@ typedef struct {
     unsigned long done_thread_id;
 } thread_test_ctx_t;
 
-static void thread_test_work(Task *task, void *context)
+static void thread_test_work(void *context)
 {
-    (void)task;
     thread_test_ctx_t *ctx = context;
     ctx->work_thread_id = get_thread_id();
     uv_sleep(100);
 }
 
-static void thread_test_done(void *context, char *error)
+static void thread_test_done(void *context)
 {
     thread_test_ctx_t *ctx = context;
     ctx->done_thread_id = get_thread_id();
-    
-    if (error)
-    {
-        send_text(ctx->res, 500, error);
-        return;
-    }
     
     char *response = arena_sprintf(ctx->res->arena, "%lu,%lu,%lu",
         ctx->main_thread_id,

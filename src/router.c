@@ -978,19 +978,19 @@ void redirect(Res *res, int status, const char *url)
 
 static void task_cleanup_cb(uv_handle_t *handle)
 {
-    Task *t = (Task *)handle->data;
+    task_t *t = (task_t *)handle->data;
     if (t)
         free(t);
 }
 
 static void task_async_cb(uv_async_t *handle)
 {
-    Task *t = (Task *)handle->data;
+    task_t *t = (task_t *)handle->data;
     if (!t)
         return;
 
     if (t->result_fn)
-        t->result_fn(t->context, t->error);
+        t->result_fn(t->context);
 
     decrement_async_work();
     uv_close((uv_handle_t *)handle, task_cleanup_cb);
@@ -998,29 +998,29 @@ static void task_async_cb(uv_async_t *handle)
 
 static void task_work_cb(uv_work_t *req)
 {
-    Task *t = (Task *)req->data;
+    task_t *t = (task_t *)req->data;
     if (t && t->work_fn)
-        t->work_fn(t, t->context);
+        t->work_fn(t->context);
 }
 
 static void task_after_work_cb(uv_work_t *req, int status)
 {
-    Task *t = (Task *)req->data;
+    task_t *t = (task_t *)req->data;
     if (!t)
         return;
 
     if (status < 0)
-        t->error = "Task execution failed";
+        LOG_ERROR("Task execution failed");
 
     uv_async_send(&t->async_send);
 }
 
-int task(void *context, work_handler_t work_fn, result_handler_t done_fn)
+int task(void *context, task_handler_t work_fn, task_handler_t done_fn)
 {
     if (!context || !work_fn)
         return -1;
 
-    Task *task = calloc(1, sizeof(Task));
+    task_t *task = calloc(1, sizeof(task_t));
     if (!task)
         return -1;
 
@@ -1033,7 +1033,6 @@ int task(void *context, work_handler_t work_fn, result_handler_t done_fn)
     task->work.data = task;
     task->async_send.data = task;
     task->context = context;
-    task->error = NULL;
     task->work_fn = work_fn;
     task->result_fn = done_fn;
 

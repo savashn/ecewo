@@ -202,10 +202,6 @@ typedef enum
 typedef void (*shutdown_callback_t)(void);
 typedef void (*timer_callback_t)(void *user_data);
 
-typedef struct task_s Task;
-typedef void (*result_handler_t)(void *context, char *error);
-typedef void (*work_handler_t)(Task *task, void *context);
-
 // ============================================================================
 // Server Functions
 // ============================================================================
@@ -282,10 +278,9 @@ int next(Req *req, Res *res, Chain *chain);
 // Task Functions
 // ============================================================================
 
-int task(void *context, work_handler_t work_fn, result_handler_t done_fn);
+typedef void (*task_handler_t)(void *context);
 
-#define worker(ctx, work_fn, done_fn) \
-    task((ctx), (work_fn), (done_fn))
+int task(void *context, task_handler_t work_fn, task_handler_t done_fn);
 
 // ============================================================================
 // Route Registration

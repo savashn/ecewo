@@ -7,44 +7,40 @@ typedef struct {
     int total;
     int completed;
     int results[3];
+    bool has_error;
 } parallel_ctx_t;
 
-static void parallel_work_1(Task *task, void *context)
+static void parallel_work_1(void *context)
 {
-    (void)task;
     parallel_ctx_t *ctx = context;
     ctx->results[0] = 10;
 }
 
-static void parallel_work_2(Task *task, void *context)
+static void parallel_work_2(void *context)
 {
-    (void)task;
     parallel_ctx_t *ctx = context;
     ctx->results[1] = 20;
 }
 
-static void parallel_work_3(Task *task, void *context)
+static void parallel_work_3(void *context)
 {
-    (void)task;
     parallel_ctx_t *ctx = context;
     ctx->results[2] = 30;
 }
 
-static void parallel_done(void *context, char *error)
+static void parallel_done(void *context)
 {
     parallel_ctx_t *ctx = context;
     
-    if (error)
+    ctx->completed++;
+    
+    if (ctx->has_error && ctx->completed == 1)
     {
-        if (ctx->completed == 0)
-            send_text(ctx->res, 500, error);
-        ctx->completed++;
+        send_text(ctx->res, 500, "Task failed");
         return;
     }
     
-    ctx->completed++;
-    
-    if (ctx->completed == ctx->total)
+    if (ctx->completed == ctx->total && !ctx->has_error)
     {
         int sum = ctx->results[0] + ctx->results[1] + ctx->results[2];
         char *response = arena_sprintf(ctx->res->arena, "{\"sum\":%d}", sum);
@@ -61,6 +57,7 @@ void handler_parallel(Req *req, Res *res)
     ctx->results[0] = 0;
     ctx->results[1] = 0;
     ctx->results[2] = 0;
+    ctx->has_error = false;
     
     task(ctx, parallel_work_1, parallel_done);
     task(ctx, parallel_work_2, parallel_done);

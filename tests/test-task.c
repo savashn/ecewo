@@ -7,22 +7,15 @@ typedef struct {
     int result;
 } compute_ctx_t;
 
-static void compute_work(Task *task, void *context)
+static void compute_work(void *context)
 {
-    (void)task;
     compute_ctx_t *ctx = context;
     ctx->result = 42 * 2;
 }
 
-static void compute_done(void *context, char *error)
+static void compute_done(void *context)
 {
     compute_ctx_t *ctx = context;
-    
-    if (error)
-    {
-        send_text(ctx->res, 500, error);
-        return;
-    }
     
     char *response = arena_sprintf(ctx->res->arena, "result=%d", ctx->result);
     send_text(ctx->res, 200, response);

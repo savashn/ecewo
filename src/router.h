@@ -21,17 +21,14 @@ typedef enum
     HANDLER_ASYNC
 } handler_type_t;
 
-struct task_s
+typedef struct
 {
     uv_work_t work;
     uv_async_t async_send;
     void *context;
-    char *error;
-
-    // Task callbacks
-    work_handler_t work_fn;
-    result_handler_t result_fn;
-};
+    task_handler_t work_fn;
+    task_handler_t result_fn;
+} task_t;
 
 int router(client_t *client, const char *request_data, size_t request_len);
 const char *get_req(const request_t *request, const char *key);
