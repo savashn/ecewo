@@ -209,6 +209,7 @@ typedef void (*timer_callback_t)(void *user_data);
 int server_init(void);
 int server_listen(uint16_t port);
 void server_run(void);
+void server_shutdown(void);
 void shutdown_hook(shutdown_callback_t callback);
 bool server_is_running(void);
 int get_active_connections(void);

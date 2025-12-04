@@ -369,7 +369,7 @@ static void on_server_closed(uv_handle_t *handle)
     }
 }
 
-static void server_shutdown(void)
+void server_shutdown(void)
 {
     if (g_server.shutdown_requested)
         return;
