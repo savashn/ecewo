@@ -110,6 +110,89 @@ static int ensure_buffer_capacity(Arena *arena, char **buffer, size_t *capacity,
     return 0;
 }
 
+static void parse_query(Arena *arena, const char *query_string, request_t *query)
+{
+    size_t query_len;
+    int param_count, i;
+    char *buffer, *pair, *eq;
+
+    if (!arena || !query)
+        return;
+
+    memset(query, 0, sizeof(request_t));
+
+    if (!query_string || *query_string == '\0')
+        return;
+
+    query_len = strlen(query_string);
+    if (query_len > MAX_URL_LENGTH)
+    {
+        LOG_DEBUG("Query string too long: %zu bytes", query_len);
+        return;
+    }
+
+    param_count = 1;
+    for (buffer = (char *)query_string; *buffer; buffer++)
+    {
+        if (*buffer == '&')
+        {
+            param_count++;
+            if (param_count > MAX_QUERY_PARAMS)
+            {
+                param_count = MAX_QUERY_PARAMS;
+                break;
+            }
+        }
+    }
+
+    query->capacity = param_count;
+    query->items = arena_alloc(arena, query->capacity * sizeof(request_item_t));
+    if (!query->items)
+    {
+        query->capacity = 0;
+        return;
+    }
+
+    for (i = 0; i < query->capacity; i++)
+    {
+        query->items[i].key = NULL;
+        query->items[i].value = NULL;
+    }
+
+    buffer = arena_alloc(arena, query_len + 1);
+    if (!buffer)
+    {
+        query->items = NULL;
+        query->capacity = 0;
+        return;
+    }
+
+    memcpy(buffer, query_string, query_len);
+    buffer[query_len] = '\0';
+
+    pair = strtok(buffer, "&");
+    while (pair && query->count < query->capacity)
+    {
+        eq = strchr(pair, '=');
+        if (eq)
+        {
+            *eq = '\0';
+
+            // Only add if both key and value are non-empty
+            if (*pair && *(eq + 1))
+            {
+                query->items[query->count].key = arena_strdup(arena, pair);
+                query->items[query->count].value = arena_strdup(arena, eq + 1);
+
+                if (query->items[query->count].key && query->items[query->count].value)
+                    query->count++;
+            }
+        }
+        pair = strtok(NULL, "&");
+    }
+}
+
+
 int on_url_cb(llhttp_t *parser, const char *at, size_t length)
 {
     http_context_t *context;
@@ -530,88 +613,6 @@ parse_result_t http_finish_parsing(http_context_t *context)
         return PARSE_OVERFLOW;
     default:
         return PARSE_ERROR;
-    }
-}
-
-void parse_query(Arena *arena, const char *query_string, request_t *query)
-{
-    size_t query_len;
-    int param_count, i;
-    char *buffer, *pair, *eq;
-
-    if (!arena || !query)
-        return;
-
-    memset(query, 0, sizeof(request_t));
-
-    if (!query_string || *query_string == '\0')
-        return;
-
-    query_len = strlen(query_string);
-    if (query_len > MAX_URL_LENGTH)
-    {
-        LOG_DEBUG("Query string too long: %zu bytes", query_len);
-        return;
-    }
-
-    param_count = 1;
-    for (buffer = (char *)query_string; *buffer; buffer++)
-    {
-        if (*buffer == '&')
-        {
-            param_count++;
-            if (param_count > MAX_QUERY_PARAMS)
-            {
-                param_count = MAX_QUERY_PARAMS;
-                break;
-            }
-        }
-    }
-
-    query->capacity = param_count;
-    query->items = arena_alloc(arena, query->capacity * sizeof(request_item_t));
-    if (!query->items)
-    {
-        query->capacity = 0;
-        return;
-    }
-
-    for (i = 0; i < query->capacity; i++)
-    {
-        query->items[i].key = NULL;
-        query->items[i].value = NULL;
-    }
-
-    buffer = arena_alloc(arena, query_len + 1);
-    if (!buffer)
-    {
-        query->items = NULL;
-        query->capacity = 0;
-        return;
-    }
-
-    memcpy(buffer, query_string, query_len);
-    buffer[query_len] = '\0';
-
-    pair = strtok(buffer, "&");
-    while (pair && query->count < query->capacity)
-    {
-        eq = strchr(pair, '=');
-        if (eq)
-        {
-            *eq = '\0';
-
-            // Only add if both key and value are non-empty
-            if (*pair && *(eq + 1))
-            {
-                query->items[query->count].key = arena_strdup(arena, pair);
-                query->items[query->count].value = arena_strdup(arena, eq + 1);
-
-                if (query->items[query->count].key && query->items[query->count].value)
-                    query->count++;
-            }
-        }
-        pair = strtok(NULL, "&");
     }
 }
 

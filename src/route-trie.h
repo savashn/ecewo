@@ -6,17 +6,17 @@
 #include "llhttp.h"
 
 #define MAX_PATH_SEGMENTS 128
+#define METHOD_COUNT 7
 
 typedef enum
 {
-    METHOD_INDEX_DELETE = 0,
-    METHOD_INDEX_GET = 1,
-    METHOD_INDEX_HEAD = 2,
-    METHOD_INDEX_POST = 3,
-    METHOD_INDEX_PUT = 4,
-    METHOD_INDEX_OPTIONS = 5,
-    METHOD_INDEX_PATCH = 6,
-    METHOD_COUNT = 7
+    METHOD_INDEX_DELETE,
+    METHOD_INDEX_GET,
+    METHOD_INDEX_HEAD,
+    METHOD_INDEX_POST,
+    METHOD_INDEX_PUT,
+    METHOD_INDEX_OPTIONS,
+    METHOD_INDEX_PATCH
 } http_method_index_t;
 
 typedef struct
@@ -74,41 +74,19 @@ typedef struct
     uint8_t param_count;
 } route_match_t;
 
-// Returns -1 for unsupported methods
-static inline int method_to_index(llhttp_method_t method)
-{
-    switch (method)
-    {
-    case HTTP_DELETE:
-        return METHOD_INDEX_DELETE;
-    case HTTP_GET:
-        return METHOD_INDEX_GET;
-    case HTTP_HEAD:
-        return METHOD_INDEX_HEAD;
-    case HTTP_POST:
-        return METHOD_INDEX_POST;
-    case HTTP_PUT:
-        return METHOD_INDEX_PUT;
-    case HTTP_OPTIONS:
-        return METHOD_INDEX_OPTIONS;
-    case HTTP_PATCH:
-        return METHOD_INDEX_PATCH;
-    default:
-        return -1;
-    }
-}
-
-int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result);
 bool route_trie_match(route_trie_t *trie,
                       llhttp_t *parser,
                       const tokenized_path_t *tokenized_path,
                       route_match_t *match);
-route_trie_t *route_trie_create(void);
+
 int route_trie_add(route_trie_t *trie,
                    llhttp_method_t method,
                    const char *path,
                    RequestHandler handler,
                    void *middleware_ctx);
+
+int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result);
 void route_trie_free(route_trie_t *trie);
+route_trie_t *route_trie_create(void);
 
 #endif

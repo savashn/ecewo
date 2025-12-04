@@ -59,19 +59,12 @@ typedef struct
     const char *error_reason;  // Error description
 } http_context_t;
 
-void http_context_init(http_context_t *context,
-                       Arena *arena,
-                       llhttp_t *reused_parser,
-                       llhttp_settings_t *reused_settings);
-
+// Using in router.c
 parse_result_t http_parse_request(http_context_t *context, const char *data, size_t len);
-
 bool http_message_needs_eof(const http_context_t *context);
-
 parse_result_t http_finish_parsing(http_context_t *context);
 
-void parse_query(Arena *arena, const char *query_string, request_t *query);
-
+// Using in server.c
 int on_url_cb(llhttp_t *parser, const char *at, size_t length);
 int on_header_field_cb(llhttp_t *parser, const char *at, size_t length);
 int on_header_value_cb(llhttp_t *parser, const char *at, size_t length);

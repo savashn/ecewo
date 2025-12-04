@@ -384,6 +384,7 @@ static Res *create_res(Arena *request_arena, uv_tcp_t *client_socket)
     res->headers = NULL;
     res->header_count = 0;
     res->header_capacity = 0;
+    res->replied = false;
 
     return res;
 }

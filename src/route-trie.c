@@ -228,6 +228,29 @@ static void trie_node_free(trie_node_t *node)
     free(node);
 }
 
+static int method_to_index(llhttp_method_t method)
+{
+    switch (method)
+    {
+    case HTTP_DELETE:
+        return METHOD_INDEX_DELETE;
+    case HTTP_GET:
+        return METHOD_INDEX_GET;
+    case HTTP_HEAD:
+        return METHOD_INDEX_HEAD;
+    case HTTP_POST:
+        return METHOD_INDEX_POST;
+    case HTTP_PUT:
+        return METHOD_INDEX_PUT;
+    case HTTP_OPTIONS:
+        return METHOD_INDEX_OPTIONS;
+    case HTTP_PATCH:
+        return METHOD_INDEX_PATCH;
+    default:
+        return -1;
+    }
+}
+
 bool route_trie_match(route_trie_t *trie,
                       llhttp_t *parser,
                       const tokenized_path_t *tokenized_path,

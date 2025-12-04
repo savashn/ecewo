@@ -17,8 +17,8 @@ typedef struct
 
 typedef enum
 {
-    HANDLER_SYNC = 0,
-    HANDLER_ASYNC = 1
+    HANDLER_SYNC,
+    HANDLER_ASYNC
 } handler_type_t;
 
 struct task_s

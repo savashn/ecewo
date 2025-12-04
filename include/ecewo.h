@@ -6,7 +6,6 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdio.h> // LOG_ macros
-#include <time.h>
 
 #ifndef NDEBUG
     #define LOG_DEBUG(fmt, ...) \
