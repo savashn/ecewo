@@ -15,7 +15,7 @@ static inline unsigned long get_thread_id(void)
 }
 
 // ============================================================================
-// Task Thread ID Test
+// Spawn Thread ID Test
 // ============================================================================
 
 typedef struct {
@@ -45,6 +45,10 @@ static void thread_test_done(void *context)
     send_text(ctx->res, 200, response);
 }
 
+// ============================================================================
+// HANDLERS
+// ============================================================================
+
 void handler_thread_test(Req *req, Res *res)
 {
     thread_test_ctx_t *ctx = arena_alloc(res->arena, sizeof(thread_test_ctx_t));
@@ -53,7 +57,7 @@ void handler_thread_test(Req *req, Res *res)
     ctx->work_thread_id = 0;
     ctx->done_thread_id = 0;
     
-    task(ctx, thread_test_work, thread_test_done);
+    spawn(ctx, thread_test_work, thread_test_done);
 }
 
 void handler_get_main_thread(Req *req, Res *res)
@@ -69,11 +73,11 @@ void handler_fast(Req *req, Res *res)
     send_text(res, 200, "fast");
 }
 
-void handler_slow_sync(Req *req, Res *res)
+void handler_slow(Req *req, Res *res)
 {
     (void)req;
     uv_sleep(300);
-    send_text(res, 200, "slow-sync");
+    send_text(res, 200, "slow");
 }
 
 // ============================================================================
@@ -84,13 +88,18 @@ typedef struct {
     const char *path;
     MockResponse response;
     uint64_t duration_ms;
-} async_test_ctx_t;
+} async_ctx_t;
 
 static void background_request(void *arg)
 {
-    async_test_ctx_t *ctx = (async_test_ctx_t *)arg;
+    async_ctx_t *ctx = (async_ctx_t *)arg;
     uint64_t start = get_time_ms();
-    MockParams params = {.method = MOCK_GET, .path = ctx->path};
+
+    MockParams params = {
+        .method = MOCK_GET,
+        .path = ctx->path
+    };
+
     ctx->response = request(&params);
     ctx->duration_ms = get_time_ms() - start;
 }
@@ -99,9 +108,13 @@ static void background_request(void *arg)
 // Tests
 // ============================================================================
 
-int test_task_thread_ids(void)
+int test_spawn_thread_ids(void)
 {
-    MockParams main_params = {.method = MOCK_GET, .path = "/main-thread"};
+    MockParams main_params = {
+        .method = MOCK_GET,
+        .path = "/main-thread"
+    };
+
     MockResponse main_res = request(&main_params);
     ASSERT_EQ(200, main_res.status_code);
     
@@ -109,13 +122,17 @@ int test_task_thread_ids(void)
     printf("\n  Server main thread: %lu\n", server_main_thread);
     free_request(&main_res);
     
-    MockParams task_params = {.method = MOCK_GET, .path = "/thread-test"};
-    MockResponse task_res = request(&task_params);
-    ASSERT_EQ(200, task_res.status_code);
-    ASSERT_NOT_NULL(task_res.body);
+    MockParams spawn_params = {
+        .method = MOCK_GET,
+        .path = "/thread-test"
+    };
+
+    MockResponse spawn_res = request(&spawn_params);
+    ASSERT_EQ(200, spawn_res.status_code);
+    ASSERT_NOT_NULL(spawn_res.body);
     
     unsigned long handler_tid, work_tid, done_tid;
-    int parsed = sscanf(task_res.body, "%lu,%lu,%lu", &handler_tid, &work_tid, &done_tid);
+    int parsed = sscanf(spawn_res.body, "%lu,%lu,%lu", &handler_tid, &work_tid, &done_tid);
     ASSERT_EQ(3, parsed);
     
     printf("  Handler thread: %lu\n", handler_tid);
@@ -126,27 +143,33 @@ int test_task_thread_ids(void)
     ASSERT_NE(server_main_thread, work_tid);
     ASSERT_EQ(server_main_thread, done_tid);
     
-    free_request(&task_res);
+    free_request(&spawn_res);
     RETURN_OK();
 }
 
-int test_task_not_blocking(void)
+int test_spawn_not_blocking(void)
 {
-    async_test_ctx_t slow_ctx = {.path = "/thread-test"};
+    async_ctx_t slow_ctx = {
+        .path = "/thread-test"
+    };
 
     uv_thread_t thread;
     uv_thread_create(&thread, background_request, &slow_ctx);
 
     uv_sleep(30);
-
     uint64_t fast_start = get_time_ms();
-    MockParams fast_params = {.method = MOCK_GET, .path = "/fast"};
+
+    MockParams fast_params = {
+        .method = MOCK_GET,
+        .path = "/fast"
+    };
+
     MockResponse fast_res = request(&fast_params);
     uint64_t fast_duration = get_time_ms() - fast_start;
 
     uv_thread_join(&thread);
 
-    printf("\n  Task request: %lu ms\n", (unsigned long)slow_ctx.duration_ms);
+    printf("\n  Spawn request: %lu ms\n", (unsigned long)slow_ctx.duration_ms);
     printf("  Fast request: %lu ms (should be <50ms)\n", (unsigned long)fast_duration);
 
     ASSERT_EQ(200, slow_ctx.response.status_code);
@@ -160,15 +183,21 @@ int test_task_not_blocking(void)
 
 int test_sync_blocking(void)
 {
-    async_test_ctx_t slow_ctx = {.path = "/slow-sync"};
+    async_ctx_t slow_ctx = {
+        .path = "/slow"
+    };
 
     uv_thread_t thread;
     uv_thread_create(&thread, background_request, &slow_ctx);
 
     uv_sleep(30);
-
     uint64_t fast_start = get_time_ms();
-    MockParams fast_params = {.method = MOCK_GET, .path = "/fast"};
+
+    MockParams fast_params = {
+        .method = MOCK_GET,
+        .path = "/fast"
+    };
+
     MockResponse fast_res = request(&fast_params);
     uint64_t fast_duration = get_time_ms() - fast_start;
 

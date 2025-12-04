@@ -976,16 +976,16 @@ void redirect(Res *res, int status, const char *url)
     reply(res, status, "text/plain", message, message_len);
 }
 
-static void task_cleanup_cb(uv_handle_t *handle)
+static void spawn_cleanup_cb(uv_handle_t *handle)
 {
-    task_t *t = (task_t *)handle->data;
+    spawn_t *t = (spawn_t *)handle->data;
     if (t)
         free(t);
 }
 
-static void task_async_cb(uv_async_t *handle)
+static void spawn_async_cb(uv_async_t *handle)
 {
-    task_t *t = (task_t *)handle->data;
+    spawn_t *t = (spawn_t *)handle->data;
     if (!t)
         return;
 
@@ -993,38 +993,38 @@ static void task_async_cb(uv_async_t *handle)
         t->result_fn(t->context);
 
     decrement_async_work();
-    uv_close((uv_handle_t *)handle, task_cleanup_cb);
+    uv_close((uv_handle_t *)handle, spawn_cleanup_cb);
 }
 
-static void task_work_cb(uv_work_t *req)
+static void spawn_work_cb(uv_work_t *req)
 {
-    task_t *t = (task_t *)req->data;
+    spawn_t *t = (spawn_t *)req->data;
     if (t && t->work_fn)
         t->work_fn(t->context);
 }
 
-static void task_after_work_cb(uv_work_t *req, int status)
+static void spawn_after_work_cb(uv_work_t *req, int status)
 {
-    task_t *t = (task_t *)req->data;
+    spawn_t *t = (spawn_t *)req->data;
     if (!t)
         return;
 
     if (status < 0)
-        LOG_ERROR("Task execution failed");
+        LOG_ERROR("Spawn execution failed");
 
     uv_async_send(&t->async_send);
 }
 
-int task(void *context, task_handler_t work_fn, task_handler_t done_fn)
+int spawn(void *context, spawn_handler_t work_fn, spawn_handler_t done_fn)
 {
     if (!context || !work_fn)
         return -1;
 
-    task_t *task = calloc(1, sizeof(task_t));
+    spawn_t *task = calloc(1, sizeof(spawn_t));
     if (!task)
         return -1;
 
-    if (uv_async_init(uv_default_loop(), &task->async_send, task_async_cb) != 0)
+    if (uv_async_init(uv_default_loop(), &task->async_send, spawn_async_cb) != 0)
     {
         free(task);
         return -1;
@@ -1041,8 +1041,8 @@ int task(void *context, task_handler_t work_fn, task_handler_t done_fn)
     int result = uv_queue_work(
         uv_default_loop(),
         &task->work,
-        task_work_cb,
-        task_after_work_cb);
+        spawn_work_cb,
+        spawn_after_work_cb);
 
     if (result != 0)
     {

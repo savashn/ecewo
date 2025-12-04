@@ -27,10 +27,10 @@ void handler_compute(Req *req, Res *res)
     ctx->res = res;
     ctx->result = 0;
     
-    task(ctx, compute_work, compute_done);
+    spawn(ctx, compute_work, compute_done);
 }
 
-int test_task_with_response(void)
+int test_spawn_with_response(void)
 {
     MockParams params = {
         .method = MOCK_GET,

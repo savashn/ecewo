@@ -278,9 +278,8 @@ int next(Req *req, Res *res, Chain *chain);
 // Task Functions
 // ============================================================================
 
-typedef void (*task_handler_t)(void *context);
-
-int task(void *context, task_handler_t work_fn, task_handler_t done_fn);
+typedef void (*spawn_handler_t)(void *context);
+int spawn(void *context, spawn_handler_t work_fn, spawn_handler_t done_fn);
 
 // ============================================================================
 // Route Registration

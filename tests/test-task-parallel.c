@@ -36,7 +36,7 @@ static void parallel_done(void *context)
     
     if (ctx->has_error && ctx->completed == 1)
     {
-        send_text(ctx->res, 500, "Task failed");
+        send_text(ctx->res, 500, "spawn failed");
         return;
     }
     
@@ -59,12 +59,12 @@ void handler_parallel(Req *req, Res *res)
     ctx->results[2] = 0;
     ctx->has_error = false;
     
-    task(ctx, parallel_work_1, parallel_done);
-    task(ctx, parallel_work_2, parallel_done);
-    task(ctx, parallel_work_3, parallel_done);
+    spawn(ctx, parallel_work_1, parallel_done);
+    spawn(ctx, parallel_work_2, parallel_done);
+    spawn(ctx, parallel_work_3, parallel_done);
 }
 
-int test_task_parallel(void)
+int test_spawn_parallel(void)
 {
     MockParams params = {
         .method = MOCK_GET,

@@ -26,9 +26,9 @@ typedef struct
     uv_work_t work;
     uv_async_t async_send;
     void *context;
-    task_handler_t work_fn;
-    task_handler_t result_fn;
-} task_t;
+    spawn_handler_t work_fn;
+    spawn_handler_t result_fn;
+} spawn_t;
 
 int router(client_t *client, const char *request_data, size_t request_len);
 const char *get_req(const request_t *request, const char *key);

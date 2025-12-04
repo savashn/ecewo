@@ -72,36 +72,25 @@ int test_sequential_requests(void);
 
 // test-task
 void handler_compute(Req *req, Res *res);
-int test_task_with_response(void);
+int test_spawn_with_response(void);
 
 // test-fire-and-forget
-int test_task_fire_and_forget(void);
+int test_spawn_fire_and_forget(void);
 void handler_check_counter(Req *req, Res *res);
 void handler_fire_and_forget(Req *req, Res *res);
 
 // test-parallel
-int test_task_parallel(void);
+int test_spawn_parallel(void);
 void handler_parallel(Req *req, Res *res);
 
-// test-worker
-// void handler_slow_async(Req *req, Res *res);
-// void handler_slow_sync(Req *req, Res *res);
-// void handler_fast(Req *req, Res *res);
-// void handler_with_mw(Req *req, Res *res);
-// int middleware_slow(Req *req, Res *res, Chain *chain);
-// int test_async_not_blocking(void);
-// int test_sync_blocking(void);
-// int test_async_middleware_not_blocking(void);
-// int test_sync_middleware_blocking(void);
-
 // test-blocking
-int test_task_thread_ids(void);
-int test_task_not_blocking(void);
+int test_spawn_thread_ids(void);
+int test_spawn_not_blocking(void);
 int test_sync_blocking(void);
 void handler_thread_test(Req *req, Res *res);
 void handler_get_main_thread(Req *req, Res *res);
 void handler_fast(Req *req, Res *res);
-void handler_slow_sync(Req *req, Res *res);
+void handler_slow(Req *req, Res *res);
 
 // test-root
 void handler_root(Req *req, Res *res);

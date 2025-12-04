@@ -45,7 +45,7 @@ void setup_routes(void)
     // test-concurrent request
     get("/counter", handler_counter);
     
-    // test-task
+    // test-spawn
     get("/compute", handler_compute);
     post("/background", handler_fire_and_forget);
     get("/check-counter", handler_check_counter);
@@ -55,7 +55,7 @@ void setup_routes(void)
     get("/thread-test", handler_thread_test);
     get("/main-thread", handler_get_main_thread);
     get("/fast", handler_fast);
-    get("/slow-sync", handler_slow_sync);
+    get("/slow", handler_slow);
     
     // test-root
     get("/", handler_root);
@@ -111,14 +111,14 @@ int main(void)
     // Sequential Request
     RUN_TEST(test_sequential_requests);
     
-    // Task
-    RUN_TEST(test_task_with_response);
-    RUN_TEST(test_task_fire_and_forget);
-    RUN_TEST(test_task_parallel);
+    // Spawn
+    RUN_TEST(test_spawn_with_response);
+    RUN_TEST(test_spawn_fire_and_forget);
+    RUN_TEST(test_spawn_parallel);
 
     // Blocking and Non-Blocking
-    RUN_TEST(test_task_thread_ids);
-    RUN_TEST(test_task_not_blocking);
+    RUN_TEST(test_spawn_thread_ids);
+    RUN_TEST(test_spawn_not_blocking);
     RUN_TEST(test_sync_blocking);
     
     // Root

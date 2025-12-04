@@ -23,7 +23,7 @@ void handler_fire_and_forget(Req *req, Res *res)
     background_ctx_t *ctx = malloc(sizeof(background_ctx_t));
     ctx->increment = 10;
     
-    task(ctx, background_work, NULL);
+    spawn(ctx, background_work, NULL);
     
     send_json(res, 202, "{\"status\":\"accepted\"}");
 }
@@ -34,7 +34,7 @@ void handler_check_counter(Req *req, Res *res)
     send_json(res, 200, response);
 }
 
-int test_task_fire_and_forget(void)
+int test_spawn_fire_and_forget(void)
 {
     background_counter = 0;
     
