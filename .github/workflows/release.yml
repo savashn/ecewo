@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build ${{ matrix.artifact_name }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: linux-x64
+          - os: macos-latest
+            artifact_name: darwin-x64
+          - os: windows-latest
+            artifact_name: win32-x64
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Install CMake (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y cmake build-essential
+      
+      - name: Install CMake (macOS)
+        if: runner.os == 'macOS'
+        run: brew install cmake
+      
+      - name: Build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release --parallel
+      
+      - name: Prepare release files
+        run: |
+          mkdir -p release/lib release/include
+          cp -r include/* release/include/
+        shell: bash
+      
+      - name: Copy libraries (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cp build/libecewo.a release/lib/
+          cp build/_deps/libuv-build/libuv.a release/lib/
+          cp build/_deps/llhttp-build/libllhttp.a release/lib/
+        shell: bash
+      
+      - name: Copy libraries (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cp build/Release/ecewo.lib release/lib/
+          cp build/_deps/libuv-build/Release/uv_a.lib release/lib/
+          cp build/_deps/llhttp-build/Release/llhttp.lib release/lib/
+        shell: bash
+      
+      - name: Create archive
+        run: |
+          cd release
+          tar -czf ../ecewo-${{ matrix.artifact_name }}-${{ github.ref_name }}.tar.gz .
+        shell: bash
+      
+      - name: Upload to release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ecewo-*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

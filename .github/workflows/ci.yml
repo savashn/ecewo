@@ -1,4 +1,4 @@
-name: CI/CD
+name: CI
 
 on:
   push:
@@ -31,7 +31,7 @@ jobs:
       run: |
         cmake -B build \
           -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
-          -DECEWO_BUILD_TESTS=ON \
+          -DECEWO_BUILD_TESTS=ON
     
     - name: Build
       run: cmake --build build --config ${{env.BUILD_TYPE}} -j$(nproc)
@@ -132,10 +132,10 @@ jobs:
     
     - name: Configure CMake
       run: |
-        cmake -B build ^
-          -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} ^
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
           -DECEWO_BUILD_TESTS=ON
-      shell: cmd
+      shell: bash
     
     - name: Build
       run: cmake --build build --config ${{env.BUILD_TYPE}} --parallel
