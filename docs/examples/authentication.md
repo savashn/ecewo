@@ -100,7 +100,7 @@ int main(void)
 }
 ```
 
-Let’s send a request to http://localhost:3000/login with that body:
+Let's send a request to http://localhost:3000/login with that body:
 
 ```json
 {
@@ -109,7 +109,7 @@ Let’s send a request to http://localhost:3000/login with that body:
 }
 ```
 
-If login is successful, we’ll see a `Login successful!` response and a header like `"Cookie": "session=VKdbMRbqMhh_40F6ef2FreEba6JqkH16"` will be added to the headers.
+If login is successful, we'll see a `Login successful!` response and a header like `"Cookie": "session=VKdbMRbqMhh_40F6ef2FreEba6JqkH16"` will be added to the headers.
 
 ## Logout
 
@@ -166,13 +166,13 @@ int main(void)
 
 `session_destroy()` is destroying the session from the memory and deleting the cookie from the client.
 
-Now let’s send a request to `http://localhost:3000/logout` after login. Cookie header will be deleted and we’ll see that response:
+Now let's send a request to `http://localhost:3000/logout` after login. Cookie header will be deleted and we'll see that response:
 
 ```
 Logged out
 ```
 
-If we send one more request, we’ll see:
+If we send one more request, we'll see:
 
 ```
 You have to login first
@@ -184,7 +184,7 @@ You have to login first
 
 ### Getting Session Data
 
-We added 3 data to the session in the Login handler: name, username and theme. Let’s write another function that sends the session data:
+We added 3 data to the session in the Login handler: name, username and theme. Let's write another function that sends the session data:
 
 ```c
 // ...
@@ -255,7 +255,7 @@ int main(void)
 
 First, we need to login. Rebuild the program and send a `POST` request to the `http://localhost:3000/login` and get the session. After that, send another request to the `http://localhost:3000/session` address to see the session data.
 
-We’ll get a `Check out the console!` response, and the output in the console will this:
+We'll get a `Check out the console!` response, and the output in the console will this:
 
 ```
 Name: John Doe
@@ -268,7 +268,7 @@ Here are the session data, which we have added while the user is logging in.
 
 ### Protected Routes
 
-Let’s say that we want some pages to be available for authenticated users only. In this situation, we can use get_session() and get_session_valuıe() functions to check if the user has a session.
+Let's say that we want some pages to be available for authenticated users only. In this situation, we can use get_session() and get_session_value() functions to check if the user has a session.
 
 ```c
 // <-- Here are the other handlers -->
@@ -289,19 +289,8 @@ void handle_protected_route(Req *req, Res *res)
 
    if (user_id && strcmp(user_id, STATIC_USER_ID) == 0)
    {
-      size_t msg_len = strlen("Welcome, ") + strlen(STATIC_NAME) + 1;
-
-      char *welcome_message = malloc(msg_len);
-      if (!welcome_message)
-      {
-         perror("malloc");
-         free(user_id);
-         return;
-      }
-
-      snprintf(welcome_message, msg_len, "Welcome, %s", STATIC_NAME);
+      char *welcome_message = arena_sprintf(res->arena, "Welcome, %s", STATIC_NAME);
       send_text(res, OK, welcome_message);
-      free(welcome_message);
    }
    else
    {
@@ -332,19 +321,19 @@ int main(void)
 }
 ```
 
-Let’s send a request to `http://localhost:3000/protected`. If we authenticated as John Doe, we’ll see:
+Let's send a request to `http://localhost:3000/protected`. If we authenticated as John Doe, we'll see:
 
 ```
 Welcome to the protected area, John Doe
 ```
 
-If we are logged in, but not as John Doe, we’ll see:
+If we are logged in, but not as John Doe, we'll see:
 
 ```
 You must be logged in.
 ```
 
-If we did not log in at all, we’ll see:
+If we did not log in at all, we'll see:
 
 ```
 Error: Authentication required
@@ -352,7 +341,7 @@ Error: Authentication required
 
 > [!NOTE]
 >
-> It’s not safe to insert the password to the database without encryption. You should use a library to encrypt the user password before inserting.
+> It's not safe to insert the password to the database without encryption. You should use a library to encrypt the user password before inserting.
 
 > [!NOTE]
 >

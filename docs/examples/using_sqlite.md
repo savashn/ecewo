@@ -137,34 +137,79 @@ void add_user(Req *req, Res *res);
 
 extern sqlite3 *db;
 
-// Function to add a user to the database
+typedef struct {
+    Res *res;
+    char *name;
+    char *username;
+    char *password;
+    int status;
+    char *message;
+} AddUserContext;
+
+// Worker function - runs in thread pool (safe to block)
+void add_user_work(void *context)
+{
+    AddUserContext *ctx = (AddUserContext *)context;
+    
+    const char *sql = "INSERT INTO users (name, username, password) VALUES (?, ?, ?);";
+    sqlite3_stmt *stmt;
+    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+
+    if (rc != SQLITE_OK)
+    {
+        ctx->status = 500;
+        ctx->message = "DB prepare failed";
+        return;
+    }
+
+    sqlite3_bind_text(stmt, 1, ctx->name, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, ctx->username, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 3, ctx->password, -1, SQLITE_STATIC);
+
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE)
+    {
+        ctx->status = 500;
+        ctx->message = "DB insert failed";
+        return;
+    }
+
+    ctx->status = 201;
+    ctx->message = "User created!";
+}
+
+// Callback function - runs on main thread
+void add_user_done(void *context)
+{
+    AddUserContext *ctx = (AddUserContext *)context;
+    send_text(ctx->res, ctx->status, ctx->message);
+}
+
+// Handler function - runs on main thread
 void add_user(Req *req, Res *res)
 {
-    const char *body = req->body; // Get the body of the request
+    const char *body = req->body;
 
-    // If there is no body, return a 400 Bad Request response
     if (body == NULL)
     {
         send_text(res, 400, "Missing request body");
         return;
     }
 
-    // Parse the body as JSON
     cJSON *json = cJSON_Parse(body);
 
-    // If JSON parsing fails, return a 400 Bad Request response
     if (!json)
     {
         send_text(res, 400, "Invalid JSON");
         return;
     }
 
-    // Extract the 'name', 'surname', and 'username' fields from the JSON object
     const char *name = cJSON_GetObjectItem(json, "name")->valuestring;
     const char *username = cJSON_GetObjectItem(json, "username")->valuestring;
     const char *password = cJSON_GetObjectItem(json, "password")->valuestring;
 
-    // If any of the required fields are missing, delete the JSON object and return a 400 error
     if (!name || !username || !password)
     {
         cJSON_Delete(json);
@@ -172,46 +217,23 @@ void add_user(Req *req, Res *res)
         return;
     }
 
-    // SQL query to insert a new user into the database
-    const char *sql = "INSERT INTO users (name, username, password) VALUES (?, ?, ?);";
-    sqlite3_stmt *stmt;
-    int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    // Create context using arena
+    AddUserContext *ctx = arena_alloc(res->arena, sizeof(AddUserContext));
+    ctx->res = res;
+    ctx->name = arena_strdup(res->arena, name);
+    ctx->username = arena_strdup(res->arena, username);
+    ctx->password = arena_strdup(res->arena, password);
 
-    // If the SQL preparation fails, return a 500 Internal Server Error
-    if (rc != SQLITE_OK)
-    {
-        cJSON_Delete(json);
-        send_text(res, 500, "DB prepare failed");
-        return;
-    }
-
-    // Bind the values to the SQL query
-    sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, username, -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 3, password, -1, SQLITE_STATIC);
-
-    // Execute the SQL statement to insert the user
-    rc = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
     cJSON_Delete(json);
 
-    // If the insert operation fails, return a 500 error
-    if (rc != SQLITE_DONE)
-    {
-        send_text(res, 500, "DB insert failed");
-        return;
-    }
-
-    // If everything is successful, return a 201 Created response
-    send_text(res, 201, "User created!");
+    // Spawn async work
+    spawn(ctx, add_user_work, add_user_done);
 }
 ```
 
 ### Querying Data
 
-Now we'll write a handler function that gives us these two users' information.
-But let's say that "name" and "surname" fields are not required for us, so we need "id" and "username" fields only.
-To do this:
+Now we'll write a handler function that gives us these users' information.
 
 ```c
 // src/handlers/handlers.h
@@ -234,52 +256,93 @@ void add_user(Req *req, Res *res);
 #include "cJSON.h"
 #include "sqlite3.h"
 
-void get_all_users(Req *req, Res *res)
-{
-    const char *sql = "SELECT * FROM users;";
+extern sqlite3 *db;
 
+// Context for get_all_users
+typedef struct {
+    Res *res;
+    cJSON *json_array;
+    int status;
+    char *error_message;
+} GetUsersContext;
+
+// Worker function - runs in thread pool
+void get_users_work(void *context)
+{
+    GetUsersContext *ctx = (GetUsersContext *)context;
+    
+    const char *sql = "SELECT * FROM users;";
     sqlite3_stmt *stmt;
     int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
 
     if (rc != SQLITE_OK)
     {
-        send_text(res, 500, "DB prepare failed");
+        ctx->status = 500;
+        ctx->error_message = "DB prepare failed";
         return;
     }
 
-    cJSON *json_array = cJSON_CreateArray();
+    ctx->json_array = cJSON_CreateArray();
 
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW)
     {
-        const int id = sqlite3_column_int(stmt, 0);                        // 0 is the index of the 'id' column
-        const char *name = sqlite3_column_text(stmt, 1);                   // 1 is the index of the 'name' column
-        const char *username = (const char *)sqlite3_column_text(stmt, 2); // 2 is the index of the 'username' column
+        const int id = sqlite3_column_int(stmt, 0);
+        const char *name = (const char *)sqlite3_column_text(stmt, 1);
+        const char *username = (const char *)sqlite3_column_text(stmt, 2);
 
         cJSON *user_json = cJSON_CreateObject();
         cJSON_AddNumberToObject(user_json, "id", id);
         cJSON_AddStringToObject(user_json, "name", name);
         cJSON_AddStringToObject(user_json, "username", username);
 
-        cJSON_AddItemToArray(json_array, user_json);
+        cJSON_AddItemToArray(ctx->json_array, user_json);
     }
+
+    sqlite3_finalize(stmt);
 
     if (rc != SQLITE_DONE)
     {
-        send_text(res, 500, "DB step failed");
-        sqlite3_finalize(stmt);
-        cJSON_Delete(json_array);
+        ctx->status = 500;
+        ctx->error_message = "DB step failed";
+        cJSON_Delete(ctx->json_array);
+        ctx->json_array = NULL;
         return;
     }
 
-    char *json_string = cJSON_PrintUnformatted(json_array);
-
-    send_json(res, 200, json_string); // Send the json response
-
-    // Free the allocated memory when we are done:
-    cJSON_Delete(json_array);
-    free(json_string);
-    sqlite3_finalize(stmt);
+    ctx->status = 200;
 }
+
+// Callback - runs on main thread
+void get_users_done(void *context)
+{
+    GetUsersContext *ctx = (GetUsersContext *)context;
+
+    if (ctx->status != 200 || !ctx->json_array)
+    {
+        send_text(ctx->res, ctx->status, ctx->error_message);
+        return;
+    }
+
+    char *json_string = cJSON_PrintUnformatted(ctx->json_array);
+    send_json(ctx->res, 200, json_string);
+
+    cJSON_Delete(ctx->json_array);
+    free(json_string);
+}
+
+// Handler - runs on main thread
+void get_all_users(Req *req, Res *res)
+{
+    GetUsersContext *ctx = arena_alloc(res->arena, sizeof(GetUsersContext));
+    ctx->res = res;
+    ctx->json_array = NULL;
+    ctx->status = 500;
+    ctx->error_message = "Unknown error";
+
+    spawn(ctx, get_users_work, get_users_done);
+}
+
+// ... add_user functions from previous section ...
 ```
 
 ### Initialization
@@ -309,10 +372,9 @@ int main(void)
         return 1;
     }
 
-    // Register with worker
-    // Because SQLite does not have async API
-    get_worker("/users", get_all_users);
-    post_worker("/user", add_user);
+    // Register routes with spawn() inside handlers
+    get("/users", get_all_users);
+    post("/user", add_user);
 
     shutdown_hook(destroy_app);
 
@@ -339,7 +401,7 @@ We'll send a `POST` request to `http://localhost:3000/user`, with the body below
 {
     "name": "John Doe",
     "username": "johndoe",
-    "password": "123123",
+    "password": "123123"
 }
 ```
 
@@ -351,11 +413,11 @@ Let's send one more request for the next example:
 {
     "name": "Jane Doe",
     "username": "janedoe",
-    "password": "321321",
+    "password": "321321"
 }
 ```
 
-Now, let's query the users that we just added. If we send a `GET` request to `http://localhost:3000/user`, we'll receive this output:
+Now, let's query the users that we just added. If we send a `GET` request to `http://localhost:3000/users`, we'll receive this output:
 
 ```json
 [
@@ -371,3 +433,7 @@ Now, let's query the users that we just added. If we send a `GET` request to `ht
   }
 ]
 ```
+
+> [!NOTE]
+>
+> SQLite does not have an async API, so we use `spawn()` to run database operations in worker threads. This prevents blocking the main event loop while maintaining good performance for concurrent requests.

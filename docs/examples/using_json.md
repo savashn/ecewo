@@ -33,7 +33,7 @@ void hello_world(Req *req, Res *res)
     // Send the json response with 200 status code
     send_json(res, 200, json_string);
 
-    // Free the memory that allocated by jansson
+    // Free the memory that allocated by cJSON
     cJSON_Delete(json);
     free(json_string);
 }
