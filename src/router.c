@@ -14,24 +14,14 @@ static void write_completion_cb(uv_write_t *req, int status)
     if (!write_req)
         return;
 
-    if (write_req->async_context)
+    if (write_req->arena)
     {
-        // Async route
-        // Arena will be cleaned up in cleanup_async_context
-        uv_async_t *async_handle = get_async_handle_from_context(write_req->async_context);
-        if (async_handle)
-            uv_close((uv_handle_t *)async_handle, cleanup_async_context);
-    }
-    else if (write_req->arena)
-    {
-        // Sync route
         Arena *request_arena = write_req->arena;
         arena_free(request_arena);
         free(request_arena);
     }
     else
     {
-        // Early error path
         if (write_req->data)
         {
             free(write_req->data);
@@ -487,28 +477,6 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
 
     res->replied = true;
 
-    if (res->async_buffer)
-    {
-        async_response_buffer_t *buffer = (async_response_buffer_t *)res->async_buffer;
-        
-        buffer->status_code = status;
-        buffer->content_type = content_type ? arena_strdup(res->arena, content_type) : NULL;
-        
-        if (body && body_len > 0)
-        {
-            buffer->response_body = arena_alloc(res->arena, body_len);
-            if (buffer->response_body)
-            {
-                arena_memcpy(buffer->response_body, body, body_len);
-                buffer->response_body_len = body_len;
-            }
-        }
-        
-        buffer->response_ready = true;
-        uv_async_send(&buffer->async_send);
-        return;
-    }
-
     if (!res->client_socket)
     {
         Arena *request_arena = res->arena;
@@ -650,8 +618,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
 
     memset(write_req, 0, sizeof(write_req_t));
     write_req->data = response;
-    write_req->async_context = res->async_context;
-    write_req->arena = res->async_context ? NULL : res->arena;
+    write_req->arena = res->arena;
     write_req->buf = uv_buf_init(response, (unsigned int)total_len);
 
     if (uv_is_closing((uv_handle_t *)res->client_socket))
@@ -829,10 +796,6 @@ int router(client_t *client, const char *request_data, size_t request_len)
         return 1;
     }
 
-    // ============================================================================
-    // EXECUTION - middleware.c handles everything (sync and async)
-    // ============================================================================
-
     MiddlewareInfo *middleware_info = (MiddlewareInfo *)match.middleware_ctx;
 
     if (!middleware_info)
@@ -847,25 +810,8 @@ int router(client_t *client, const char *request_data, size_t request_len)
     if (execution_result != 0)
     {
         LOG_ERROR("Handler execution failed");
-        // Handler execution failed
-        if (middleware_info->handler_type == HANDLER_ASYNC)
-        {
-            LOG_ERROR("Async execution failed");
-            return 1;
-        }
-        else
-        {
-            LOG_ERROR("Sync handler failed");
-            send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
-            return 1;
-        }
-    }
-
-    if (middleware_info->handler_type == HANDLER_ASYNC)
-    {
-        // Async handler - don't close connection yet
-        // Callback will handle response and connection management
-        return 0;
+        send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
+        return 1;
     }
 
     if (!res->replied)

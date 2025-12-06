@@ -12,14 +12,7 @@ typedef struct
     uv_buf_t buf;
     char *data;
     Arena *arena;
-    void *async_context;
 } write_req_t;
-
-typedef enum
-{
-    HANDLER_SYNC,
-    HANDLER_ASYNC
-} handler_type_t;
 
 typedef struct
 {

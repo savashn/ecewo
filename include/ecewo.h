@@ -90,8 +90,6 @@ typedef struct
     http_header_t *headers;
     uint16_t header_count;
     uint16_t header_capacity;
-    void *async_buffer;
-    void *async_context;
     bool replied;
 } Res;
 
@@ -286,76 +284,47 @@ int spawn(void *context, spawn_handler_t work_fn, spawn_handler_t done_fn);
 // Route Registration
 // ============================================================================
 
-// Forward declarations for internal functions (implementation in middleware.c)
-extern void register_sync_route(int method, const char *path, MiddlewareArray middleware, RequestHandler handler);
-extern void register_async_route(int method, const char *path, MiddlewareArray middleware, RequestHandler handler);
+typedef enum {
+    HTTP_METHOD_DELETE = 0,
+    HTTP_METHOD_GET = 1,
+    HTTP_METHOD_HEAD = 2,
+    HTTP_METHOD_POST = 3,
+    HTTP_METHOD_PUT = 4,
+    HTTP_METHOD_PATCH = 28
+} http_method_t;
 
-// ============================================================================
-// Synchronous Route Macros
-// ============================================================================
+extern void register_route(http_method_t method,
+                           const char *path,
+                           MiddlewareArray middleware,
+                           RequestHandler handler);
 
 // Argument chooser
 #define ECEWO_ROUTE_CHOOSER(_1, _2, _3, NAME, ...) NAME
 
-static inline void route_sync_no_mw(int method, const char *path, RequestHandler handler)
+static inline void route_no_mw(int method, const char *path, RequestHandler handler)
 {
-    register_sync_route(method, path, NO_MW, handler);
+    register_route((http_method_t)method, path, NO_MW, handler);
 }
 
-static inline void route_sync_with_mw(int method, const char *path, MiddlewareArray mw, RequestHandler handler)
+static inline void route_with_mw(int method, const char *path, MiddlewareArray mw, RequestHandler handler)
 {
-    register_sync_route(method, path, mw, handler);
+    register_route((http_method_t)method, path, mw, handler);
 }
-
-static inline void route_async_no_mw(int method, const char *path, RequestHandler handler)
-{
-    register_async_route(method, path, NO_MW, handler);
-}
-
-static inline void route_async_with_mw(int method, const char *path, MiddlewareArray mw, RequestHandler handler)
-{
-    register_async_route(method, path, mw, handler);
-}
-
-// ============================================================================
-// Synchronous Routes
-// ============================================================================
-
-// HTTP method values from llhttp: DELETE=0, GET=1, POST=3, PUT=4, PATCH=28
 
 #define get(...) \
-    ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_sync_with_mw, route_sync_no_mw)(1, __VA_ARGS__)
+    ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_no_mw)(HTTP_METHOD_GET, __VA_ARGS__)
 
 #define post(...) \
-    ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_sync_with_mw, route_sync_no_mw)(3, __VA_ARGS__)
+    ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_no_mw)(HTTP_METHOD_POST, __VA_ARGS__)
 
 #define put(...) \
-    ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_sync_with_mw, route_sync_no_mw)(4, __VA_ARGS__)
+    ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_no_mw)(HTTP_METHOD_PUT, __VA_ARGS__)
 
 #define patch(...) \
-    ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_sync_with_mw, route_sync_no_mw)(28, __VA_ARGS__)
+    ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_no_mw)(HTTP_METHOD_PATCH, __VA_ARGS__)
 
 #define del(...) \
-    ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_sync_with_mw, route_sync_no_mw)(0, __VA_ARGS__)
-
-// ============================================================================
-// Asynchronous Routes
-// ============================================================================
-
-#define get_worker(...) \
-    ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_async_with_mw, route_async_no_mw)(1, __VA_ARGS__)
-
-#define post_worker(...) \
-    ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_async_with_mw, route_async_no_mw)(3, __VA_ARGS__)
-
-#define put_worker(...) \
-    ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_async_with_mw, route_async_no_mw)(4, __VA_ARGS__)
-
-#define patch_worker(...) \
-    ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_async_with_mw, route_async_no_mw)(28, __VA_ARGS__)
-
-#define del_worker(...) \
-    ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_async_with_mw, route_async_no_mw)(0, __VA_ARGS__)
+    ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_no_mw)(HTTP_METHOD_DELETE, __VA_ARGS__)
 
 // ============================================================================
 // DEVELOPMENT FUNCTIONS
