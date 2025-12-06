@@ -161,7 +161,7 @@ jobs:
       run: cmake --build build --config Debug
     
     - name: Run Valgrind on ecewo_test
-      working-directory: build
+      working-directory: build/tests
       run: |
         VALGRIND_OPTS="--leak-check=full \
                       --error-exitcode=1 \
@@ -191,7 +191,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: valgrind-logs
-        path: build/*.log
+        path: build/tests/*.log
 
   asan-check:
     name: Address Sanitizer Check
@@ -217,7 +217,7 @@ jobs:
       run: cmake --build build
     
     - name: Run tests with ASAN
-      working-directory: build
+      working-directory: build/tests
       env:
         ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:log_path=asan.log
         LSAN_OPTIONS: verbosity=1:log_threads=1
@@ -246,4 +246,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: asan-logs
-        path: build/asan.log.*
+        path: build/tests/asan.log.*
