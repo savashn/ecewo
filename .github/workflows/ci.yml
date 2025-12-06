@@ -66,22 +66,16 @@ jobs:
           ${{ runner.os }}-cmake-deps-
         
     - name: Install dependencies
-      run: |
-        brew install cmake
+      run: brew install cmake
     
     - name: Configure network for GitHub access
       run: |
         echo "Resolving GitHub IPs..."
         nslookup github.com || true
-        
-        echo "Testing GitHub connectivity..."
         curl -I https://github.com 2>&1 | head -n 5 || true
-        
         sudo dscacheutil -flushcache
         sudo killall -HUP mDNSResponder 2>/dev/null || true
-        
         sleep 2
-        curl -I https://github.com 2>&1 | head -n 5 || echo "Warning: GitHub connectivity issues"
     
     - name: Configure CMake
       run: |
@@ -166,12 +160,90 @@ jobs:
     - name: Build
       run: cmake --build build --config Debug
     
-    - name: Run Valgrind on tests
+    - name: Run Valgrind on ecewo_test
       working-directory: build
       run: |
-        for test in test_*; do
-          if [ -x "$test" ] && [ "$test" != "test_server_integration" ]; then
-            echo "Running valgrind on $test"
-            valgrind --leak-check=full --error-exitcode=1 --show-leak-kinds=all ./$test
+        VALGRIND_OPTS="--leak-check=full \
+                      --error-exitcode=1 \
+                      --show-leak-kinds=definite,indirect,possible \
+                      --track-origins=yes \
+                      --verbose"
+        
+        echo "Running valgrind on: ecewo_test"
+        
+        if [ -x "ecewo_test" ]; then
+          timeout 300 valgrind $VALGRIND_OPTS ./ecewo_test || {
+            EXIT_CODE=$?
+            if [ $EXIT_CODE -eq 124 ]; then
+              echo "TIMEOUT: Test exceeded 300 seconds"
+            else
+              echo "FAILED: Test exited with code $EXIT_CODE"
+            fi
+            exit $EXIT_CODE
+          }
+        else
+          echo "ERROR: ecewo_test executable not found"
+          exit 1
+        fi
+    
+    - name: Upload Valgrind logs
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: valgrind-logs
+        path: build/*.log
+
+  asan-check:
+    name: Address Sanitizer Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential
+    
+    - name: Configure with ASAN
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DECEWO_BUILD_TESTS=ON \
+          -DCMAKE_C_FLAGS="-fsanitize=address -fno-omit-frame-pointer -g"
+    
+    - name: Build
+      run: cmake --build build
+    
+    - name: Run tests with ASAN
+      working-directory: build
+      env:
+        ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:log_path=asan.log
+        LSAN_OPTIONS: verbosity=1:log_threads=1
+      run: |
+        echo "Running ASAN on: ecewo_test"
+        
+        if [ -x "ecewo_test" ]; then
+          ./ecewo_test || {
+            echo "FAILED: ecewo_test"
+            cat asan.log.* 2>/dev/null || true
+            exit 1
+          }
+          
+          if ls asan.log.* 1>/dev/null 2>&1; then
+            echo "ASAN detected issues:"
+            cat asan.log.*
+            exit 1
           fi
-        done
+        else
+          echo "ERROR: ecewo_test executable not found"
+          exit 1
+        fi
+    
+    - name: Upload ASAN logs
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: asan-logs
+        path: build/asan.log.*
