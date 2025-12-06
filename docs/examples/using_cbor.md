@@ -1,6 +1,6 @@
 # Using CBOR
 
-Ecewo supports `CBOR` responses out of the box. Let's make an `add_user` and `get_all_users` example that we've already done with [cJSON](https://github.com/DaveGamble/cJSON) and [SQLite3](https://sqlite.org/) in [Using SQLite](/docs/examples/using_sqlite.md) chapter, but we'll implement with [TinyCBOR](https://github.com/intel/tinycbor) this time.
+It is possible to send `CBOR` responses in ecewo. Let's make an `add_user` and `get_all_users` example that we've already done with [cJSON](https://github.com/DaveGamble/cJSON) and [SQLite3](https://sqlite.org/) in [Using SQLite](/docs/examples/using_sqlite.md) chapter, but we'll implement with [TinyCBOR](https://github.com/intel/tinycbor) this time.
 
 ## Installation
 
@@ -218,7 +218,7 @@ curl -X GET http://localhost:3000/cbor -o hello_world.cbor
 
 This command will generate a `hello_world.cbor` binary in the root directory.
 
-Now we need to read the inside of it. Cut that generated binary file, create a new folder outside of our project and paste it there. The new folder is for testing our CBOR binaries and they shouldn't be in the same directory with our Ecewo project.
+Now we need to read the inside of it. Cut that generated binary file, create a new folder outside of our project and paste it there. The new folder is for testing our CBOR binaries and they shouldn't be in the same directory with our ecewo project.
 
 Run `pip install cbor2` and create a Python file:
 
@@ -271,7 +271,7 @@ There will be generated a `handle_user.cbor` binary in the root directory. Now i
 
 Open the POSTMAN and set a `POST` request to the `http://localhost:3000/cbor` address. Select the `binary` body and send the `handle_user.cbor` file that we generated.
 
-When we send the request, we'll see a `Success!` message if the process completed successfully. And in the terminal of Ecewo, we'll see the content of our binary:
+When we send the request, we'll see a `Success!` message if the process completed successfully. And in the terminal of ecewo, we'll see the content of our binary:
 
 ```
 Name: John
