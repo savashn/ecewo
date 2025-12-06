@@ -1,22 +1,19 @@
 <div align="center">
-    <a href="https://ecewo.vercel.app">
-        <img src="https://raw.githubusercontent.com/savashn/ecewo/main/assets/ecewo.svg" />
-    </a>
+    <img src="https://raw.githubusercontent.com/savashn/ecewo/main/assets/ecewo.svg" />
 </div>
 
-<hr />
-
-## Express-C Effect for Web Operations
-
-Modular C web framework with [Express.js](https://expressjs.com/) ergonomics and native performance.
-
-> **This is a hobby project that I'm developing to improve my programming skills. So it might not be production-ready, and it doesn't have to be.**
+<div align="center">
+    <h1>Express-C Effect for Web Operations</h1>
+    A web framework for C — inspired by <a href="https://expressjs.com">express.js</a>
+</div>
 
 ## Table of Contents
 
 - [Requirements](#requirements)
 - [Quick Start](#quick-start)
 - [Benchmarks](#benchmarks)
+- [Dependencies](#dependencies)
+- [Running Tests](#running-tests)
 - [Documentation](#documentation)
 - [Modules](#modules)
 - [Example App](#example-app)
@@ -25,7 +22,7 @@ Modular C web framework with [Express.js](https://expressjs.com/) ergonomics and
 
 ## Requirements
 
-- A C compiler
+- A C compiler (GCC, Clang, MSVC)
 - CMake version 3.14 or higher
 
 ## Quick Start
@@ -33,11 +30,10 @@ Modular C web framework with [Express.js](https://expressjs.com/) ergonomics and
 **main.c:**
 ```c
 #include "ecewo.h"
-#include <stdio.h>
 
 void hello_world(Req *req, Res *res)
 {
-    send_text(res, 200, "Hello, World!");
+    send_text(res, OK, "Hello, World!");
 }
 
 int main(void)
@@ -91,16 +87,29 @@ mkdir build && cd build && cmake .. && cmake --build .
 
 ## Benchmarks
 
-Here are 'Hello World' benchmark results for several frameworks compared to Ecewo. See the source code of the [benchmark test](https://github.com/savashn/ecewo-benchmarks).
+Here are 'Hello World' benchmark results for several frameworks compared to ecewo. See the source code of the [benchmark test](https://github.com/savashn/ecewo-benchmarks).
 
 Lower is better.
 
 | Framework  | Average | Median  | Max     | P90    | P95    |
 | ---------- | ------- | ------- | ------- | ------ | ------ |
-| Ecewo      | 0.387ms | 0.152ms | 7.23ms  | 0.99ms | 1.09ms |
-| Axum       | 0.442ms | 0.505ms | 5.61ms  | 1.01ms | 1.21ms |
-| Go         | 0.958ms | 0.725ms | 12.62ms | 1.97ms | 2.48ms |
-| Express.js | 1.85ms  | 1.58ms  | 11.05ms | 3.48ms | 4.27ms |
+| ecewo      | 0.387ms | 0.152ms | 7.23ms  | 0.99ms | 1.09ms |
+| axum       | 0.442ms | 0.505ms | 5.61ms  | 1.01ms | 1.21ms |
+| go         | 0.958ms | 0.725ms | 12.62ms | 1.97ms | 2.48ms |
+| express.js | 1.85ms  | 1.58ms  | 11.05ms | 3.48ms | 4.27ms |
+
+## Dependencies
+
+ecewo is built on top of [libuv](https://github.com/libuv/libuv) and [llhttp](https://github.com/nodejs/llhttp). They are fetched automatically by CMake, so no manual installation is required.
+
+## Running Tests
+
+```shell
+mkdir build && cd build
+cmake -DECEWO_BUILD_TESTS=ON ..
+cmake --build .
+tests/ecewo_test
+```
 
 ## Documentation
 
@@ -120,7 +129,7 @@ Refer to the [docs](/docs/) for usage.
 
 ## Example App
 
-[Here](https://github.com/savashn/ecewo-example) is an example blog app built with Ecewo and PostgreSQL.
+[Here](https://github.com/savashn/ecewo-example) is an example blog app built with ecewo and PostgreSQL.
 
 ## Contributing
 
