@@ -7,10 +7,6 @@ MiddlewareHandler *global_middleware = NULL;
 uint16_t global_middleware_count = 0;
 uint16_t global_middleware_capacity = 0;
 
-// ============================================================================
-// ASYNC CALLBACKS
-// ============================================================================
-
 int next(Req *req, Res *res, Chain *chain)
 {
     if (!chain || !req || !res)
@@ -101,10 +97,6 @@ static int execute(Req *req, Res *res, MiddlewareInfo *middleware_info)
     return 0;
 }
 
-// ============================================================================
-// MAIN EXECUTION FUNCTION
-// ============================================================================
-
 int execute_handler_with_middleware(
     Req *req,
     Res *res,
@@ -118,10 +110,6 @@ int execute_handler_with_middleware(
 
     return execute(req, res, middleware_info);
 }
-
-// ============================================================================
-// GLOBAL MIDDLEWARE
-// ============================================================================
 
 void hook(MiddlewareHandler middleware_handler)
 {
@@ -140,10 +128,6 @@ void hook(MiddlewareHandler middleware_handler)
 
     global_middleware[global_middleware_count++] = middleware_handler;
 }
-
-// ============================================================================
-// ROUTE REGISTRATION
-// ============================================================================
 
 void register_route(http_method_t method,
                            const char *path,
@@ -179,7 +163,7 @@ void register_route(http_method_t method,
         middleware_info->middleware_count = middleware.count;
     }
 
-    int result = route_trie_add(global_route_trie, method, path, handler, middleware_info);
+    int result = route_trie_add(global_route_trie, (llhttp_method_t)method, path, handler, middleware_info);
     if (result != 0)
     {
         LOG_DEBUG("Failed to add route to trie: %d %s", method, path);
