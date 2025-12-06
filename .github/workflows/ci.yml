@@ -219,31 +219,45 @@ jobs:
     - name: Run tests with ASAN
       working-directory: build/tests
       env:
-        ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:log_path=asan.log
-        LSAN_OPTIONS: verbosity=1:log_threads=1
+        ASAN_OPTIONS: detect_leaks=1:halt_on_error=0
+        LSAN_OPTIONS: verbosity=1:print_suppressions=0
       run: |
         echo "Running ASAN on: ecewo_test"
         
-        if [ -x "ecewo_test" ]; then
-          ./ecewo_test || {
-            echo "FAILED: ecewo_test"
-            cat asan.log.* 2>/dev/null || true
-            exit 1
-          }
-          
-          if ls asan.log.* 1>/dev/null 2>&1; then
-            echo "ASAN detected issues:"
-            cat asan.log.*
-            exit 1
-          fi
-        else
+        if [ ! -x "ecewo_test" ]; then
           echo "ERROR: ecewo_test executable not found"
+          ls -la
           exit 1
         fi
-    
+        
+        ./ecewo_test 2>&1 | tee test_output.log
+        EXIT_CODE=${PIPESTATUS[0]}
+        
+        echo ""
+        echo "Test exit code: $EXIT_CODE"
+        
+        if grep -q "Direct leak\|Indirect leak\|ERROR: LeakSanitizer" test_output.log; then
+          echo ""
+          echo "MEMORY LEAK DETECTED:"
+          grep -B 2 -A 30 "Direct leak\|Indirect leak\|ERROR: LeakSanitizer" test_output.log
+          exit 1
+        fi
+        
+        if grep -q "ERROR: AddressSanitizer" test_output.log; then
+          echo ""
+          echo "ADDRESS SANITIZER ERROR:"
+          grep -B 5 -A 20 "ERROR: AddressSanitizer" test_output.log
+          exit 1
+        fi
+        
+        if [ $EXIT_CODE -ne 0 ]; then
+          echo "Tests failed but no memory issues detected"
+          exit $EXIT_CODE
+        fi
+        
     - name: Upload ASAN logs
       if: failure()
       uses: actions/upload-artifact@v4
       with:
         name: asan-logs
-        path: build/tests/asan.log.*
+        path: build/tests/test_output.log
