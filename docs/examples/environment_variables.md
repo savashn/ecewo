@@ -32,7 +32,6 @@ Let's parse it in `main.c`:
 ```c
 // src/main.c
 
-#include <stdio.h>
 #include "ecewo.h"
 #include "dotenv.h"
 

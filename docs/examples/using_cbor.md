@@ -31,7 +31,6 @@ We did this with JSON in [this example](/examples/using-json#creating-json). Now
 
 #include "ecewo.h"
 #include "cbor.h"
-#include <stdio.h>
 
 void hello_world_cbor(Req *req, Res *res)
 {
@@ -86,7 +85,6 @@ You can see [the exact example](/examples/using-json/#parsing-json) with JSON.
 
 #include "ecewo.h"
 #include "cbor.h"
-#include <stdio.h>
 
 void handle_user_cbor(Req *req, Res *res)
 {

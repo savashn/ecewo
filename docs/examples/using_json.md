@@ -17,7 +17,6 @@ Let's write our `hello world` example again, but this time it will send a JSON o
 
 #include "ecewo.h"
 #include "cJSON.h"
-#include <stdio.h>
 
 void hello_world(Req *req, Res *res)
 {
@@ -74,7 +73,6 @@ This time, let's take a JSON and print it to console.
 
 #include "ecewo.h"
 #include "cJSON.h"
-#include <stdio.h>
 
 void handle_user(Req *req, Res *res)
 {

@@ -42,7 +42,6 @@ Let's make the configuration of database:
 ```c
 // src/db/db.c
 
-#include <stdio.h>
 #include "sqlite3.h"
 
 sqlite3 *db = NULL;
@@ -352,7 +351,6 @@ void get_all_users(Req *req, Res *res)
 
 #include "ecewo.h"
 #include "db/db.h"
-#include <stdio.h>
 
 void destroy_app(void) {
     sqlite3_close(db);
