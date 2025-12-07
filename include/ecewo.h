@@ -47,8 +47,16 @@ typedef struct
 
 typedef struct
 {
-    char *key;
-    char *value;
+    const char *data;
+    size_t len;
+} str_t;
+
+#define SV_NULL ((str_t){NULL, 0})
+
+typedef struct
+{
+    str_t key;
+    str_t value;
 } request_item_t;
 
 typedef struct
@@ -62,14 +70,15 @@ typedef struct
 {
     Arena *arena;
     uv_tcp_t *client_socket;
-    char *method;
-    char *path;
-    char *body;
-    size_t body_len;
+    str_t method;
+    str_t path;
+    str_t body;
     request_t headers;
     request_t query;
     request_t params;
-    context_t ctx; // Middleware context
+    context_t ctx;
+    uint8_t http_major;
+    uint8_t http_minor;
 } Req;
 
 typedef struct
@@ -225,9 +234,14 @@ void clear_timer(Timer *timer);
 // Request Functions
 // ============================================================================
 
-const char *get_param(const Req *req, const char *key);
-const char *get_query(const Req *req, const char *key);
-const char *get_header(const Req *req, const char *key);
+const char *get_method(Req *req);
+const char *get_path(Req *req);
+const char *get_body(Req *req);
+size_t get_body_len(Req *req);
+const char *get_param(Req *req, const char *key);
+const char *get_query(Req *req, const char *key);
+const char *get_header(Req *req, const char *key);
+
 void set_context(Req *req, const char *key, void *data, size_t size);
 void *get_context(Req *req, const char *key);
 

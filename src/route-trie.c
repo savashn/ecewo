@@ -4,83 +4,43 @@
 #include "middleware.h"
 
 // Splits a path into segments (/users/123/posts -> ["users", "123", "posts"])
-int tokenize_path(Arena *arena, const char *path, tokenized_path_t *result)
+int tokenize_path(const char *path, size_t path_len, tokenized_path_t *result, path_segment_t *segments_buf)
 {
-    if (!path || !result)
+    if (!path || !result || !segments_buf)
         return -1;
 
     memset(result, 0, sizeof(tokenized_path_t));
 
-    // Skip leading slash
     if (*path == '/')
-        path++;
+        path++, path_len--;
 
-    // Handle root path
-    if (*path == '\0')
+    if (path_len == 0)
         return 0;
 
-    uint8_t segment_count = 0;
+    result->segments = segments_buf;
+
     const char *p = path;
-    while (*p)
+    const char *end = path + path_len;
+
+    while (p < end && result->count < MAX_PATH_SEGMENTS)
     {
-        if (*p != '/')
-        {
-            segment_count++;
-
-            if (segment_count > MAX_PATH_SEGMENTS)
-            {
-                LOG_DEBUG("Path too deep: %" PRIu8 " segments (max %d)", segment_count, MAX_PATH_SEGMENTS);
-                return -1;
-            }
-
-            // Skip to next '/' or end
-            while (*p && *p != '/')
-                p++;
-        }
-        else
-        {
+        while (p < end && *p == '/')
             p++;
-        }
-    }
-
-    if (segment_count == 0)
-        return 0;
-
-    result->capacity = segment_count;
-    result->segments = arena_alloc(arena, sizeof(path_segment_t) * segment_count);
-    if (!result->segments)
-        return -1;
-
-    p = path;
-    result->count = 0;
-
-    while (*p && result->count < result->capacity)
-    {
-        // Skip slashes
-        while (*p == '/')
-            p++;
-        if (!*p)
+        if (p >= end)
             break;
 
         const char *start = p;
-
-        // Find end of segment
-        while (*p && *p != '/')
+        while (p < end && *p != '/')
             p++;
 
-        size_t len = p - start;
-        if (len == 0)
-            continue;
-
-        path_segment_t *seg = &result->segments[result->count];
-        seg->start = start;
-        seg->len = len;
-        seg->is_param = (start[0] == ':');
-        seg->is_wildcard = (start[0] == '*');
-
+        result->segments[result->count].start = start;
+        result->segments[result->count].len = p - start;
+        result->segments[result->count].is_param = (start[0] == ':');
+        result->segments[result->count].is_wildcard = (start[0] == '*');
         result->count++;
     }
 
+    result->capacity = result->count;
     return 0;
 }
 

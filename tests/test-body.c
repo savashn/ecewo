@@ -4,7 +4,7 @@
 
 void handler_large_body(Req *req, Res *res)
 {
-    char *response = arena_sprintf(req->arena, "received=%zu", req->body_len);
+    char *response = arena_sprintf(req->arena, "received=%zu", req->body.len);
     send_text(res, 200, response);
 }
 

@@ -24,6 +24,7 @@ typedef struct
     char *url;           // Dynamic URL buffer
     size_t url_length;   // Current URL length
     size_t url_capacity; // URL buffer capacity
+    size_t path_length;  // URL path length (except query)
 
     char *method;           // Dynamic method buffer
     size_t method_length;   // Current method length

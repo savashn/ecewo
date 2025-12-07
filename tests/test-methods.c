@@ -5,18 +5,22 @@
 
 void handler_method_echo(Req *req, Res *res)
 {
-    send_text(res, 200, req->method);
+    send_text(res, 200, get_method(req));
 }
 
 void handler_post_body(Req *req, Res *res)
 {
-    if (!req->body || req->body_len == 0) {
+    if (get_body_len(req) == 0)
+    {
         send_text(res, 400, "No body");
         return;
     }
     
-    char *response = arena_sprintf(req->arena, "len=%zu,body=%s", 
-        req->body_len, req->body);
+    char *response = arena_sprintf(req->arena,
+                                   "len=%zu,body=%s", 
+                                   get_body_len(req),
+                                   get_body(req));
+
     send_text(res, 200, response);
 }
 

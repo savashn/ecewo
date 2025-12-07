@@ -150,87 +150,30 @@ static void send_error(Arena *request_arena, uv_tcp_t *client_socket, int error_
     }
 }
 
-// Separates URL into path and query string components
-// Example: /users/123?active=true -> path="/users/123", query="active=true"
-static int extract_path_and_query(Arena *request_arena, const char *url_buf, char **path, char **query)
-{
-    if (!request_arena || !url_buf || !path || !query)
-        return -1;
-
-    const char *qmark = strchr(url_buf, '?');
-    if (qmark)
-    {
-        size_t path_len = qmark - url_buf;
-        *path = arena_alloc(request_arena, path_len + 1);
-        if (!*path)
-            return -1;
-        
-        memcpy(*path, url_buf, path_len);
-        (*path)[path_len] = '\0';
-        
-        *query = arena_strdup(request_arena, qmark + 1);
-    }
-    else
-    {
-        *path = arena_strdup(request_arena, url_buf);
-        *query = arena_strdup(request_arena, "");
-    }
-
-    if (!*path || !*query)
-        return -1;
-
-    // If path is empty, treat it as root
-    if ((*path)[0] == '\0')
-    {
-        *path = arena_strdup(request_arena, "/");
-        if (!*path)
-            return -1;
-    }
-    
-    return 0;
-}
-
 // Extracts URL parameters from a previously matched route
 // Example: From route /users/:id matched with /users/123, extracts parameter id=123
-static int extract_url_params(Arena *request_arena, const route_match_t *match, request_t *url_params)
+static int extract_url_params(Arena *arena, const route_match_t *match, request_t *url_params)
 {
-    if (!request_arena || !match || !url_params)
+    if (!arena || !match || !url_params)
         return -1;
 
-    if (url_params->capacity == 0)
-    {
-        url_params->capacity = match->param_count > 0 ? match->param_count : 1;
-        url_params->items = arena_alloc(request_arena, sizeof(request_item_t) * url_params->capacity);
-        if (!url_params->items)
-        {
-            url_params->capacity = 0;
-            return -1;
-        }
+    if (match->param_count == 0)
+        return 0;
 
-        for (int i = 0; i < url_params->capacity; i++)
-        {
-            url_params->items[i].key = NULL;
-            url_params->items[i].value = NULL;
-        }
+    url_params->capacity = match->param_count;
+    url_params->count = match->param_count;
+    url_params->items = arena_alloc(arena, sizeof(request_item_t) * url_params->capacity);
+    if (!url_params->items)
+    {
+        url_params->capacity = 0;
+        url_params->count = 0;
+        return -1;
     }
 
-    for (uint8_t i = 0; i < match->param_count && url_params->count < url_params->capacity; i++)
+    for (uint8_t i = 0; i < match->param_count; i++)
     {
-        char *key = arena_alloc(request_arena, match->params[i].key.len + 1);
-        char *value = arena_alloc(request_arena, match->params[i].value.len + 1);
-
-        if (!key || !value)
-            return -1;
-
-        arena_memcpy(key, match->params[i].key.data, match->params[i].key.len);
-        key[match->params[i].key.len] = '\0';
-
-        arena_memcpy(value, match->params[i].value.data, match->params[i].value.len);
-        value[match->params[i].value.len] = '\0';
-
-        url_params->items[url_params->count].key = key;
-        url_params->items[url_params->count].value = value;
-        url_params->count++;
+        url_params->items[i].key = match->params[i].key;
+        url_params->items[i].value = match->params[i].value;
     }
 
     return 0;
@@ -334,10 +277,9 @@ static Req *create_req(Arena *request_arena, uv_tcp_t *client_socket)
     memset(req, 0, sizeof(Req));
     req->arena = request_arena;
     req->client_socket = client_socket;
-    req->method = NULL;
-    req->path = NULL;
-    req->body = NULL;
-    req->body_len = 0;
+    req->method = SV_NULL;
+    req->path = SV_NULL;
+    req->body = SV_NULL;
 
     memset(&req->headers, 0, sizeof(request_t));
     memset(&req->query, 0, sizeof(request_t));
@@ -373,93 +315,25 @@ static Res *create_res(Arena *request_arena, uv_tcp_t *client_socket)
     return res;
 }
 
-static request_t copy_request_t(Arena *request_arena, const request_t *original)
+static int populate_req_from_context(Req *req, http_context_t *ctx, const char *path, size_t path_len)
 {
-    request_t copy;
-    memset(&copy, 0, sizeof(request_t));
-
-    if (!request_arena || !original || original->count == 0)
-        return copy;
-
-    copy.capacity = original->count;
-    copy.count = original->count;
-    copy.items = arena_alloc(request_arena, copy.capacity * sizeof(request_item_t));
-
-    if (!copy.items)
-    {
-        memset(&copy, 0, sizeof(request_t));
-        return copy;
-    }
-
-    for (uint32_t i = 0; i < original->count; i++)
-    {
-        if (original->items[i].key)
-        {
-            copy.items[i].key = arena_strdup(request_arena, original->items[i].key);
-            if (!copy.items[i].key)
-            {
-                memset(&copy, 0, sizeof(request_t));
-                return copy;
-            }
-        }
-        else
-        {
-            copy.items[i].key = NULL;
-        }
-
-        if (original->items[i].value)
-        {
-            copy.items[i].value = arena_strdup(request_arena, original->items[i].value);
-            if (!copy.items[i].value)
-            {
-                memset(&copy, 0, sizeof(request_t));
-                return copy;
-            }
-        }
-        else
-        {
-            copy.items[i].value = NULL;
-        }
-    }
-
-    return copy;
-}
-
-// Copy the persistent context from connection arena to request arena
-static int populate_req_from_context(Req *req, http_context_t *persistent_ctx, const char *path)
-{
-    if (!req || !req->arena || !persistent_ctx)
+    if (!req || !ctx)
         return -1;
 
-    Arena *request_arena = req->arena;
+    req->method.data = ctx->method;
+    req->method.len = ctx->method_length;
 
-    if (persistent_ctx->method)
-    {
-        req->method = arena_strdup(request_arena, persistent_ctx->method);
-        if (!req->method)
-            return -1;
-    }
+    req->path.data = path;
+    req->path.len = path_len;
 
-    if (path)
-    {
-        req->path = arena_strdup(request_arena, path);
-        if (!req->path)
-            return -1;
-    }
+    req->body.data = ctx->body;
+    req->body.len = ctx->body_length;
 
-    if (persistent_ctx->body && persistent_ctx->body_length > 0)
-    {
-        req->body = arena_alloc(request_arena, persistent_ctx->body_length + 1);
-        if (!req->body)
-            return -1;
-        arena_memcpy(req->body, persistent_ctx->body, persistent_ctx->body_length);
-        req->body[persistent_ctx->body_length] = '\0';
-        req->body_len = persistent_ctx->body_length;
-    }
+    req->http_major = ctx->http_major;
+    req->http_minor = ctx->http_minor;
 
-    req->headers = copy_request_t(request_arena, &persistent_ctx->headers);
-    req->query = copy_request_t(request_arena, &persistent_ctx->query_params);
-    req->params = copy_request_t(request_arena, &persistent_ctx->url_params);
+    req->headers = ctx->headers;
+    req->query = ctx->query_params;
 
     return 0;
 }
@@ -724,12 +598,13 @@ int router(client_t *client, const char *request_data, size_t request_len)
 
     res->keep_alive = persistent_ctx->keep_alive;
 
-    char *path = NULL;
-    char *query = NULL;
-    if (extract_path_and_query(request_arena, persistent_ctx->url, &path, &query) != 0)
+    const char *path = persistent_ctx->url;
+    size_t path_len = persistent_ctx->path_length;
+
+    if (!path || path_len == 0)
     {
-        send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
-        return 1;
+        path = "/";
+        path_len = 1;
     }
 
     if (!path)
@@ -752,7 +627,9 @@ int router(client_t *client, const char *request_data, size_t request_len)
         return keep_alive ? 0 : 1;
     }
 
-    if (tokenize_path(request_arena, path, &tokenized_path) != 0)
+    path_segment_t segments_buf[MAX_PATH_SEGMENTS];
+
+    if (tokenize_path(path, path_len, &tokenized_path, segments_buf) != 0)
     {
         send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
         return 1;
@@ -769,13 +646,13 @@ int router(client_t *client, const char *request_data, size_t request_len)
         return keep_alive ? 0 : 1;
     }
 
-    if (extract_url_params(request_arena, &match, &persistent_ctx->url_params) != 0)
+    if (extract_url_params(request_arena, &match, &req->params) != 0)
     {
         send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
         return 1;
     }
 
-    if (populate_req_from_context(req, persistent_ctx, path) != 0)
+    if (populate_req_from_context(req, persistent_ctx, path, path_len) != 0)
     {
         send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
         return 1;
@@ -857,19 +734,78 @@ void set_header(Res *res, const char *name, const char *value)
     res->header_count++;
 }
 
-const char *get_param(const Req *req, const char *key)
+static str_t get_req(const request_t *request, const char *key)
 {
-    return req ? get_req(&req->params, key) : NULL;
+    if (!request || !request->items || !key || request->count == 0)
+        return (str_t){NULL, 0};
+
+    size_t key_len = strlen(key);
+
+    for (uint16_t i = 0; i < request->count; i++)
+    {
+        if (request->items[i].key.len == key_len &&
+            memcmp(request->items[i].key.data, key, key_len) == 0)
+        {
+            return request->items[i].value;
+        }
+    }
+    
+    return (str_t){NULL, 0};
 }
 
-const char *get_query(const Req *req, const char *key)
+static const char *str_to_cstr(Arena *arena, str_t sv)
 {
-    return req ? get_req(&req->query, key) : NULL;
+    if (!sv.data || sv.len == 0)
+        return NULL;
+    
+    char *str = arena_alloc(arena, sv.len + 1);
+    if (!str)
+        return NULL;
+        
+    memcpy(str, sv.data, sv.len);
+    str[sv.len] = '\0';
+    return str;
 }
 
-const char *get_header(const Req *req, const char *key)
+const char *get_method(Req *req)
 {
-    return req ? get_req(&req->headers, key) : NULL;
+    if (!req) return NULL;
+    return str_to_cstr(req->arena, req->method);
+}
+
+const char *get_path(Req *req)
+{
+    if (!req) return NULL;
+    return str_to_cstr(req->arena, req->path);
+}
+
+const char *get_body(Req *req)
+{
+    if (!req) return NULL;
+    return str_to_cstr(req->arena, req->body);
+}
+
+size_t get_body_len(Req *req)
+{
+    return req ? req->body.len : 0;
+}
+
+const char *get_param(Req *req, const char *key)
+{
+    if (!req) return NULL;
+    return str_to_cstr(req->arena, get_req(&req->params, key));
+}
+
+const char *get_query(Req *req, const char *key)
+{
+    if (!req) return NULL;
+    return str_to_cstr(req->arena, get_req(&req->query, key));
+}
+
+const char *get_header(Req *req, const char *key)
+{
+    if (!req) return NULL;
+    return str_to_cstr(req->arena, get_req(&req->headers, key));
 }
 
 void redirect(Res *res, int status, const char *url)
