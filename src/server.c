@@ -3,7 +3,6 @@
 #include <inttypes.h>
 #include "server.h"
 #include "route-trie.h"
-#include "request.h"
 #include "middleware.h"
 #include "arena.h"
 #include "utils.h"

@@ -82,12 +82,15 @@ if(NOT TARGET ecewo::ecewo)
 
     set(ECEWO_SOURCES
         src/server.c
+        src/http.c
         src/request.c
+        src/response.c
         src/router.c
         src/middleware.c
         src/route-trie.c
         src/arena.c
         src/arena-pool.c
+        src/spawn.c
         src/utils/date-cache.c
     )
 

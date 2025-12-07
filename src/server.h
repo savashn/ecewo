@@ -2,7 +2,7 @@
 #define ECEWO_SERVER_H
 
 #include "ecewo.h"
-#include "request.h"
+#include "http.h"
 #include "uv.h"
 #include "llhttp.h"
 
@@ -34,7 +34,7 @@
 #define CLEANUP_TIMEOUT_MS 5000
 #endif
 
-typedef struct client_s
+struct client_s
 {
     uv_tcp_t handle;
     uv_buf_t read_buf;
@@ -52,6 +52,6 @@ typedef struct client_s
     http_context_t persistent_context; // Lives in connection_arena
     bool parser_initialized;
     bool request_in_progress;  // True while parsing a multi-packet request
-} client_t;
+};
 
 #endif
