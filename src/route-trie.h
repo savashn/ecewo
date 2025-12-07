@@ -49,7 +49,6 @@ typedef struct
 {
     trie_node_t *root;
     size_t route_count;
-    uv_rwlock_t lock;
 } route_trie_t;
 
 extern route_trie_t *global_route_trie;

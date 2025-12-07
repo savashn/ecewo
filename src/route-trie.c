@@ -265,8 +265,6 @@ bool route_trie_match(route_trie_t *trie,
     if (method_idx < 0)
         return false;
 
-    uv_rwlock_rdlock(&trie->lock);
-
     match->handler = NULL;
     match->middleware_ctx = NULL;
     match->param_count = 0;
@@ -292,11 +290,9 @@ bool route_trie_match(route_trie_t *trie,
     {
         match->handler = matched_node->handlers[method_idx];
         match->middleware_ctx = matched_node->middleware_ctx[method_idx];
-        uv_rwlock_rdunlock(&trie->lock);
         return true;
     }
 
-    uv_rwlock_rdunlock(&trie->lock);
     return false;
 }
 
@@ -309,13 +305,6 @@ route_trie_t *route_trie_create(void)
     trie->root = trie_node_create();
     if (!trie->root)
     {
-        free(trie);
-        return NULL;
-    }
-
-    if (uv_rwlock_init(&trie->lock) != 0)
-    {
-        trie_node_free(trie->root);
         free(trie);
         return NULL;
     }
@@ -339,8 +328,6 @@ int route_trie_add(route_trie_t *trie,
         return -1;
     }
 
-    uv_rwlock_wrlock(&trie->lock);
-
     trie_node_t *current = trie->root;
     const char *p = path;
 
@@ -363,17 +350,11 @@ int route_trie_add(route_trie_t *trie,
             {
                 current->param_child = trie_node_create();
                 if (!current->param_child)
-                {
-                    uv_rwlock_wrunlock(&trie->lock);
                     return -1;
-                }
 
                 current->param_child->param_name = malloc(param_len + 1);
                 if (!current->param_child->param_name)
-                {
-                    uv_rwlock_wrunlock(&trie->lock);
                     return -1;
-                }
 
                 memcpy(current->param_child->param_name, param_start, param_len);
                 current->param_child->param_name[param_len] = '\0';
@@ -387,10 +368,7 @@ int route_trie_add(route_trie_t *trie,
             {
                 current->wildcard_child = trie_node_create();
                 if (!current->wildcard_child)
-                {
-                    uv_rwlock_wrunlock(&trie->lock);
                     return -1;
-                }
             }
 
             current = current->wildcard_child;
@@ -406,10 +384,7 @@ int route_trie_add(route_trie_t *trie,
                 {
                     current->children[c] = trie_node_create();
                     if (!current->children[c])
-                    {
-                        uv_rwlock_wrunlock(&trie->lock);
                         return -1;
-                    }
                 }
 
                 current = current->children[c];
@@ -424,10 +399,7 @@ int route_trie_add(route_trie_t *trie,
             {
                 current->children[c] = trie_node_create();
                 if (!current->children[c])
-                {
-                    uv_rwlock_wrunlock(&trie->lock);
                     return -1;
-                }
             }
             current = current->children[c];
             p++;
@@ -439,7 +411,6 @@ int route_trie_add(route_trie_t *trie,
     current->middleware_ctx[method_idx] = middleware_ctx;
     trie->route_count++;
 
-    uv_rwlock_wrunlock(&trie->lock);
     return 0;
 }
 
@@ -448,11 +419,7 @@ void route_trie_free(route_trie_t *trie)
     if (!trie)
         return;
 
-    uv_rwlock_wrlock(&trie->lock);
     trie_node_free(trie->root);
     trie->root = NULL;
-    uv_rwlock_wrunlock(&trie->lock);
-
-    uv_rwlock_destroy(&trie->lock);
     free(trie);
 }
