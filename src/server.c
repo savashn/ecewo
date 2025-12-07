@@ -6,6 +6,7 @@
 #include "request.h"
 #include "middleware.h"
 #include "arena.h"
+#include "utils.h"
 
 typedef struct timer_data_s
 {
@@ -464,6 +465,7 @@ static void server_cleanup(void)
     stop_cleanup_timer();
     router_cleanup();
     arena_pool_destroy();
+    destroy_date_cache();
 
     uint64_t start = uv_now(g_server.loop);
     
@@ -538,6 +540,7 @@ int server_init(void)
         return SERVER_INIT_FAILED;
 
     arena_pool_init();
+    init_date_cache();
 
     const char *is_worker = getenv("ECEWO_WORKER");
     bool in_cluster = (is_worker && strcmp(is_worker, "1") == 0);

@@ -4,6 +4,7 @@
 #include "middleware.h"
 #include "server.h"
 #include "arena.h"
+#include "utils.h"
 
 static void write_completion_cb(uv_write_t *req, int status)
 {
@@ -44,10 +45,7 @@ static void send_error(Arena *request_arena, uv_tcp_t *client_socket, int error_
         !uv_is_writable((uv_stream_t *)client_socket))
         return;
 
-    time_t now = time(NULL);
-    struct tm *gmt = gmtime(&now);
-    char date_str[64];
-    strftime(date_str, sizeof(date_str), "%a, %d %b %Y %H:%M:%S GMT", gmt);
+    const char *date_str = get_cached_date();
 
     const char *status_text = (error_code == 500) ? "Internal Server Error" : "Bad Request";
     const char *body = status_text;
@@ -499,10 +497,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     if (!body)
         body_len = 0;
 
-    time_t now = time(NULL);
-    struct tm *gmt = gmtime(&now);
-    char date_str[64];
-    strftime(date_str, sizeof(date_str), "%a, %d %b %Y %H:%M:%S GMT", gmt);
+    const char *date_str = get_cached_date();
 
     size_t headers_size = 0;
     for (uint16_t i = 0; i < res->header_count; i++)

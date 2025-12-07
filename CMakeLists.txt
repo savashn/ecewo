@@ -88,6 +88,7 @@ if(NOT TARGET ecewo::ecewo)
         src/route-trie.c
         src/arena.c
         src/arena-pool.c
+        src/utils/date-cache.c
     )
 
     if(ECEWO_BUILD_SHARED)
@@ -116,6 +117,7 @@ if(NOT TARGET ecewo::ecewo)
             $<INSTALL_INTERFACE:include>
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/src
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/utils
             ${CMAKE_BINARY_DIR}/_deps/llhttp-src/include
     )
 
