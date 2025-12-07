@@ -74,10 +74,7 @@ static void on_client_closed(uv_handle_t *handle)
         g_server.active_connections--;
 
         if (client->connection_arena)
-        {
-            arena_free(client->connection_arena);
-            free(client->connection_arena);
-        }
+            arena_pool_release(client->connection_arena);
 
         free(client);
     }
@@ -175,15 +172,14 @@ static int client_connection_init(client_t *client)
     if (!client)
         return -1;
 
-    client->connection_arena = calloc(1, sizeof(Arena));
+    client->connection_arena = arena_pool_acquire();
     if (!client->connection_arena)
         return -1;
 
     http_context_t *ctx = arena_alloc(client->connection_arena, sizeof(http_context_t));
     if (!ctx)
     {
-        arena_free(client->connection_arena);
-        free(client->connection_arena);
+        arena_pool_release(client->connection_arena);
         client->connection_arena = NULL;
         return -1;
     }
@@ -467,6 +463,7 @@ static void server_cleanup(void)
 
     stop_cleanup_timer();
     router_cleanup();
+    arena_pool_destroy();
 
     uint64_t start = uv_now(g_server.loop);
     
@@ -539,6 +536,8 @@ int server_init(void)
     g_server.loop = uv_default_loop();
     if (!g_server.loop)
         return SERVER_INIT_FAILED;
+
+    arena_pool_init();
 
     const char *is_worker = getenv("ECEWO_WORKER");
     bool in_cluster = (is_worker && strcmp(is_worker, "1") == 0);
@@ -691,10 +690,8 @@ static void on_connection(uv_stream_t *server, int status)
     if (uv_tcp_init(g_server.loop, &client->handle) != 0)
     {
         if (client->connection_arena)
-        {
-            arena_free(client->connection_arena);
-            free(client->connection_arena);
-        }
+            arena_pool_release(client->connection_arena);
+
         free(client);
         return;
     }

@@ -3,8 +3,8 @@
 #include "route-trie.h"
 #include "middleware.h"
 #include "server.h"
+#include "arena.h"
 
-// Called when write operation is completed
 static void write_completion_cb(uv_write_t *req, int status)
 {
     if (status < 0)
@@ -17,8 +17,7 @@ static void write_completion_cb(uv_write_t *req, int status)
     if (write_req->arena)
     {
         Arena *request_arena = write_req->arena;
-        arena_free(request_arena);
-        free(request_arena);
+        arena_pool_release(request_arena);
     }
     else
     {
@@ -72,8 +71,7 @@ static void send_error(Arena *request_arena, uv_tcp_t *client_socket, int error_
 
         if (!response)
         {
-            arena_free(request_arena);
-            free(request_arena);
+            arena_pool_release(request_arena);
             return;
         }
 
@@ -82,8 +80,7 @@ static void send_error(Arena *request_arena, uv_tcp_t *client_socket, int error_
         write_req_t *write_req = arena_alloc(request_arena, sizeof(write_req_t));
         if (!write_req)
         {
-            arena_free(request_arena);
-            free(request_arena);
+            arena_pool_release(request_arena);
             return;
         }
 
@@ -97,8 +94,7 @@ static void send_error(Arena *request_arena, uv_tcp_t *client_socket, int error_
         if (res < 0)
         {
             LOG_DEBUG("Write error: %s", uv_strerror(res));
-            arena_free(request_arena);
-            free(request_arena);
+            arena_pool_release(request_arena);
         }
     }
     else
@@ -695,7 +691,7 @@ int router(client_t *client, const char *request_data, size_t request_len)
 
     // From here on, we have a complete HTTP message
     // Create request arena for processing
-    Arena *request_arena = calloc(1, sizeof(Arena));
+    Arena *request_arena = arena_pool_acquire();
     if (!request_arena)
     {
         send_error(NULL, (uv_tcp_t *)&client->handle, 500);

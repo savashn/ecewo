@@ -87,6 +87,7 @@ if(NOT TARGET ecewo::ecewo)
         src/middleware.c
         src/route-trie.c
         src/arena.c
+        src/arena-pool.c
     )
 
     if(ECEWO_BUILD_SHARED)

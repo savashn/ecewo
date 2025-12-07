@@ -9,7 +9,7 @@
 #define ARENA_REGION_DEFAULT_CAPACITY (8 * 1024)
 #endif
 
-static ArenaRegion *new_region(size_t capacity)
+ArenaRegion *new_region(size_t capacity)
 {
     size_t size_bytes = sizeof(ArenaRegion) + sizeof(uintptr_t) * capacity;
     ArenaRegion *r = (ArenaRegion *)malloc(size_bytes);
@@ -175,10 +175,14 @@ void arena_free(Arena *a)
 
 void arena_reset(Arena *a)
 {
-    for (ArenaRegion *r = a->begin; r != NULL; r = r->next)
-    {
-        r->count = 0;
-    }
+    if (!a || !a->begin)
+        return;
 
+    a->begin->count = 0;
     a->end = a->begin;
+    
+    if (a->begin->next)
+    {
+        a->begin->next->count = 0;
+    }
 }
