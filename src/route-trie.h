@@ -2,7 +2,6 @@
 #define ROUTE_TRIE_H
 
 #include "ecewo.h"
-#include "router.h"
 #include "llhttp.h"
 
 #define MAX_PATH_SEGMENTS 128

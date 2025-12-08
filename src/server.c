@@ -4,6 +4,7 @@
 #include "server.h"
 #include "route-trie.h"
 #include "middleware.h"
+#include "router.h"
 #include "arena.h"
 #include "utils.h"
 

@@ -34,14 +34,11 @@ const char *get_cached_date(void)
 {
     time_t now = time(NULL);
     
-    // Fast path: cache hit (no lock needed)
     if (g_date_cache.timestamp == now)
         return g_date_cache.date_str;
     
-    // Slow path: update cache
     uv_mutex_lock(&g_date_cache.mutex);
     
-    // Double-check (başka thread update etmiş olabilir)
     if (g_date_cache.timestamp != now)
     {
         struct tm *gmt = gmtime(&now);

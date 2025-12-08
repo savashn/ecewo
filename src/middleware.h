@@ -2,7 +2,6 @@
 #define ECEWO_MIDDLEWARE_H
 
 #include "ecewo.h"
-#include "router.h"
 #include "llhttp.h"
 
 struct Chain
