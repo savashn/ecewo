@@ -410,7 +410,6 @@ int on_body_cb(llhttp_t *parser, const char *at, size_t length)
 
     memmove(context->body + context->body_length, at, length);
     context->body_length += length;
-    context->body[context->body_length] = '\0';
 
     return HPE_OK;
 }

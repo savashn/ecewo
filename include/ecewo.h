@@ -70,9 +70,10 @@ typedef struct
 {
     Arena *arena;
     uv_tcp_t *client_socket;
-    str_t method;
-    str_t path;
-    str_t body;
+    char *method;
+    char *path;
+    char *body;
+    size_t body_len;
     request_t headers;
     request_t query;
     request_t params;
@@ -234,10 +235,6 @@ void clear_timer(Timer *timer);
 // Request Functions
 // ============================================================================
 
-const char *get_method(Req *req);
-const char *get_path(Req *req);
-const char *get_body(Req *req);
-size_t get_body_len(Req *req);
 const char *get_param(Req *req, const char *key);
 const char *get_query(Req *req, const char *key);
 const char *get_header(Req *req, const char *key);

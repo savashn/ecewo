@@ -33,29 +33,6 @@ static const char *str_to_cstr(Arena *arena, str_t sv)
     return str;
 }
 
-const char *get_method(Req *req)
-{
-    if (!req) return NULL;
-    return str_to_cstr(req->arena, req->method);
-}
-
-const char *get_path(Req *req)
-{
-    if (!req) return NULL;
-    return str_to_cstr(req->arena, req->path);
-}
-
-const char *get_body(Req *req)
-{
-    if (!req) return NULL;
-    return str_to_cstr(req->arena, req->body);
-}
-
-size_t get_body_len(Req *req)
-{
-    return req ? req->body.len : 0;
-}
-
 const char *get_param(Req *req, const char *key)
 {
     if (!req) return NULL;

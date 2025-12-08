@@ -60,9 +60,10 @@ static Req *create_req(Arena *request_arena, uv_tcp_t *client_socket)
     memset(req, 0, sizeof(Req));
     req->arena = request_arena;
     req->client_socket = client_socket;
-    req->method = SV_NULL;
-    req->path = SV_NULL;
-    req->body = SV_NULL;
+    req->method = NULL;
+    req->path = NULL;
+    req->body = NULL;
+    req->body_len = 0;
 
     memset(&req->headers, 0, sizeof(request_t));
     memset(&req->query, 0, sizeof(request_t));
@@ -103,14 +104,35 @@ static int populate_req_from_context(Req *req, http_context_t *ctx, const char *
     if (!req || !ctx)
         return -1;
 
-    req->method.data = ctx->method;
-    req->method.len = ctx->method_length;
+    Arena *arena = req->arena;
 
-    req->path.data = path;
-    req->path.len = path_len;
+    if (ctx->method && ctx->method_length > 0)
+    {
+        req->method = arena_alloc(arena, ctx->method_length + 1);
+        if (!req->method)
+            return -1;
+        memcpy(req->method, ctx->method, ctx->method_length);
+        req->method[ctx->method_length] = '\0';
+    }
 
-    req->body.data = ctx->body;
-    req->body.len = ctx->body_length;
+    if (path && path_len > 0)
+    {
+        req->path = arena_alloc(arena, path_len + 1);
+        if (!req->path)
+            return -1;
+        memcpy(req->path, path, path_len);
+        req->path[path_len] = '\0';
+    }
+
+    if (ctx->body && ctx->body_length > 0)
+    {
+        req->body = arena_alloc(arena, ctx->body_length + 1);
+        if (!req->body)
+            return -1;
+        memcpy(req->body, ctx->body, ctx->body_length);
+        req->body[ctx->body_length] = '\0';
+        req->body_len = ctx->body_length;
+    }
 
     req->http_major = ctx->http_major;
     req->http_minor = ctx->http_minor;
