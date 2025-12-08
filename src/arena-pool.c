@@ -3,11 +3,11 @@
 #include <stdlib.h>
 
 #ifndef ARENA_POOL_SIZE
-#define ARENA_POOL_SIZE 512
+#define ARENA_POOL_SIZE 1024
 #endif
 
 #ifndef PREALLOCATED_ARENA
-#define PREALLOCATED_ARENA 16
+#define PREALLOCATED_ARENA 256
 #endif
 
 #define ARENA_MIN_REGION_SIZE (64 * 1024)  // 64KB minimum

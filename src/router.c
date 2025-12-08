@@ -155,7 +155,6 @@ int router(client_t *client, const char *request_data, size_t request_len)
 
     case PARSE_OVERFLOW:
         LOG_DEBUG("HTTP parsing failed: size limits exceeded");
-
         if (persistent_ctx->error_reason)
             LOG_DEBUG(" - %s", persistent_ctx->error_reason);
         send_error(NULL, (uv_tcp_t *)&client->handle, 413);
@@ -170,9 +169,8 @@ int router(client_t *client, const char *request_data, size_t request_len)
         return 1;
     }
 
-    // From here on, we have a complete HTTP message
-    // Create request arena for processing
-    Arena *request_arena = arena_pool_acquire();
+    Arena *request_arena = client->connection_arena;
+    
     if (!request_arena)
     {
         send_error(NULL, (uv_tcp_t *)&client->handle, 500);
@@ -199,10 +197,10 @@ int router(client_t *client, const char *request_data, size_t request_len)
         if (finish_result != PARSE_SUCCESS)
         {
             LOG_DEBUG("HTTP finish parsing failed: %s", parse_result_to_string(finish_result));
-
+            
             if (persistent_ctx->error_reason)
                 LOG_DEBUG(" - %s", persistent_ctx->error_reason);
-
+            
             send_error(request_arena, (uv_tcp_t *)&client->handle, 400);
             return 1;
         }
@@ -295,7 +293,11 @@ int router(client_t *client, const char *request_data, size_t request_len)
     }
 
     if (!res->replied)
+    {
+        arena_reset(request_arena);
         return 0;
+    }
 
+    // Arena will be reset in write_completion_cb after response is sent
     return res->keep_alive ? 0 : 1;
 }
