@@ -83,8 +83,8 @@ typedef struct
 
 typedef struct
 {
-    char *name;
-    char *value;
+    str_t name;
+    str_t value;
 } http_header_t;
 
 typedef struct

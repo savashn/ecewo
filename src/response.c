@@ -178,7 +178,8 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
 
     if (!res->client_socket)
     {
-        if (res->arena) arena_reset(res->arena);
+        if (res->arena)
+            arena_reset(res->arena);
         return;
     }
 
@@ -198,16 +199,50 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     const char *date_str = get_cached_date();
     const char *connection = res->keep_alive ? "keep-alive" : "close";
 
-    // Build custom headers
-    char *custom_headers = arena_sprintf(res->arena, "");
+    size_t headers_size = 0;
     for (uint16_t i = 0; i < res->header_count; i++)
     {
-        if (res->headers[i].name && res->headers[i].value)
+        if (res->headers[i].name.data && res->headers[i].value.data)
         {
-            custom_headers = arena_sprintf(res->arena, "%s%s: %s\r\n",
-                                          custom_headers,
-                                          res->headers[i].name,
-                                          res->headers[i].value);
+            headers_size += res->headers[i].name.len + 2 +   // "name: "
+                           res->headers[i].value.len + 2;    // "value\r\n"
+        }
+    }
+
+    char *all_headers = NULL;
+    if (headers_size > 0)
+    {
+        all_headers = arena_alloc(res->arena, headers_size + 1);
+        if (!all_headers)
+        {
+            send_error(res->arena, res->client_socket, 500);
+            return;
+        }
+
+        size_t pos = 0;
+        for (uint16_t i = 0; i < res->header_count; i++)
+        {
+            if (res->headers[i].name.data && res->headers[i].value.data)
+            {
+                memcpy(all_headers + pos, res->headers[i].name.data, res->headers[i].name.len);
+                pos += res->headers[i].name.len;
+                all_headers[pos++] = ':';
+                all_headers[pos++] = ' ';
+                memcpy(all_headers + pos, res->headers[i].value.data, res->headers[i].value.len);
+                pos += res->headers[i].value.len;
+                all_headers[pos++] = '\r';
+                all_headers[pos++] = '\n';
+            }
+        }
+        all_headers[pos] = '\0';
+    }
+    else
+    {
+        all_headers = arena_strdup(res->arena, "");
+        if (!all_headers)
+        {
+            send_error(res->arena, res->client_socket, 500);
+            return;
         }
     }
 
@@ -222,7 +257,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         "\r\n",
         status,
         date_str,
-        custom_headers,
+        all_headers,
         content_type,
         body_len,
         connection);
@@ -236,7 +271,6 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     size_t headers_len = strlen(headers);
     size_t total_len = headers_len + body_len;
 
-    // Allocate final response buffer
     char *response = arena_alloc(res->arena, total_len);
     if (!response)
     {
@@ -248,7 +282,6 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     if (body_len > 0 && body)
         memcpy(response + headers_len, body, body_len);
 
-    // Send response
     write_req_t *write_req = arena_alloc(res->arena, sizeof(write_req_t));
     if (!write_req)
     {
@@ -260,6 +293,12 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     write_req->data = response;
     write_req->arena = res->arena;
     write_req->buf = uv_buf_init(response, (unsigned int)total_len);
+
+    if (uv_is_closing((uv_handle_t *)res->client_socket))
+    {
+        arena_reset(res->arena);
+        return;
+    }
 
     int result = uv_write(&write_req->req, (uv_stream_t *)res->client_socket,
                           &write_req->buf, 1, write_completion_cb);
@@ -300,19 +339,30 @@ void set_header(Res *res, const char *name, const char *value)
         res->header_capacity = new_cap;
     }
 
-    res->headers[res->header_count].name = arena_strdup(res->arena, name);
-    if (!res->headers[res->header_count].name)
+    // Store as str_t with length
+    size_t name_len = strlen(name);
+    size_t value_len = strlen(value);
+
+    char *name_copy = arena_alloc(res->arena, name_len + 1);
+    char *value_copy = arena_alloc(res->arena, value_len + 1);
+
+    if (!name_copy || !value_copy)
     {
-        LOG_DEBUG("Failed to allocate memory for name in set_header");
+        LOG_DEBUG("Failed to allocate memory in set_header");
         return;
     }
 
-    res->headers[res->header_count].value = arena_strdup(res->arena, value);
-    if (!res->headers[res->header_count].value)
-    {
-        LOG_DEBUG("Failed to allocate memory for value in set_header");
-        return;
-    }
+    memcpy(name_copy, name, name_len);
+    name_copy[name_len] = '\0';
+
+    memcpy(value_copy, value, value_len);
+    value_copy[value_len] = '\0';
+
+    // Store as str_t
+    res->headers[res->header_count].name.data = name_copy;
+    res->headers[res->header_count].name.len = name_len;
+    res->headers[res->header_count].value.data = value_copy;
+    res->headers[res->header_count].value.len = value_len;
 
     res->header_count++;
 }
