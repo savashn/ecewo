@@ -22,23 +22,6 @@
 #define ERROR_REASON_MEMORY_ALLOCATION "Memory allocation failed"
 #define ERROR_REASON_INVALID_METHOD "Invalid HTTP method"
 
-static int is_invalid_token_char(unsigned char c)
-{
-    // RFC 7230 token characters - return 1 if invalid, 0 if valid
-    if (c < 33 || c > 126)
-        return 1;
-
-    if (c == '(' || c == ')' || c == '<' || c == '>' || c == '@' ||
-        c == ',' || c == ';' || c == ':' || c == '\\' || c == '"' ||
-        c == '/' || c == '[' || c == ']' || c == '?' || c == '=' ||
-        c == '{' || c == '}' || c == ' ' || c == '\t')
-    {
-        return 1;
-    }
-
-    return 0;
-}
-
 static size_t calculate_next_size(size_t current, size_t needed)
 {
     size_t new_size, next;
@@ -255,16 +238,6 @@ int on_header_field_cb(llhttp_t *parser, const char *at, size_t length)
         return HPE_USER;
     }
 
-    for (i = 0; i < length; i++)
-    {
-        unsigned char c = (unsigned char)at[i];
-        if (is_invalid_token_char(c))
-        {
-            llhttp_set_error_reason(parser, "Invalid character in header field name");
-            return HPE_USER;
-        }
-    }
-
     context->header_field_length = 0;
 
     result = ensure_buffer_capacity(context->arena, &context->current_header_field,
@@ -379,14 +352,10 @@ int on_header_value_cb(llhttp_t *parser, const char *at, size_t length)
 
 int on_method_cb(llhttp_t *parser, const char *at, size_t length)
 {
-    http_context_t *context;
-    size_t i;
-    int result;
-
     if (!parser || !parser->data || !at || length == 0)
         return HPE_INTERNAL;
 
-    context = (http_context_t *)parser->data;
+    http_context_t *context = (http_context_t *)parser->data;
 
     if (context->method_length + length > MAX_METHOD_LENGTH)
     {
@@ -394,18 +363,11 @@ int on_method_cb(llhttp_t *parser, const char *at, size_t length)
         return HPE_USER;
     }
 
-    for (i = 0; i < length; i++)
-    {
-        unsigned char c = (unsigned char)at[i];
-        if (is_invalid_token_char(c))
-        {
-            llhttp_set_error_reason(parser, ERROR_REASON_INVALID_METHOD);
-            return HPE_USER;
-        }
-    }
-
-    result = ensure_buffer_capacity(context->arena, &context->method, &context->method_capacity,
-                                    context->method_length, length);
+    int result = ensure_buffer_capacity(context->arena, 
+                                        &context->method, 
+                                        &context->method_capacity,
+                                        context->method_length, 
+                                        length);
     if (result == -2)
     {
         llhttp_set_error_reason(parser, ERROR_REASON_METHOD_TOO_LONG);
