@@ -1,5 +1,5 @@
-#ifndef ROUTE_TRIE_H
-#define ROUTE_TRIE_H
+#ifndef ECEWO_ROUTE_TRIE_H
+#define ECEWO_ROUTE_TRIE_H
 
 #include "ecewo.h"
 #include "llhttp.h"

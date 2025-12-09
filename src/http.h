@@ -1,5 +1,5 @@
-#ifndef ECEWO_REQUEST_H
-#define ECEWO_REQUEST_H
+#ifndef ECEWO_HTTP_H
+#define ECEWO_HTTP_H
 
 #include "ecewo.h"
 #include "llhttp.h"
