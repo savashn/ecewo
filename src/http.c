@@ -201,7 +201,7 @@ int on_url_cb(llhttp_t *parser, const char *at, size_t length)
     if (!parser || !parser->data || !at || length == 0)
         return HPE_INTERNAL;
 
-    http_context_t context = (http_context_t *)parser->data;
+    http_context_t *context = (http_context_t *)parser->data;
 
     if (context->url_length + length > MAX_URL_LENGTH)
     {
