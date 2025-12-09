@@ -24,8 +24,6 @@
 
 static size_t calculate_next_size(size_t current, size_t needed)
 {
-    size_t new_size, next;
-
     if (needed > ABSOLUTE_MAX_REQUEST)
     {
         LOG_DEBUG("Request too large: %zu bytes", needed);
@@ -35,7 +33,7 @@ static size_t calculate_next_size(size_t current, size_t needed)
     if (needed <= current)
         return current;
 
-    new_size = current < MIN_BUFFER_SIZE ? MIN_BUFFER_SIZE : current;
+    size_t new_size = current < MIN_BUFFER_SIZE ? MIN_BUFFER_SIZE : current;
 
     while (new_size < needed)
     {
@@ -45,7 +43,7 @@ static size_t calculate_next_size(size_t current, size_t needed)
             break;
         }
 
-        next = (size_t)(new_size * GROWTH_FACTOR);
+        size_t next = (size_t)(new_size * GROWTH_FACTOR);
         if (next <= new_size)
         {
             new_size = needed + MIN_BUFFER_SIZE;
@@ -63,13 +61,10 @@ static size_t calculate_next_size(size_t current, size_t needed)
 static int ensure_buffer_capacity(Arena *arena, char **buffer, size_t *capacity,
                                   size_t current_length, size_t additional_needed)
 {
-    size_t total_needed, new_capacity;
-    char *new_buffer;
-
     if (!arena || !buffer || !capacity)
         return -1;
 
-    total_needed = current_length + additional_needed + 1;
+    size_t total_needed = current_length + additional_needed + 1;
 
     if (total_needed <= *capacity)
         return 0;
@@ -80,11 +75,11 @@ static int ensure_buffer_capacity(Arena *arena, char **buffer, size_t *capacity,
         return -2;
     }
 
-    new_capacity = calculate_next_size(*capacity, total_needed);
+    size_t new_capacity = calculate_next_size(*capacity, total_needed);
     if (new_capacity == 0 || new_capacity < total_needed)
         return -2;
 
-    new_buffer = arena_realloc(arena, *buffer, *capacity, new_capacity);
+    char *new_buffer = arena_realloc(arena, *buffer, *capacity, new_capacity);
     if (!new_buffer)
         return -1;
 
@@ -217,14 +212,10 @@ int on_url_cb(llhttp_t *parser, const char *at, size_t length)
 
 int on_header_field_cb(llhttp_t *parser, const char *at, size_t length)
 {
-    http_context_t *context;
-    size_t i;
-    int result;
-
     if (!parser || !parser->data || !at || length == 0)
         return HPE_INTERNAL;
 
-    context = (http_context_t *)parser->data;
+    http_context_t *context = (http_context_t *)parser->data;
 
     if (context->headers.count >= MAX_HEADERS_COUNT)
     {
@@ -240,7 +231,7 @@ int on_header_field_cb(llhttp_t *parser, const char *at, size_t length)
 
     context->header_field_length = 0;
 
-    result = ensure_buffer_capacity(context->arena, &context->current_header_field,
+    int result = ensure_buffer_capacity(context->arena, &context->current_header_field,
                                     &context->header_field_capacity, 0, length);
     if (result == -2)
     {
@@ -262,10 +253,6 @@ int on_header_field_cb(llhttp_t *parser, const char *at, size_t length)
 
 int ensure_array_capacity(Arena *arena, request_t *array)
 {
-    int new_capacity, i;
-    size_t old_size, new_size;
-    request_item_t *new_items;
-
     if (!arena || !array)
         return -1;
 
@@ -275,7 +262,7 @@ int ensure_array_capacity(Arena *arena, request_t *array)
     if (array->capacity > MAX_HEADERS_COUNT / 2)
         return -1;
 
-    new_capacity = array->capacity == 0 ? 16 : array->capacity * 2;
+    int new_capacity = array->capacity == 0 ? 16 : array->capacity * 2;
 
     if (new_capacity > MAX_HEADERS_COUNT)
         new_capacity = MAX_HEADERS_COUNT;
@@ -283,14 +270,14 @@ int ensure_array_capacity(Arena *arena, request_t *array)
     if (new_capacity <= array->capacity)
         return -1;
 
-    old_size = array->capacity * sizeof(request_item_t);
-    new_size = new_capacity * sizeof(request_item_t);
+    size_t old_size = array->capacity * sizeof(request_item_t);
+    size_t new_size = new_capacity * sizeof(request_item_t);
 
-    new_items = arena_realloc(arena, array->items, old_size, new_size);
+    request_item_t *new_items = arena_realloc(arena, array->items, old_size, new_size);
     if (!new_items)
         return -1;
 
-    for (i = array->capacity; i < new_capacity; i++)
+    for (int i = array->capacity; i < new_capacity; i++)
     {
         new_items[i].key = NULL;
         new_items[i].value = NULL;
@@ -303,12 +290,10 @@ int ensure_array_capacity(Arena *arena, request_t *array)
 
 int on_header_value_cb(llhttp_t *parser, const char *at, size_t length)
 {
-    http_context_t *context;
-
     if (!parser || !parser->data || !at || length == 0)
         return HPE_INTERNAL;
 
-    context = (http_context_t *)parser->data;
+    http_context_t *context = (http_context_t *)parser->data;
 
     if (context->header_field_length == 0)
     {
@@ -322,7 +307,6 @@ int on_header_value_cb(llhttp_t *parser, const char *at, size_t length)
         return HPE_INTERNAL;
     }
 
-    // Allocate null-terminated key
     char *key_copy = arena_alloc(context->arena, context->header_field_length + 1);
     if (!key_copy)
     {
@@ -388,16 +372,16 @@ int on_method_cb(llhttp_t *parser, const char *at, size_t length)
 
 int on_body_cb(llhttp_t *parser, const char *at, size_t length)
 {
-    http_context_t *context;
-    int result;
-
     if (!parser || !parser->data || !at || length == 0)
         return HPE_INTERNAL;
 
-    context = (http_context_t *)parser->data;
+    http_context_t *context = (http_context_t *)parser->data;
 
-    result = ensure_buffer_capacity(context->arena, &context->body, &context->body_capacity,
-                                    context->body_length, length);
+    int result = ensure_buffer_capacity(context->arena,
+                                        &context->body,
+                                        &context->body_capacity,
+                                        context->body_length,
+                                        length);
 
     if (result == -2)
     {
@@ -418,12 +402,10 @@ int on_body_cb(llhttp_t *parser, const char *at, size_t length)
 
 int on_headers_complete_cb(llhttp_t *parser)
 {
-    http_context_t *context;
-
     if (!parser || !parser->data)
         return HPE_INTERNAL;
 
-    context = (http_context_t *)parser->data;
+    http_context_t *context = (http_context_t *)parser->data;
 
     context->http_major = llhttp_get_http_major(parser);
     context->http_minor = llhttp_get_http_minor(parser);
@@ -518,12 +500,10 @@ void http_context_init(http_context_t *context,
 
 parse_result_t http_parse_request(http_context_t *context, const char *data, size_t len)
 {
-    llhttp_errno_t err;
-
     if (!context || !data || len == 0)
         return PARSE_ERROR;
 
-    err = llhttp_execute(context->parser, data, len);
+    llhttp_errno_t err = llhttp_execute(context->parser, data, len);
 
     context->last_error = err;
     context->error_reason = llhttp_get_error_reason(context->parser);
@@ -558,12 +538,10 @@ bool http_message_needs_eof(const http_context_t *context)
 
 parse_result_t http_finish_parsing(http_context_t *context)
 {
-    llhttp_errno_t err;
-
     if (!context)
         return PARSE_ERROR;
 
-    err = llhttp_finish(context->parser);
+    llhttp_errno_t err = llhttp_finish(context->parser);
 
     context->last_error = err;
     context->error_reason = llhttp_get_error_reason(context->parser);
