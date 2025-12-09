@@ -1,6 +1,6 @@
 #include "ecewo.h"
 
-const char *get_req(const request_t *request, const char *key)
+static const char *get_req(const request_t *request, const char *key)
 {
     if (!request || !request->items || !key || request->count == 0)
         return NULL;
@@ -46,7 +46,7 @@ void set_context(Req *req, const char *key, void *data, size_t size)
     {
         if (ctx->entries[i].key && strcmp(ctx->entries[i].key, key) == 0)
         {
-            ctx->entries[i].data = arena_alloc(ctx->arena, size);
+            ctx->entries[i].data = arena_alloc(req->arena, size);
             if (!ctx->entries[i].data)
                 return;
             arena_memcpy(ctx->entries[i].data, data, size);
@@ -59,7 +59,7 @@ void set_context(Req *req, const char *key, void *data, size_t size)
     {
         uint32_t new_capacity = ctx->capacity == 0 ? 8 : ctx->capacity * 2;
 
-        context_entry_t *new_entries = arena_realloc(ctx->arena,
+        context_entry_t *new_entries = arena_realloc(req->arena,
                                                      ctx->entries,
                                                      ctx->capacity * sizeof(context_entry_t),
                                                      new_capacity * sizeof(context_entry_t));
@@ -80,11 +80,11 @@ void set_context(Req *req, const char *key, void *data, size_t size)
 
     context_entry_t *entry = &ctx->entries[ctx->count];
 
-    entry->key = arena_strdup(ctx->arena, key);
+    entry->key = arena_strdup(req->arena, key);
     if (!entry->key)
         return;
 
-    entry->data = arena_alloc(ctx->arena, size);
+    entry->data = arena_alloc(req->arena, size);
     if (!entry->data)
         return;
 

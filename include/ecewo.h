@@ -42,7 +42,6 @@ typedef struct
     context_entry_t *entries;
     uint32_t count;
     uint32_t capacity;
-    Arena *arena;
 } context_t;
 
 typedef struct

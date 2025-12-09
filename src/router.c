@@ -51,17 +51,6 @@ static int extract_url_params(Arena *arena, const route_match_t *match, request_
     return 0;
 }
 
-static void context_init(context_t *ctx, Arena *request_arena)
-{
-    if (!ctx || !request_arena)
-        return;
-
-    ctx->arena = request_arena;
-    ctx->entries = NULL;
-    ctx->count = 0;
-    ctx->capacity = 0;
-}
-
 static Req *create_req(Arena *request_arena, uv_tcp_t *client_socket)
 {
     if (!request_arena)
@@ -74,16 +63,6 @@ static Req *create_req(Arena *request_arena, uv_tcp_t *client_socket)
     memset(req, 0, sizeof(Req));
     req->arena = request_arena;
     req->client_socket = client_socket;
-    req->method = NULL;
-    req->path = NULL;
-    req->body = NULL;
-    req->body_len = 0;
-
-    memset(&req->headers, 0, sizeof(request_t));
-    memset(&req->query, 0, sizeof(request_t));
-    memset(&req->params, 0, sizeof(request_t));
-
-    context_init(&req->ctx, request_arena);
 
     return req;
 }
@@ -102,13 +81,7 @@ static Res *create_res(Arena *request_arena, uv_tcp_t *client_socket)
     res->client_socket = client_socket;
     res->status = 200;
     res->content_type = arena_strdup(request_arena, "text/plain");
-    res->body = NULL;
-    res->body_len = 0;
     res->keep_alive = 1;
-    res->headers = NULL;
-    res->header_count = 0;
-    res->header_capacity = 0;
-    res->replied = false;
 
     return res;
 }
@@ -163,17 +136,18 @@ static int populate_req_from_context(Req *req, http_context_t *ctx, const char *
 //   2 = need more data (PARSE_INCOMPLETE)
 int router(client_t *client, const char *request_data, size_t request_len)
 {
+    uv_tcp_t *handle = (uv_tcp_t *)&client->handle;
+    http_context_t *persistent_ctx = &client->persistent_context;
+
     if (!client || !request_data || request_len == 0)
     {
         if (client && client->handle.data)
-            send_error(NULL, (uv_tcp_t *)&client->handle, 400);
+            send_error(NULL, handle, 400);
         return 1;
     }
 
     if (uv_is_closing((uv_handle_t *)&client->handle))
         return 1;
-
-    http_context_t *persistent_ctx = &client->persistent_context;
 
     // Parse the incoming data (appends to existing parsed data if partial)
     parse_result_t parse_result = http_parse_request(persistent_ctx, request_data, request_len);
@@ -193,7 +167,7 @@ int router(client_t *client, const char *request_data, size_t request_len)
         LOG_DEBUG("HTTP parsing failed: size limits exceeded");
         if (persistent_ctx->error_reason)
             LOG_DEBUG(" - %s", persistent_ctx->error_reason);
-        send_error(NULL, (uv_tcp_t *)&client->handle, 413);
+        send_error(NULL, handle, 413);
         return 1;
 
     case PARSE_ERROR:
@@ -201,7 +175,7 @@ int router(client_t *client, const char *request_data, size_t request_len)
         LOG_DEBUG("HTTP parsing failed: %s", parse_result_to_string(parse_result));
         if (persistent_ctx->error_reason)
             LOG_DEBUG(" - %s", persistent_ctx->error_reason);
-        send_error(NULL, (uv_tcp_t *)&client->handle, 400);
+        send_error(NULL, handle, 400);
         return 1;
     }
 
@@ -209,20 +183,16 @@ int router(client_t *client, const char *request_data, size_t request_len)
     
     if (!request_arena)
     {
-        send_error(NULL, (uv_tcp_t *)&client->handle, 500);
+        send_error(NULL, handle, 500);
         return 1;
     }
 
-    Req *req = NULL;
-    Res *res = NULL;
-    tokenized_path_t tokenized_path = {0};
-
-    req = create_req(request_arena, (uv_tcp_t *)&client->handle);
-    res = create_res(request_arena, (uv_tcp_t *)&client->handle);
-
+    Req *req = create_req(request_arena, handle);
+    Res *res = create_res(request_arena, handle);
+    
     if (!req || !res)
     {
-        send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
+        send_error(request_arena, handle, 500);
         return 1;
     }
 
@@ -237,7 +207,7 @@ int router(client_t *client, const char *request_data, size_t request_len)
             if (persistent_ctx->error_reason)
                 LOG_DEBUG(" - %s", persistent_ctx->error_reason);
             
-            send_error(request_arena, (uv_tcp_t *)&client->handle, 400);
+            send_error(request_arena, handle, 400);
             return 1;
         }
     }
@@ -255,7 +225,7 @@ int router(client_t *client, const char *request_data, size_t request_len)
 
     if (!path)
     {
-        send_error(request_arena, (uv_tcp_t *)&client->handle, 400);
+        send_error(request_arena, handle, 400);
         return 1;
     }
 
@@ -273,9 +243,10 @@ int router(client_t *client, const char *request_data, size_t request_len)
         return keep_alive ? 0 : 1;
     }
 
+    tokenized_path_t tokenized_path = {0};
     if (tokenize_path(request_arena, path, path_len, &tokenized_path) != 0)
     {
-        send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
+        send_error(request_arena, handle, 500);
         return 1;
     }
 
@@ -292,19 +263,19 @@ int router(client_t *client, const char *request_data, size_t request_len)
 
     if (extract_url_params(request_arena, &match, &req->params) != 0)
     {
-        send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
+        send_error(request_arena, handle, 500);
         return 1;
     }
 
     if (populate_req_from_context(req, persistent_ctx, path, path_len) != 0)
     {
-        send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
+        send_error(request_arena, handle, 500);
         return 1;
     }
 
     if (!match.handler)
     {
-        send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
+        send_error(request_arena, handle, 500);
         return 1;
     }
 
@@ -322,7 +293,7 @@ int router(client_t *client, const char *request_data, size_t request_len)
     if (execution_result != 0)
     {
         LOG_ERROR("Handler execution failed");
-        send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
+        send_error(request_arena, handle, 500);
         return 1;
     }
 
