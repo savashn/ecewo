@@ -52,10 +52,17 @@ typedef struct
 
 extern route_trie_t *global_route_trie;
 
+// Internal string view for route matching (zero-copy)
 typedef struct
 {
-    str_t key;
-    str_t value;
+    const char *data;
+    size_t len;
+} string_view_t;
+
+typedef struct
+{
+    string_view_t key;
+    string_view_t value;
 } param_match_t;
 
 typedef struct
@@ -77,7 +84,7 @@ int route_trie_add(route_trie_t *trie,
                    RequestHandler handler,
                    void *middleware_ctx);
 
-int tokenize_path(const char *path, size_t path_len, tokenized_path_t *result, path_segment_t *segments_buf);
+int tokenize_path(Arena *arena, const char *path, size_t path_len, tokenized_path_t *result);
 void route_trie_free(route_trie_t *trie);
 route_trie_t *route_trie_create(void);
 

@@ -1,4 +1,3 @@
-#include <stdlib.h>
 #include "router.h"
 #include "route-trie.h"
 #include "middleware.h"
@@ -30,8 +29,23 @@ static int extract_url_params(Arena *arena, const route_match_t *match, request_
 
     for (uint8_t i = 0; i < match->param_count; i++)
     {
-        url_params->items[i].key = match->params[i].key;
-        url_params->items[i].value = match->params[i].value;
+        const string_view_t *key_sv = &match->params[i].key;
+        const string_view_t *value_sv = &match->params[i].value;
+
+        char *key = arena_alloc(arena, key_sv->len + 1);
+        if (!key)
+            return -1;
+        arena_memcpy(key, key_sv->data, key_sv->len);
+        key[key_sv->len] = '\0';
+
+        char *value = arena_alloc(arena, value_sv->len + 1);
+        if (!value)
+            return -1;
+        arena_memcpy(value, value_sv->data, value_sv->len);
+        value[value_sv->len] = '\0';
+
+        url_params->items[i].key = key;
+        url_params->items[i].value = value;
     }
 
     return 0;
@@ -111,7 +125,7 @@ static int populate_req_from_context(Req *req, http_context_t *ctx, const char *
         req->method = arena_alloc(arena, ctx->method_length + 1);
         if (!req->method)
             return -1;
-        memcpy(req->method, ctx->method, ctx->method_length);
+        arena_memcpy(req->method, ctx->method, ctx->method_length);
         req->method[ctx->method_length] = '\0';
     }
 
@@ -120,7 +134,7 @@ static int populate_req_from_context(Req *req, http_context_t *ctx, const char *
         req->path = arena_alloc(arena, path_len + 1);
         if (!req->path)
             return -1;
-        memcpy(req->path, path, path_len);
+        arena_memcpy(req->path, path, path_len);
         req->path[path_len] = '\0';
     }
 
@@ -129,7 +143,7 @@ static int populate_req_from_context(Req *req, http_context_t *ctx, const char *
         req->body = arena_alloc(arena, ctx->body_length + 1);
         if (!req->body)
             return -1;
-        memcpy(req->body, ctx->body, ctx->body_length);
+        arena_memcpy(req->body, ctx->body, ctx->body_length);
         req->body[ctx->body_length] = '\0';
         req->body_len = ctx->body_length;
     }
@@ -259,9 +273,7 @@ int router(client_t *client, const char *request_data, size_t request_len)
         return keep_alive ? 0 : 1;
     }
 
-    path_segment_t segments_buf[MAX_PATH_SEGMENTS];
-
-    if (tokenize_path(path, path_len, &tokenized_path, segments_buf) != 0)
+    if (tokenize_path(request_arena, path, path_len, &tokenized_path) != 0)
     {
         send_error(request_arena, (uv_tcp_t *)&client->handle, 500);
         return 1;

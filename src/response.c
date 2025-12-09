@@ -202,10 +202,10 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     size_t headers_size = 0;
     for (uint16_t i = 0; i < res->header_count; i++)
     {
-        if (res->headers[i].name.data && res->headers[i].value.data)
+        if (res->headers[i].name && res->headers[i].value)
         {
-            headers_size += res->headers[i].name.len + 2 +   // "name: "
-                           res->headers[i].value.len + 2;    // "value\r\n"
+            headers_size += strlen(res->headers[i].name) + 2 +  // "name: "
+                           strlen(res->headers[i].value) + 2;   // "value\r\n"
         }
     }
 
@@ -222,14 +222,17 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         size_t pos = 0;
         for (uint16_t i = 0; i < res->header_count; i++)
         {
-            if (res->headers[i].name.data && res->headers[i].value.data)
+            if (res->headers[i].name && res->headers[i].value)
             {
-                memcpy(all_headers + pos, res->headers[i].name.data, res->headers[i].name.len);
-                pos += res->headers[i].name.len;
+                size_t name_len = strlen(res->headers[i].name);
+                size_t value_len = strlen(res->headers[i].value);
+                
+                memcpy(all_headers + pos, res->headers[i].name, name_len);
+                pos += name_len;
                 all_headers[pos++] = ':';
                 all_headers[pos++] = ' ';
-                memcpy(all_headers + pos, res->headers[i].value.data, res->headers[i].value.len);
-                pos += res->headers[i].value.len;
+                memcpy(all_headers + pos, res->headers[i].value, value_len);
+                pos += value_len;
                 all_headers[pos++] = '\r';
                 all_headers[pos++] = '\n';
             }
@@ -339,30 +342,14 @@ void set_header(Res *res, const char *name, const char *value)
         res->header_capacity = new_cap;
     }
 
-    // Store as str_t with length
-    size_t name_len = strlen(name);
-    size_t value_len = strlen(value);
+    res->headers[res->header_count].name = arena_strdup(res->arena, name);
+    res->headers[res->header_count].value = arena_strdup(res->arena, value);
 
-    char *name_copy = arena_alloc(res->arena, name_len + 1);
-    char *value_copy = arena_alloc(res->arena, value_len + 1);
-
-    if (!name_copy || !value_copy)
+    if (!res->headers[res->header_count].name || !res->headers[res->header_count].value)
     {
         LOG_DEBUG("Failed to allocate memory in set_header");
         return;
     }
-
-    memcpy(name_copy, name, name_len);
-    name_copy[name_len] = '\0';
-
-    memcpy(value_copy, value, value_len);
-    value_copy[value_len] = '\0';
-
-    // Store as str_t
-    res->headers[res->header_count].name.data = name_copy;
-    res->headers[res->header_count].name.len = name_len;
-    res->headers[res->header_count].value.data = value_copy;
-    res->headers[res->header_count].value.len = value_len;
 
     res->header_count++;
 }

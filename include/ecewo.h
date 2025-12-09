@@ -47,16 +47,8 @@ typedef struct
 
 typedef struct
 {
-    const char *data;
-    size_t len;
-} str_t;
-
-#define SV_NULL ((str_t){NULL, 0})
-
-typedef struct
-{
-    str_t key;
-    str_t value;
+    const char *key;
+    const char *value;
 } request_item_t;
 
 typedef struct
@@ -84,8 +76,8 @@ typedef struct
 
 typedef struct
 {
-    str_t name;
-    str_t value;
+    const char *name;
+    const char *value;
 } http_header_t;
 
 typedef struct
@@ -235,9 +227,9 @@ void clear_timer(Timer *timer);
 // Request Functions
 // ============================================================================
 
-const char *get_param(Req *req, const char *key);
-const char *get_query(Req *req, const char *key);
-const char *get_header(Req *req, const char *key);
+const char *get_param(const Req *req, const char *key);
+const char *get_query(const Req *req, const char *key);
+const char *get_header(const Req *req, const char *key);
 
 void set_context(Req *req, const char *key, void *data, size_t size);
 void *get_context(Req *req, const char *key);

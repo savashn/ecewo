@@ -1,54 +1,38 @@
 #include "ecewo.h"
 
-static str_t get_req(const request_t *request, const char *key)
+const char *get_req(const request_t *request, const char *key)
 {
     if (!request || !request->items || !key || request->count == 0)
-        return (str_t){NULL, 0};
+        return NULL;
 
     size_t key_len = strlen(key);
 
     for (uint16_t i = 0; i < request->count; i++)
     {
-        if (request->items[i].key.len == key_len &&
-            memcmp(request->items[i].key.data, key, key_len) == 0)
+        if (request->items[i].key &&
+            strlen(request->items[i].key) == key_len &&
+            memcmp(request->items[i].key, key, key_len) == 0)
         {
             return request->items[i].value;
         }
     }
-    
-    return (str_t){NULL, 0};
+
+    return NULL;
 }
 
-static const char *str_to_cstr(Arena *arena, str_t sv)
+const char *get_param(const Req *req, const char *key)
 {
-    if (!sv.data || sv.len == 0)
-        return NULL;
-    
-    char *str = arena_alloc(arena, sv.len + 1);
-    if (!str)
-        return NULL;
-        
-    memcpy(str, sv.data, sv.len);
-    str[sv.len] = '\0';
-    return str;
+    return req ? get_req(&req->params, key) : NULL;
 }
 
-const char *get_param(Req *req, const char *key)
+const char *get_query(const Req *req, const char *key)
 {
-    if (!req) return NULL;
-    return str_to_cstr(req->arena, get_req(&req->params, key));
+    return req ? get_req(&req->query, key) : NULL;
 }
 
-const char *get_query(Req *req, const char *key)
+const char *get_header(const Req *req, const char *key)
 {
-    if (!req) return NULL;
-    return str_to_cstr(req->arena, get_req(&req->query, key));
-}
-
-const char *get_header(Req *req, const char *key)
-{
-    if (!req) return NULL;
-    return str_to_cstr(req->arena, get_req(&req->headers, key));
+    return req ? get_req(&req->headers, key) : NULL;
 }
 
 void set_context(Req *req, const char *key, void *data, size_t size)
