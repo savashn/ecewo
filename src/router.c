@@ -4,6 +4,7 @@
 #include "server.h"
 #include "arena.h"
 #include "utils.h"
+#include "request.h"
 
 extern void send_error(Arena *request_arena, uv_tcp_t *client_socket, int error_code);
 
@@ -63,6 +64,13 @@ static Req *create_req(Arena *request_arena, uv_tcp_t *client_socket)
     memset(req, 0, sizeof(Req));
     req->arena = request_arena;
     req->client_socket = client_socket;
+
+    req->ctx = arena_alloc(request_arena, sizeof(context_t));
+    if (req->ctx)
+    {
+        memset(req->ctx, 0, sizeof(context_t));
+        req->ctx->arena = request_arena;
+    }
 
     return req;
 }
@@ -180,7 +188,7 @@ int router(client_t *client, const char *request_data, size_t request_len)
     }
 
     Arena *request_arena = client->connection_arena;
-    
+
     if (!request_arena)
     {
         send_error(NULL, handle, 500);
@@ -189,7 +197,7 @@ int router(client_t *client, const char *request_data, size_t request_len)
 
     Req *req = create_req(request_arena, handle);
     Res *res = create_res(request_arena, handle);
-    
+
     if (!req || !res)
     {
         send_error(request_arena, handle, 500);
@@ -203,10 +211,10 @@ int router(client_t *client, const char *request_data, size_t request_len)
         if (finish_result != PARSE_SUCCESS)
         {
             LOG_DEBUG("HTTP finish parsing failed: %s", parse_result_to_string(finish_result));
-            
+
             if (persistent_ctx->error_reason)
                 LOG_DEBUG(" - %s", persistent_ctx->error_reason);
-            
+
             send_error(request_arena, handle, 400);
             return 1;
         }
@@ -232,8 +240,8 @@ int router(client_t *client, const char *request_data, size_t request_len)
     if (!global_route_trie || !persistent_ctx->method)
     {
         LOG_DEBUG("Missing route trie (%p) or method (%s)",
-                 (void *)global_route_trie,
-                 persistent_ctx->method ? persistent_ctx->method : "NULL"
+                  (void *)global_route_trie,
+                  persistent_ctx->method ? persistent_ctx->method : "NULL"
         );
 
         // 404 but still success response

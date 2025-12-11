@@ -8,10 +8,10 @@
 #include <stdio.h> // LOG_ macros
 
 #ifndef NDEBUG
-    #define LOG_DEBUG(fmt, ...) \
-        fprintf(stderr, "[DEBUG] " fmt "\n", ##__VA_ARGS__)
+#define LOG_DEBUG(fmt, ...) \
+    fprintf(stderr, "[DEBUG] " fmt "\n", ##__VA_ARGS__)
 #else
-    #define LOG_DEBUG(fmt, ...)  ((void)0)
+    #define LOG_DEBUG(fmt, ...) ((void)0)
 #endif
 
 #define LOG_ERROR(fmt, ...) \
@@ -32,20 +32,6 @@ typedef struct Arena
 
 typedef struct
 {
-    char *key;
-    void *data;
-    size_t size;
-} context_entry_t;
-
-typedef struct
-{
-    context_entry_t *entries;
-    uint32_t count;
-    uint32_t capacity;
-} context_t;
-
-typedef struct
-{
     const char *key;
     const char *value;
 } request_item_t;
@@ -56,6 +42,8 @@ typedef struct
     uint16_t count;
     uint16_t capacity;
 } request_t;
+
+typedef struct context_t context_t;
 
 typedef struct
 {
@@ -68,7 +56,7 @@ typedef struct
     request_t headers;
     request_t query;
     request_t params;
-    context_t ctx;
+    context_t *ctx;
     uint8_t http_major;
     uint8_t http_minor;
 } Req;
@@ -286,7 +274,8 @@ int spawn(void *context, spawn_handler_t work_fn, spawn_handler_t done_fn);
 // Route Registration
 // ============================================================================
 
-typedef enum {
+typedef enum
+{
     HTTP_METHOD_DELETE = 0,
     HTTP_METHOD_GET = 1,
     HTTP_METHOD_HEAD = 2,

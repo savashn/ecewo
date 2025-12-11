@@ -1,4 +1,5 @@
 #include "ecewo.h"
+#include "request.h"
 
 static const char *get_req(const request_t *request, const char *key)
 {
@@ -40,7 +41,7 @@ void set_context(Req *req, const char *key, void *data, size_t size)
     if (!req || !key || !data)
         return;
 
-    context_t *ctx = &req->ctx;
+    context_t *ctx = req->ctx;
 
     for (uint32_t i = 0; i < ctx->count; i++)
     {
@@ -99,7 +100,7 @@ void *get_context(Req *req, const char *key)
     if (!req || !key)
         return NULL;
 
-    context_t *ctx = &req->ctx;
+    context_t *ctx = req->ctx;
 
     for (uint32_t i = 0; i < ctx->count; i++)
     {
