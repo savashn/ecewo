@@ -38,7 +38,7 @@ const char *get_header(const Req *req, const char *key)
 
 void set_context(Req *req, const char *key, void *data, size_t size)
 {
-    if (!req || !key || !data)
+    if (!req || !req->ctx || !key || !data)
         return;
 
     context_t *ctx = req->ctx;

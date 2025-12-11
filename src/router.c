@@ -67,10 +67,7 @@ static Req *create_req(Arena *request_arena, uv_tcp_t *client_socket)
 
     req->ctx = arena_alloc(request_arena, sizeof(context_t));
     if (req->ctx)
-    {
         memset(req->ctx, 0, sizeof(context_t));
-        req->ctx->arena = request_arena;
-    }
 
     return req;
 }
