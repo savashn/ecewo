@@ -318,13 +318,31 @@ void arena_pool_release(Arena *arena)
 
     if (!arena_pool.initialized)
     {
-        // Fallback: direct free
         arena_free(arena);
         free(arena);
         return;
     }
 
-    arena_reset(arena);
+    // Keep only the first region, free the rest
+    if (arena->begin && arena->begin->next)
+    {
+        ArenaRegion *to_free = arena->begin->next;
+        arena->begin->next = NULL;
+        
+        while (to_free)
+        {
+            ArenaRegion *next = to_free->next;
+            free(to_free);
+            to_free = next;
+        }
+    }
+    
+    // Reset the first region
+    if (arena->begin)
+    {
+        arena->begin->count = 0;
+        arena->end = arena->begin;
+    }
     
     uv_mutex_lock(&arena_pool.mutex);
 

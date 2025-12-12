@@ -173,12 +173,13 @@ void arena_reset(Arena *a)
 {
     if (!a || !a->begin)
         return;
-
-    a->begin->count = 0;
-    a->end = a->begin;
     
-    if (a->begin->next)
+    ArenaRegion *region = a->begin;
+    while (region)
     {
-        a->begin->next->count = 0;
+        region->count = 0;
+        region = region->next;
     }
+    
+    a->end = a->begin;
 }
