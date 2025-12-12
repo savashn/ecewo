@@ -227,23 +227,33 @@ void *get_context(Req *req, const char *key);
 // Response Functions
 // ============================================================================
 
+// Set header - DOES NOT check for duplicates!
+// User is responsible for avoiding duplicate headers.
+// Multiple calls with same name will add multiple headers.
 void set_header(Res *res, const char *name, const char *value);
-void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len);
+
+void reply(Res *res, int status, const void *body, size_t body_len);
 void redirect(Res *res, int status, const char *url);
 
+// Helper functions that set Content-Type header
+// WARNING: Do not call set_header("Content-Type", ...) before these!
+// These will add Content-Type, potentially creating duplicates.
 static inline void send_text(Res *res, int status, const char *body)
 {
-    reply(res, status, "text/plain", body, strlen(body));
+    set_header(res, "Content-Type", "text/plain");
+    reply(res, status, body, strlen(body));
 }
 
 static inline void send_html(Res *res, int status, const char *body)
 {
-    reply(res, status, "text/html", body, strlen(body));
+    set_header(res, "Content-Type", "text/html");
+    reply(res, status, body, strlen(body));
 }
 
 static inline void send_json(Res *res, int status, const char *body)
 {
-    reply(res, status, "application/json", body, strlen(body));
+    set_header(res, "Content-Type", "application/json");
+    reply(res, status, body, strlen(body));
 }
 
 // ============================================================================

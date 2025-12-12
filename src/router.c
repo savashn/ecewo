@@ -249,7 +249,8 @@ int router(client_t *client, const char *request_data, size_t request_len)
         // 404 but still success response
         bool keep_alive = res->keep_alive;
         const char *not_found_msg = "404 Not Found";
-        reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
+        set_header(res, "Content-Type", "text/plain");
+        reply(res, 404, not_found_msg, strlen(not_found_msg));
         return keep_alive ? 0 : 1;
     }
 
@@ -267,7 +268,8 @@ int router(client_t *client, const char *request_data, size_t request_len)
 
         bool keep_alive = res->keep_alive;
         const char *not_found_msg = "404 Not Found";
-        reply(res, 404, "text/plain", not_found_msg, strlen(not_found_msg));
+        set_header(res, "Content-Type", "text/plain");
+        reply(res, 404, not_found_msg, strlen(not_found_msg));
         return keep_alive ? 0 : 1;
     }
 

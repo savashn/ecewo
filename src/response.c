@@ -3,6 +3,27 @@
 #include "utils.h"
 #include <stdlib.h>
 
+#ifdef ECEWO_DEBUG
+#ifdef _WIN32
+    #define str_case_cmp _stricmp
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+    #define str_case_cmp strcasecmp
+#else
+    static int str_case_cmp(const char *s1, const char *s2)
+    {
+        while (*s1 && *s2)
+        {
+            int c1 = tolower((unsigned char)*s1);
+            int c2 = tolower((unsigned char)*s2);
+            if (c1 != c2) return c1 - c2;
+            s1++;
+            s2++;
+        }
+        return tolower((unsigned char)*s1) - tolower((unsigned char)*s2);
+    }
+#endif /* _WIN32 */
+#endif /* ECEWO_DEBUG */
+
 typedef struct
 {
     uv_write_t req;
@@ -169,7 +190,7 @@ void send_error(Arena *arena, uv_tcp_t *client_socket, int error_code)
     }
 }
 
-void reply(Res *res, int status, const char *content_type, const void *body, size_t body_len)
+void reply(Res *res, int status, const void *body, size_t body_len)
 {
     if (!res)
         return;
@@ -191,8 +212,6 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         return;
     }
 
-    if (!content_type)
-        content_type = "text/plain";
     if (!body)
         body_len = 0;
 
@@ -261,14 +280,12 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         "HTTP/1.1 %d\r\n"
         "Date: %s\r\n"
         "%s"
-        "Content-Type: %s\r\n"
         "Content-Length: %zu\r\n"
         "Connection: %s\r\n"
         "\r\n",
         status,
         date_str,
         all_headers,
-        content_type,
         original_body_len,
         connection);
 
@@ -327,6 +344,23 @@ void set_header(Res *res, const char *name, const char *value)
         LOG_DEBUG("Invalid argument(s) to set_header");
         return;
     }
+
+#ifdef ECEWO_DEBUG
+    // Check for duplicate headers and warn
+    // but still add the header, do not override
+    for (uint16_t i = 0; i < res->header_count; i++)
+    {
+        if (res->headers[i].name && 
+            str_case_cmp(res->headers[i].name, name) == 0)
+        {
+            LOG_DEBUG("Warning: Duplicate header '%s' detected!", name);
+            LOG_DEBUG("  Existing value: '%s'", res->headers[i].value);
+            LOG_DEBUG("  New value: '%s'", value);
+            LOG_DEBUG("  Both will be sent (this may cause issues)");
+            break;
+        }
+    }
+#endif
 
     if (res->header_count >= res->header_capacity)
     {
@@ -399,5 +433,6 @@ void redirect(Res *res, int status, const char *url)
         break;
     }
 
-    reply(res, status, "text/plain", message, message_len);
+    set_header(res, "Content-Type", "text/plain");
+    reply(res, status, message, message_len);
 }
