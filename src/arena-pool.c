@@ -12,18 +12,16 @@
 #endif
 
 #ifndef ARENA_POOL_LOW_WATERMARK
-#define ARENA_POOL_LOW_WATERMARK 8  // Grow when <= 8 available
+#define ARENA_POOL_LOW_WATERMARK 8  /* Grow when <= 8 available */
 #endif
 
 #ifndef ARENA_POOL_HIGH_WATERMARK
-#define ARENA_POOL_HIGH_WATERMARK 64  // Shrink when >= 64 available
+#define ARENA_POOL_HIGH_WATERMARK 64  /* Shrink when >= 64 available */
 #endif
 
 #ifndef ARENA_POOL_GROW_BATCH
-#define ARENA_POOL_GROW_BATCH 8  // Allocate 8 at a time
+#define ARENA_POOL_GROW_BATCH 8  /* Allocate 8 at a time */
 #endif
-
-#define ARENA_MIN_REGION_SIZE (64 * 1024)  // 64KB minimum
 
 typedef struct
 {
@@ -63,7 +61,7 @@ static void arena_pool_try_grow(void)
         if (!arena)
             break;
         
-        arena->end = new_region(ARENA_MIN_REGION_SIZE);
+        arena->end = new_region(ARENA_REGION_SIZE);
         if (!arena->end)
         {
             free(arena);
@@ -184,7 +182,7 @@ void arena_pool_init(void)
         }
         
         // Pre-allocate first region
-        arena->end = new_region(ARENA_MIN_REGION_SIZE);
+        arena->end = new_region(ARENA_REGION_SIZE);
         if (!arena->end)
         {
             free(arena);
@@ -201,7 +199,7 @@ void arena_pool_init(void)
 
     arena_pool.initialized = true;
     
-    double allocated_mb = (allocated * ARENA_MIN_REGION_SIZE) / (1024.0 * 1024.0);
+    double allocated_mb = (allocated * ARENA_REGION_SIZE) / (1024.0 * 1024.0);
     LOG_DEBUG("Arena pool initialized: %d/%d arenas (%.2f MB)",
               allocated,
               ARENA_POOL_SIZE,
@@ -284,7 +282,7 @@ Arena *arena_pool_acquire(void)
         arena = calloc(1, sizeof(Arena));
         if (arena)
         {
-            arena->end = new_region(ARENA_MIN_REGION_SIZE);
+            arena->end = new_region(ARENA_REGION_SIZE);
             if (arena->end)
             {
                 arena->begin = arena->end;
@@ -362,8 +360,8 @@ void arena_pool_print_stats(void)
     
     uint16_t available = arena_pool.head;
     uint16_t in_use = arena_pool.total_allocated - available;
-    double available_mb = (available * ARENA_MIN_REGION_SIZE) / (1024.0 * 1024.0);
-    double total_mb = (arena_pool.total_allocated * ARENA_MIN_REGION_SIZE) / (1024.0 * 1024.0);
+    double available_mb = (available * ARENA_REGION_SIZE) / (1024.0 * 1024.0);
+    double total_mb = (arena_pool.total_allocated * ARENA_REGION_SIZE) / (1024.0 * 1024.0);
     
     LOG_DEBUG("Arena Pool Statistics:");
     LOG_DEBUG("  Available: %d/%d arenas (%.2f MB)", 

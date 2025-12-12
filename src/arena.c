@@ -5,10 +5,6 @@
 #include <stdint.h>
 #include "arena.h"
 
-#ifndef ARENA_REGION_DEFAULT_CAPACITY
-#define ARENA_REGION_DEFAULT_CAPACITY (8 * 1024)
-#endif
-
 ArenaRegion *new_region(size_t capacity)
 {
     size_t size_bytes = sizeof(ArenaRegion) + sizeof(uintptr_t) * capacity;
@@ -34,7 +30,7 @@ void *arena_alloc(Arena *a, size_t size_bytes)
 
     if (a->end == NULL)
     {
-        size_t capacity = ARENA_REGION_DEFAULT_CAPACITY;
+        size_t capacity = ARENA_REGION_SIZE;
         if (capacity < size)
             capacity = size;
         a->end = new_region(capacity);
@@ -50,7 +46,7 @@ void *arena_alloc(Arena *a, size_t size_bytes)
 
     if (a->end->count + size > a->end->capacity)
     {
-        size_t capacity = ARENA_REGION_DEFAULT_CAPACITY;
+        size_t capacity = ARENA_REGION_SIZE;
         if (capacity < size)
             capacity = size;
         a->end->next = new_region(capacity);

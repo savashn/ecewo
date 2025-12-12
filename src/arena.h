@@ -3,6 +3,10 @@
 
 #include "ecewo.h"
 
+#ifndef ARENA_REGION_SIZE
+#define ARENA_REGION_SIZE (64 * 1024)
+#endif
+
 struct ArenaRegion
 {
     struct ArenaRegion *next;
