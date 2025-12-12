@@ -64,6 +64,7 @@ static Req *create_req(Arena *request_arena, uv_tcp_t *client_socket)
     memset(req, 0, sizeof(Req));
     req->arena = request_arena;
     req->client_socket = client_socket;
+    req->is_head_request = false;
 
     req->ctx = arena_alloc(request_arena, sizeof(context_t));
     if (req->ctx)
@@ -87,6 +88,7 @@ static Res *create_res(Arena *request_arena, uv_tcp_t *client_socket)
     res->status = 200;
     res->content_type = arena_strdup(request_arena, "text/plain");
     res->keep_alive = 1;
+    res->is_head_request = false;
 
     return res;
 }
@@ -105,6 +107,9 @@ static int populate_req_from_context(Req *req, http_context_t *ctx, const char *
             return -1;
         arena_memcpy(req->method, ctx->method, ctx->method_length);
         req->method[ctx->method_length] = '\0';
+
+        req->is_head_request = (ctx->method_length == 4 && 
+                                memcmp(ctx->method, "HEAD", 4) == 0);
     }
 
     if (path && path_len > 0)
@@ -277,6 +282,8 @@ int router(client_t *client, const char *request_data, size_t request_len)
         send_error(request_arena, handle, 500);
         return 1;
     }
+
+    res->is_head_request = req->is_head_request;
 
     if (!match.handler)
     {

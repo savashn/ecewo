@@ -59,6 +59,7 @@ typedef struct
     context_t *ctx;
     uint8_t http_major;
     uint8_t http_minor;
+    bool is_head_request;
 } Req;
 
 typedef struct
@@ -80,6 +81,7 @@ typedef struct
     uint16_t header_count;
     uint16_t header_capacity;
     bool replied;
+    bool is_head_request;
 } Res;
 
 typedef enum
@@ -281,6 +283,7 @@ typedef enum
     HTTP_METHOD_HEAD = 2,
     HTTP_METHOD_POST = 3,
     HTTP_METHOD_PUT = 4,
+    HTTP_METHOD_OPTIONS = 6,
     HTTP_METHOD_PATCH = 28
 } http_method_t;
 
@@ -289,10 +292,9 @@ extern void register_route(http_method_t method,
                            MiddlewareArray middleware,
                            RequestHandler handler);
 
-// Argument chooser
-#define ECEWO_ROUTE_CHOOSER(_1, _2, _3, NAME, ...) NAME
+#define ROUTE_CHOOSER(_1, _2, _3, NAME, ...) NAME
 
-static inline void route_no_mw(int method, const char *path, RequestHandler handler)
+static inline void route_without_mw(int method, const char *path, RequestHandler handler)
 {
     register_route((http_method_t)method, path, NO_MW, handler);
 }
@@ -303,19 +305,25 @@ static inline void route_with_mw(int method, const char *path, MiddlewareArray m
 }
 
 #define get(...) \
-    ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_no_mw)(HTTP_METHOD_GET, __VA_ARGS__)
+    ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_without_mw)(HTTP_METHOD_GET, __VA_ARGS__)
 
 #define post(...) \
-    ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_no_mw)(HTTP_METHOD_POST, __VA_ARGS__)
+    ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_without_mw)(HTTP_METHOD_POST, __VA_ARGS__)
 
 #define put(...) \
-    ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_no_mw)(HTTP_METHOD_PUT, __VA_ARGS__)
+    ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_without_mw)(HTTP_METHOD_PUT, __VA_ARGS__)
 
 #define patch(...) \
-    ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_no_mw)(HTTP_METHOD_PATCH, __VA_ARGS__)
+    ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_without_mw)(HTTP_METHOD_PATCH, __VA_ARGS__)
 
 #define del(...) \
-    ECEWO_ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_no_mw)(HTTP_METHOD_DELETE, __VA_ARGS__)
+    ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_without_mw)(HTTP_METHOD_DELETE, __VA_ARGS__)
+
+#define head(...) \
+    ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_no_mw)(HTTP_METHOD_HEAD, __VA_ARGS__)
+
+#define options(...) \
+    ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_no_mw)(HTTP_METHOD_OPTIONS, __VA_ARGS__)
 
 // ============================================================================
 // DEVELOPMENT FUNCTIONS

@@ -196,6 +196,13 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
     if (!body)
         body_len = 0;
 
+    size_t original_body_len = body_len;
+    if (res->is_head_request)
+    {
+        body = NULL;
+        body_len = 0;
+    }
+
     const char *date_str = get_cached_date();
     const char *connection = res->keep_alive ? "keep-alive" : "close";
 
@@ -262,7 +269,7 @@ void reply(Res *res, int status, const char *content_type, const void *body, siz
         date_str,
         all_headers,
         content_type,
-        body_len,
+        original_body_len,
         connection);
 
     if (!headers)
