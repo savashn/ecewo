@@ -8,6 +8,30 @@
 #include "arena.h"
 #include "utils.h"
 
+#ifndef MAX_CONNECTIONS
+#define MAX_CONNECTIONS 10000
+#endif
+
+#ifndef LISTEN_BACKLOG
+#define LISTEN_BACKLOG 511
+#endif
+
+#ifndef IDLE_TIMEOUT_MS
+#define IDLE_TIMEOUT_MS 60000
+#endif
+
+#ifndef CLEANUP_INTERVAL_MS
+#define CLEANUP_INTERVAL_MS 30000
+#endif
+
+#ifndef SHUTDOWN_TIMEOUT_MS
+#define SHUTDOWN_TIMEOUT_MS 15000
+#endif
+
+#ifndef CLEANUP_TIMEOUT_MS
+#define CLEANUP_TIMEOUT_MS 5000
+#endif
+
 typedef struct timer_data_s
 {
     timer_callback_t callback;
