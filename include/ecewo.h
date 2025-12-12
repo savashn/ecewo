@@ -7,7 +7,7 @@
 #include <string.h>
 #include <stdio.h> // LOG_ macros
 
-#ifndef NDEBUG
+#ifdef ECEWO_DEBUG
 #define LOG_DEBUG(fmt, ...) \
     fprintf(stderr, "[DEBUG] " fmt "\n", ##__VA_ARGS__)
 #else
