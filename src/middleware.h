@@ -19,7 +19,9 @@ typedef struct MiddlewareInfo
     RequestHandler handler;
 } MiddlewareInfo;
 
-#define INITIAL_MW_CAPACITY 4
+#ifndef INITIAL_MW_CAPACITY
+#define INITIAL_MW_CAPACITY 8
+#endif
 
 extern MiddlewareHandler *global_middleware;
 extern uint16_t global_middleware_count;
