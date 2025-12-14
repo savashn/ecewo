@@ -330,10 +330,10 @@ static inline void route_with_mw(int method, const char *path, MiddlewareArray m
     ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_without_mw)(HTTP_METHOD_DELETE, __VA_ARGS__)
 
 #define head(...) \
-    ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_no_mw)(HTTP_METHOD_HEAD, __VA_ARGS__)
+    ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_without_mw)(HTTP_METHOD_HEAD, __VA_ARGS__)
 
 #define options(...) \
-    ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_no_mw)(HTTP_METHOD_OPTIONS, __VA_ARGS__)
+    ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_without_mw)(HTTP_METHOD_OPTIONS, __VA_ARGS__)
 
 // ============================================================================
 // DEVELOPMENT FUNCTIONS
