@@ -1,6 +1,10 @@
 #ifndef ECEWO_H
 #define ECEWO_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -168,8 +172,8 @@ typedef struct
     uint16_t count;
 } MiddlewareArray;
 
-#define use(...)                                        \
-    ((MiddlewareArray){                                 \
+#define use(...) \
+    ((MiddlewareArray){ \
         .handlers = (MiddlewareHandler[]){__VA_ARGS__}, \
         .count = sizeof((MiddlewareHandler[]){__VA_ARGS__}) / sizeof(MiddlewareHandler)})
 
@@ -342,5 +346,9 @@ static inline void route_with_mw(int method, const char *path, MiddlewareArray m
 void increment_async_work(void);
 void decrement_async_work(void);
 int get_pending_async_work(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
