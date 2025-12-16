@@ -2,47 +2,22 @@ cmake_minimum_required(VERSION 3.14)
 project(ecewo VERSION 2.3.1 LANGUAGES C)
 
 if(POLICY CMP0135)
-    cmake_policy(SET CMP0135 NEW) # DOWNLOAD_EXTRACT_TIMESTAMP
+    cmake_policy(SET CMP0135 NEW)
 endif()
 if(POLICY CMP0092)
-    cmake_policy(SET CMP0092 NEW) # Don't add /W3 by default
+    cmake_policy(SET CMP0092 NEW)
 endif()
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_C_EXTENSIONS OFF)
-
-if(UNIX)
-    add_compile_definitions(_GNU_SOURCE)
-endif()
+set(CMAKE_C_EXTENSIONS ON)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the type of build" FORCE)
 endif()
 
-if(NOT DEFINED ECEWO_BUILD_SHARED)
-    option(ECEWO_BUILD_SHARED "Build shared library instead of static" OFF)
-endif()
-
+option(ECEWO_BUILD_SHARED "Build shared library instead of static" OFF)
 option(ECEWO_BUILD_TESTS "Build tests" OFF)
-
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    message(STATUS "Applying production optimizations for web framework...")
-    
-    include(CheckIPOSupported)
-    check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
-    if(ipo_supported)
-        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
-        message(STATUS "  - Link Time Optimization (LTO) enabled")
-    else()
-        message(WARNING "LTO not supported: ${ipo_error}")
-    endif()
-    
-    if(NOT (WIN32 AND MSVC))
-        set(CMAKE_STRIP_BINARIES ON)
-        message(STATUS "  - Binary stripping enabled")
-    endif()
-endif()
 
 include(FetchContent)
 
@@ -64,22 +39,17 @@ if(ECEWO_BUILD_SHARED)
     set(LLHTTP_BUILD_STATIC_LIBS OFF CACHE INTERNAL "" FORCE)
     set(BUILD_SHARED_LIBS ON CACHE INTERNAL "" FORCE)
     set(BUILD_STATIC_LIBS OFF CACHE INTERNAL "" FORCE)
-    message(STATUS "  - Configuring libuv as SHARED library")
-    message(STATUS "  - Configuring llhttp as SHARED library")
 else()
     set(LIBUV_BUILD_SHARED OFF CACHE BOOL "" FORCE)
     set(LLHTTP_BUILD_SHARED_LIBS OFF CACHE INTERNAL "" FORCE)
     set(LLHTTP_BUILD_STATIC_LIBS ON CACHE INTERNAL "" FORCE)
     set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "" FORCE)
     set(BUILD_STATIC_LIBS ON CACHE INTERNAL "" FORCE)
-    message(STATUS "  - Configuring libuv as STATIC library")
-    message(STATUS "  - Configuring llhttp as STATIC library")
 endif()
 
 FetchContent_MakeAvailable(libuv llhttp)
 
 if(NOT TARGET ecewo::ecewo)
-
     set(ECEWO_SOURCES
         src/server.c
         src/http.c
@@ -104,18 +74,16 @@ if(NOT TARGET ecewo::ecewo)
 
     add_library(ecewo::ecewo ALIAS ecewo)
 
-    if(WIN32)
-        target_compile_definitions(ecewo PRIVATE PLATFORM_WINDOWS)
-    elseif(APPLE)
-        target_compile_definitions(ecewo PRIVATE PLATFORM_MACOS)
+    if(APPLE)
+        target_compile_definitions(ecewo PRIVATE _DARWIN_C_SOURCE)
     elseif(UNIX AND NOT APPLE)
-        target_compile_definitions(ecewo PRIVATE PLATFORM_LINUX)
+        target_compile_definitions(ecewo PRIVATE _GNU_SOURCE)
     endif()
 
     target_include_directories(ecewo 
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>  # Generated header
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
             $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/_deps/libuv-src/include>
             $<INSTALL_INTERFACE:include>
         PRIVATE
@@ -126,10 +94,8 @@ if(NOT TARGET ecewo::ecewo)
 
     if(ECEWO_BUILD_SHARED)
         target_link_libraries(ecewo PUBLIC uv llhttp_shared)
-        message(STATUS "  - Linking with shared libuv and llhttp")
     else()
         target_link_libraries(ecewo PUBLIC uv_a llhttp_static)
-        message(STATUS "  - Linking with static libuv and llhttp")
     endif()
 
     if(WIN32)
@@ -137,148 +103,18 @@ if(NOT TARGET ecewo::ecewo)
     endif()
 
     if(MSVC)
-        target_compile_options(ecewo PRIVATE 
-            /W4      # High warning level
-            /wd4996  # Disable deprecated function warnings
-        )
+        target_compile_options(ecewo PRIVATE /W4 /wd4996)
         
         target_compile_definitions(ecewo PRIVATE 
             _CRT_SECURE_NO_WARNINGS
-            WIN32_LEAN_AND_MEAN   # Reduce Windows header bloat
+            WIN32_LEAN_AND_MEAN
         )
-        
-        if(CMAKE_BUILD_TYPE STREQUAL "Release")
-            target_compile_definitions(ecewo PRIVATE
-                NDEBUG
-                ECEWO_PRODUCTION=1
-            )
-            
-            target_compile_options(ecewo PRIVATE 
-                /O2         # Balanced optimization
-                /Oi         # Enable intrinsic functions
-                /Ot         # Favor fast code
-                /GL         # Whole program optimization
-                /GF         # String pooling
-                /Gy         # Function-level linking
-            )
-            
-            target_link_options(ecewo PRIVATE 
-                /LTCG       # Link time code generation
-                /OPT:REF    # Remove unreferenced functions/data
-                /OPT:ICF    # Identical COMDAT folding
-            )
-        elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-            target_compile_definitions(ecewo PRIVATE
-                ECEWO_DEBUG=1
-            )
-            
-            target_compile_options(ecewo PRIVATE 
-                /Od         # No optimization
-                /Zi         # Debug info
-                /RTC1       # Runtime checks
-            )
-        endif()
-    else()
-        target_compile_options(ecewo PRIVATE 
-            -Wall 
-            -Wextra 
-            -std=c99
-        )
-        
-        target_compile_options(ecewo PUBLIC
-            -fno-strict-aliasing    # Recommended by libuv
-        )
-        
-        if(CMAKE_BUILD_TYPE STREQUAL "Release")
-            target_compile_definitions(ecewo PRIVATE
-                NDEBUG
-                ECEWO_PRODUCTION=1
-            )
-            
-            # LTO (Link Time Optimization)
-            include(CheckIPOSupported)
-            check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
-            if(ipo_supported)
-                set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
-                set_property(TARGET ecewo PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-                message(STATUS "  Link Time Optimization (LTO) enabled")
-            else()
-                message(WARNING "  LTO not supported: ${ipo_error}")
-            endif()
-            
-            target_compile_options(ecewo PRIVATE 
-                -O2                    # Balanced optimization
-                -ffunction-sections    # Each function in separate section
-                -fdata-sections        # Each data item in separate section
-                -finline-functions     # Aggressive inlining
-                -funroll-loops         # Loop unrolling
-                -ftree-vectorize       # Auto-vectorization
-                -fomit-frame-pointer   # Omit frame pointer for more registers
-            )
-            
-            target_link_options(ecewo PRIVATE 
-                -Wl,--gc-sections       # Remove unused sections
-            )
-            
-            if(NOT APPLE)
-                target_link_options(ecewo PRIVATE 
-                    -Wl,--strip-all         # Strip all symbols
-                )
-            endif()
-            
-            include(CheckCCompilerFlag)
-            check_c_compiler_flag("-fstack-protector-strong" HAS_STACK_PROTECTOR_STRONG)
-            if(HAS_STACK_PROTECTOR_STRONG)
-                target_compile_options(ecewo PRIVATE -fstack-protector-strong)
-            else()
-                target_compile_options(ecewo PRIVATE -fstack-protector)
-            endif()
-            
-            target_compile_options(ecewo PRIVATE 
-                -D_FORTIFY_SOURCE=2     # Runtime buffer overflow detection
-                -fPIE                   # Position independent executable
-                -Wformat                # Format string vulnerabilities
-                -Wformat-security       # Additional format checks
-                -Werror=format-security # Make format security errors fatal
-            )
-            
-            target_link_options(ecewo PRIVATE -pie)
-            
-            if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-                target_link_options(ecewo PRIVATE 
-                    -Wl,-z,relro         # Read-only relocations
-                    -Wl,-z,now           # Immediate binding
-                )
-            endif()
-            
-            # Control Flow Guard (Intel CET) - if available
-            check_c_compiler_flag("-fcf-protection" HAS_CF_PROTECTION)
-            if(HAS_CF_PROTECTION)
-                target_compile_options(ecewo PRIVATE -fcf-protection)
-            endif()
-            
-        elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-            message(STATUS "Debug build - enabling verbose logging")
-            
-            target_compile_definitions(ecewo PRIVATE
-                ECEWO_DEBUG=1
-            )
-            
-            target_compile_options(ecewo PRIVATE 
-                -O0                         # No optimization
-                -g3                         # Maximum debug info
-                -ggdb                       # GDB-specific debug info
-                -fno-omit-frame-pointer     # Keep frame pointer for debugging
-                -fno-inline                 # Disable inlining
-            )
-            
-            # Additional debug flags
-            if(CMAKE_C_COMPILER_ID MATCHES "GNU")
-                target_compile_options(ecewo PRIVATE 
-                    -rdynamic               # Export symbols for backtrace
-                )
-            endif()
-        endif()
+    else()  # GCC/Clang
+        target_compile_options(ecewo PRIVATE -Wall -Wextra)
+    endif()
+
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        target_compile_definitions(ecewo PRIVATE ECEWO_DEBUG=1)
     endif()
 
     set_target_properties(ecewo PROPERTIES
@@ -286,31 +122,19 @@ if(NOT TARGET ecewo::ecewo)
         VERSION ${PROJECT_VERSION}
         SOVERSION ${PROJECT_VERSION_MAJOR}
         EXPORT_NAME ecewo
+        C_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN ON
+        POSITION_INDEPENDENT_CODE ON
     )
-    
-    if(CMAKE_BUILD_TYPE STREQUAL "Release" AND CMAKE_INTERPROCEDURAL_OPTIMIZATION)
-        set_property(TARGET ecewo PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-    endif()
 
 endif()
 
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     message(STATUS "=== ECEWO Build Configuration ===")
     message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
-    if(ECEWO_BUILD_SHARED)
-        message(STATUS "Library type: SHARED")
-    else()
-        message(STATUS "Library type: STATIC")
-    endif()
-    
+    message(STATUS "Library type: ${ECEWO_BUILD_SHARED}")
     message(STATUS "Target system: ${CMAKE_SYSTEM_NAME}")
-    message(STATUS "Target processor: ${CMAKE_SYSTEM_PROCESSOR}")
     message(STATUS "Compiler: ${CMAKE_C_COMPILER_ID} ${CMAKE_C_COMPILER_VERSION}")
-
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        message(STATUS "LTO enabled: ${CMAKE_INTERPROCEDURAL_OPTIMIZATION}")
-        message(STATUS "Strip binaries: ${CMAKE_STRIP_BINARIES}")
-    endif()
     message(STATUS "=================================")
 endif()
 
