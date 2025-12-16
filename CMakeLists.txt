@@ -1,13 +1,6 @@
 cmake_minimum_required(VERSION 3.14)
 project(ecewo VERSION 2.3.1 LANGUAGES C)
 
-if(POLICY CMP0135)
-    cmake_policy(SET CMP0135 NEW)
-endif()
-if(POLICY CMP0092)
-    cmake_policy(SET CMP0092 NEW)
-endif()
-
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
@@ -74,12 +67,6 @@ if(NOT TARGET ecewo::ecewo)
 
     add_library(ecewo::ecewo ALIAS ecewo)
 
-    if(APPLE)
-        target_compile_definitions(ecewo PRIVATE _DARWIN_C_SOURCE)
-    elseif(UNIX AND NOT APPLE)
-        target_compile_definitions(ecewo PRIVATE _GNU_SOURCE)
-    endif()
-
     target_include_directories(ecewo 
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -98,21 +85,6 @@ if(NOT TARGET ecewo::ecewo)
         target_link_libraries(ecewo PUBLIC uv_a llhttp_static)
     endif()
 
-    if(WIN32)
-        target_link_libraries(ecewo PRIVATE wsock32 ws2_32)
-    endif()
-
-    if(MSVC)
-        target_compile_options(ecewo PRIVATE /W4 /wd4996)
-        
-        target_compile_definitions(ecewo PRIVATE 
-            _CRT_SECURE_NO_WARNINGS
-            WIN32_LEAN_AND_MEAN
-        )
-    else()  # GCC/Clang
-        target_compile_options(ecewo PRIVATE -Wall -Wextra)
-    endif()
-
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         target_compile_definitions(ecewo PRIVATE ECEWO_DEBUG=1)
     endif()
@@ -126,7 +98,6 @@ if(NOT TARGET ecewo::ecewo)
         VISIBILITY_INLINES_HIDDEN ON
         POSITION_INDEPENDENT_CODE ON
     )
-
 endif()
 
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
