@@ -4,25 +4,12 @@
 #include <stdlib.h>
 
 #ifdef ECEWO_DEBUG
-#ifdef _WIN32
-    #define str_case_cmp _stricmp
-#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
-    #define str_case_cmp strcasecmp
-#else
-    static int str_case_cmp(const char *s1, const char *s2)
-    {
-        while (*s1 && *s2)
-        {
-            int c1 = tolower((unsigned char)*s1);
-            int c2 = tolower((unsigned char)*s2);
-            if (c1 != c2) return c1 - c2;
-            s1++;
-            s2++;
-        }
-        return tolower((unsigned char)*s1) - tolower((unsigned char)*s2);
-    }
-#endif /* _WIN32 */
-#endif /* ECEWO_DEBUG */
+    #ifdef _WIN32
+        #define strcasecmp _stricmp
+    #else
+        #define strcasecmp strcasecmp
+    #endif
+#endif
 
 typedef struct
 {
@@ -351,7 +338,7 @@ void set_header(Res *res, const char *name, const char *value)
     for (uint16_t i = 0; i < res->header_count; i++)
     {
         if (res->headers[i].name && 
-            str_case_cmp(res->headers[i].name, name) == 0)
+            strcasecmp(res->headers[i].name, name) == 0)
         {
             LOG_DEBUG("Warning: Duplicate header '%s' detected!", name);
             LOG_DEBUG("  Existing value: '%s'", res->headers[i].value);
