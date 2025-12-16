@@ -208,6 +208,17 @@ bool server_is_running(void);
 int get_active_connections(void);
 uv_loop_t *get_loop(void);
 
+typedef struct TakeoverConfig
+{
+    void *alloc_cb;
+    void *read_cb;
+    void *close_cb;
+    void *user_data;
+} TakeoverConfig;
+
+int connection_takeover(Res *res, const TakeoverConfig *config);
+uv_tcp_t *get_client_handle(Res *res);
+
 // ============================================================================
 // Timer Functions
 // ============================================================================

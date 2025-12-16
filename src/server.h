@@ -28,6 +28,9 @@ struct client_s
     http_context_t persistent_context; // Lives in connection_arena
     bool parser_initialized;
     bool request_in_progress;  // True while parsing a multi-packet request
+
+    bool taken_over;
+    void *takeover_user_data;
 };
 
 #endif

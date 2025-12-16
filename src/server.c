@@ -93,6 +93,15 @@ static void remove_client_from_list(client_t *client)
 static void on_client_closed(uv_handle_t *handle)
 {
     client_t *client = (client_t *)handle->data;
+
+    if (client && client->taken_over)
+    {
+        remove_client_from_list(client);
+        g_server.active_connections--;
+        free(client);
+        return;
+    }
+
     if (client)
     {
         remove_client_from_list(client);
@@ -107,14 +116,30 @@ static void on_client_closed(uv_handle_t *handle)
 
 static void close_client(client_t *client)
 {
-    if (!client || client->closing)
+    if (!client)
         return;
-
+    
+    if (client->closing || uv_is_closing((uv_handle_t *)&client->handle))
+    {
+        // Handle is already closing/closed,
+        // but client struct might still be in list
+        if (!client->closing)
+        {
+            client->closing = true;
+            remove_client_from_list(client);
+            g_server.active_connections--;
+            
+            if (client->connection_arena)
+                arena_pool_release(client->connection_arena);
+            
+            free(client);
+        }
+        return;
+    }
+    
     client->closing = true;
     uv_read_stop((uv_stream_t *)&client->handle);
-
-    if (!uv_is_closing((uv_handle_t *)&client->handle))
-        uv_close((uv_handle_t *)&client->handle, on_client_closed);
+    uv_close((uv_handle_t *)&client->handle, on_client_closed);
 }
 
 static void cleanup_idle_connections(uv_timer_t *handle)
@@ -130,6 +155,12 @@ static void cleanup_idle_connections(uv_timer_t *handle)
     while (current)
     {
         client_t *next = current->next;
+
+        if (current->taken_over)
+        {
+            current = next;
+            continue;
+        }
 
         if (current->keep_alive_enabled && !current->closing)
         {
@@ -451,19 +482,54 @@ void server_shutdown(void)
 
     uv_walk(g_server.loop, close_walk_cb, NULL);
 
+    // Run loop until all close callbacks complete
     start = uv_now(g_server.loop);
+    int empty_iterations = 0;
     
-    while (g_server.active_connections > 0)
+    while (g_server.active_connections > 0 && empty_iterations < 100)
     {
         if ((uv_now(g_server.loop) - start) >= SHUTDOWN_TIMEOUT_MS)
         {
-            LOG_DEBUG("Shutdown timeout: %d connections force closed",
-                    g_server.active_connections);
+            LOG_DEBUG("Shutdown timeout: %d connections remaining", g_server.active_connections);
             break;
         }
         
-        uv_run(g_server.loop, UV_RUN_ONCE);
+        int result = uv_run(g_server.loop, UV_RUN_ONCE);
+        
+        if (result == 0)
+        {
+            empty_iterations++;
+            uv_sleep(1);
+        }
+        else
+        {
+            empty_iterations = 0;
+        }
     }
+    
+    // Some clients may have been taken over by external modules (e.g., WebSocket)
+    // Their handles are already closed, but client structs are still in the list
+    current = g_server.client_list_head;
+    while (current)
+    {
+        client_t *next = current->next;
+        
+        if (uv_is_closing((uv_handle_t *)&current->handle) && !current->closing)
+        {
+            remove_client_from_list(current);
+            g_server.active_connections--;
+            
+            if (current->connection_arena)
+                arena_pool_release(current->connection_arena);
+            
+            free(current);
+        }
+        
+        current = next;
+    }
+    
+    if (g_server.active_connections > 0)
+        LOG_DEBUG("Warning: %d connections not properly closed", g_server.active_connections);
 }
 
 static void router_cleanup(void)
@@ -476,6 +542,58 @@ static void router_cleanup(void)
     }
 
     reset_middleware();
+}
+
+int connection_takeover(Res *res, const TakeoverConfig *config)
+{
+    if (!res || !res->client_socket || !config)
+    {
+        LOG_ERROR("connection_takeover: Invalid arguments");
+        return -1;
+    }
+    
+    uv_tcp_t *handle = res->client_socket;
+    client_t *client = (client_t *)handle->data;
+    
+    if (!client)
+    {
+        LOG_ERROR("connection_takeover: No client data");
+        return -1;
+    }
+    
+    if (client->taken_over)
+    {
+        LOG_ERROR("connection_takeover: Already taken over");
+        return -1;
+    }
+    
+    uv_read_stop((uv_stream_t *)handle);
+    
+    client->taken_over = true;
+    client->takeover_user_data = config->user_data;
+    
+    res->replied = true;
+    
+    if (config->read_cb && config->alloc_cb)
+    {
+        handle->data = config->user_data;
+        
+        int result = uv_read_start((uv_stream_t *)handle, 
+                                   (uv_alloc_cb)config->alloc_cb, 
+                                   (uv_read_cb)config->read_cb);
+        if (result != 0)
+        {
+            LOG_ERROR("connection_takeover: uv_read_start failed: %s", uv_strerror(result));
+            return -1;
+        }
+    }
+    
+    return 0;
+}
+
+uv_tcp_t *get_client_handle(Res *res)
+{
+    return res ? res->client_socket : NULL;
 }
 
 static void server_cleanup(void)

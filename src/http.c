@@ -516,7 +516,11 @@ parse_result_t http_parse_request(http_context_t *context, const char *data, siz
         return PARSE_INCOMPLETE;
 
     case HPE_PAUSED:
+        return PARSE_INCOMPLETE;
+    
     case HPE_PAUSED_UPGRADE:
+        if (context->message_complete)
+            return PARSE_SUCCESS;
         return PARSE_INCOMPLETE;
 
     case HPE_USER:
