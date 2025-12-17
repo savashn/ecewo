@@ -1,6 +1,14 @@
 cmake_minimum_required(VERSION 3.14)
 project(ecewo VERSION 2.3.1 LANGUAGES C)
 
+if(POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW) # DOWNLOAD_EXTRACT_TIMESTAMP
+endif()
+
+if(POLICY CMP0092)
+    cmake_policy(SET CMP0092 NEW) # Don't add /W3 by default
+endif()
+
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
@@ -111,5 +119,46 @@ endif()
 
 if(ECEWO_BUILD_TESTS)
     enable_testing()
-    add_subdirectory(tests)
+
+    add_executable(ecewo_test
+        tests/runner.c
+        tests/ecewo-mock.c
+        tests/test-body.c
+        tests/test-blocking.c
+        tests/test-concurrent-request.c
+        tests/test-context.c
+        tests/test-fire-and-forget.c
+        tests/test-headers.c
+        tests/test-methods.c
+        tests/test-middleware.c
+        tests/test-params.c
+        tests/test-query.c
+        tests/test-redirect.c
+        tests/test-response.c
+        tests/test-root.c
+        tests/test-task-parallel.c
+        tests/test-task.c
+    )
+
+    target_include_directories(ecewo_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/tests
+    )
+
+    target_link_libraries(ecewo_test PRIVATE ecewo)
+
+    add_test(NAME body COMMAND ecewo_test body)
+    add_test(NAME blocking COMMAND ecewo_test blocking)
+    add_test(NAME concurrent_request COMMAND ecewo_test concurrent-request)
+    add_test(NAME context COMMAND ecewo_test context)
+    add_test(NAME fire_and_forget COMMAND ecewo_test fire-and-forget)
+    add_test(NAME headers COMMAND ecewo_test headers)
+    add_test(NAME methods COMMAND ecewo_test methods)
+    add_test(NAME middleware COMMAND ecewo_test middleware)
+    add_test(NAME params COMMAND ecewo_test params)
+    add_test(NAME query COMMAND ecewo_test query)
+    add_test(NAME redirect COMMAND ecewo_test redirect)
+    add_test(NAME response COMMAND ecewo_test response)
+    add_test(NAME root COMMAND ecewo_test root)
+    add_test(NAME task_parallel COMMAND ecewo_test task-parallel)
+    add_test(NAME task COMMAND ecewo_test task)
 endif()

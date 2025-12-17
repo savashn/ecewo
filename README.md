@@ -105,10 +105,11 @@ ecewo is built on top of [libuv](https://github.com/libuv/libuv) and [llhttp](ht
 ## Running Tests
 
 ```shell
-mkdir build && cd build
+mkdir build
+cd build
 cmake -DECEWO_BUILD_TESTS=ON ..
 cmake --build .
-tests/ecewo_test
+ctest
 ```
 
 ## Documentation
