@@ -6,9 +6,11 @@
 // test-params
 void handler_single_param(Req *req, Res *res);
 void handler_multi_param(Req *req, Res *res);
+void handler_overflow_param(Req *req, Res *res);
 int test_single_param(void);
 int test_multi_param(void);
 int test_param_special_chars(void);
+int test_overflow_param(void);
 
 // test-query
 void handler_query_params(Req *req, Res *res);
