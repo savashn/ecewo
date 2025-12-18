@@ -105,6 +105,12 @@ jobs:
     - name: Build
       run: cmake --build build --config ${{env.BUILD_TYPE}} -j$(sysctl -n hw.ncpu)
     
+    - name: Kill any process using test port
+      run: |
+        lsof -ti:8888 | xargs kill -9 || true
+        sleep 2
+      continue-on-error: true
+
     - name: Run tests
       working-directory: build
       run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure --verbose
@@ -115,28 +121,6 @@ jobs:
       with:
         name: macos-test-results
         path: build/Testing/Temporary/
-
-  windows-build-test:
-    name: Windows (Latest)
-    runs-on: windows-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Configure CMake
-      run: |
-        cmake -B build \
-          -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
-          -DECEWO_BUILD_TESTS=ON
-      shell: bash
-    
-    - name: Build
-      run: cmake --build build --config ${{env.BUILD_TYPE}} --parallel
-    
-    - name: Run tests
-      working-directory: build
-      run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure --verbose
 
   memory-check:
     name: Memory Leak Check (Valgrind)

@@ -682,6 +682,13 @@ int server_init(void)
         return SERVER_INIT_FAILED;
 
     arena_pool_init();
+
+    if (!arena_pool_is_initialized())
+    {
+        LOG_ERROR("Arena pool initialization failed");
+        return SERVER_INIT_FAILED;
+    }
+
     init_date_cache();
 
     const char *is_worker = getenv("ECEWO_WORKER");
@@ -894,11 +901,13 @@ int server_listen(uint16_t port)
     struct sockaddr_in addr;
     uv_ip4_addr("0.0.0.0", port, &addr);
 
-#ifdef _WIN32
+    const char *is_test = getenv("ECEWO_TEST_MODE");
     unsigned int flags = 0;
-#else
-    unsigned int flags = UV_TCP_REUSEPORT;
-#endif
+
+    #ifndef _WIN32
+        if (!is_test || strcmp(is_test, "1") != 0)
+            flags = UV_TCP_REUSEPORT;
+    #endif
     
     if (uv_tcp_bind(g_server.server, (const struct sockaddr *)&addr, flags) != 0)
     {

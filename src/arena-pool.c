@@ -141,7 +141,7 @@ void arena_pool_init(void)
     if (uv_mutex_init(&arena_pool.mutex) != 0)
     {
         LOG_ERROR("Failed to initialize arena pool mutex");
-        return;
+        abort();
     }
 
     uint16_t preallocate = PREALLOCATED_ARENA;
@@ -365,7 +365,6 @@ void arena_pool_release(Arena *arena)
     }
 }
 
-// Debug: Print pool statistics
 void arena_pool_print_stats(void)
 {
     if (!arena_pool.initialized)
@@ -391,4 +390,9 @@ void arena_pool_print_stats(void)
     LOG_DEBUG("  Shrink operations: %d", arena_pool.shrink_count);
     
     uv_mutex_unlock(&arena_pool.mutex);
+}
+
+bool arena_pool_is_initialized(void)
+{
+    return arena_pool.initialized;
 }

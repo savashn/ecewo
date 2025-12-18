@@ -406,26 +406,27 @@ MockResponse request(MockParams *params)
     int loop_iterations = 0;
     int no_events_count = 0;
     
-    while (!client.done && client.status == 0) {
+    while (!client.done && client.status == 0)
+    {
         int events = uv_run(&loop, UV_RUN_ONCE);
         loop_iterations++;
         
-        if (events == 0) {
+        if (events == 0)
+        {
             no_events_count++;
             
-            // If we have no events for too many iterations, something might be wrong
-            if (no_events_count >= 10) {
+            if (no_events_count >= 10)
+            {
                 client.status = -1;
                 break;
             }
             
-            // Small delay when no events to prevent busy waiting
             uv_sleep(1);
-        } else {
-            no_events_count = 0; // Reset counter when we have events
+        } else
+        {
+            no_events_count = 0;
         }
         
-        // Check for timeout (5 seconds)
         if ((uv_now(&loop) - loop_start) > 5000) {
             client.status = -1;
             break;
@@ -455,6 +456,7 @@ MockResponse request(MockParams *params)
 
 int mock_init(test_routes_cb_t routes_callback)
 {
+    setenv("ECEWO_TEST_MODE", "1", 1);
     LOG_DEBUG("=== Starting Test Suite ===");
 
     server_ready = false;
@@ -492,8 +494,9 @@ void mock_cleanup(void)
     free_request(&resp);
     
     uv_thread_join(&server_thread);
+    uv_sleep(100);
     
     LOG_DEBUG("Cleanup complete");
-    
+    unsetenv("ECEWO_TEST_MODE");
     return;
 }
