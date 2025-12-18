@@ -7,6 +7,10 @@
 #define MAX_PATH_SEGMENTS 128
 #define METHOD_COUNT 7
 
+#ifndef MAX_INLINE_PARAMS
+#define MAX_INLINE_PARAMS 8
+#endif
+
 typedef enum
 {
     METHOD_INDEX_DELETE,
@@ -52,7 +56,6 @@ typedef struct
 
 extern route_trie_t *global_route_trie;
 
-// Internal string view for route matching (zero-copy)
 typedef struct
 {
     const char *data;
@@ -69,14 +72,17 @@ typedef struct
 {
     RequestHandler handler;
     void *middleware_ctx;
-    param_match_t params[32];
+    param_match_t inline_params[MAX_INLINE_PARAMS];  // On stack
+    param_match_t *params;                           // On heap
     uint8_t param_count;
+    uint8_t param_capacity; // For dynamic allocation
 } route_match_t;
 
 bool route_trie_match(route_trie_t *trie,
                       llhttp_t *parser,
                       const tokenized_path_t *tokenized_path,
-                      route_match_t *match);
+                      route_match_t *match,
+                      Arena *arena);
 
 int route_trie_add(route_trie_t *trie,
                    llhttp_method_t method,

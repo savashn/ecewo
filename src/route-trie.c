@@ -3,6 +3,13 @@
 #include "route-trie.h"
 #include "middleware.h"
 
+static trie_node_t *match_segments(trie_node_t *node,
+                                   const tokenized_path_t *path,
+                                   uint8_t segment_idx,
+                                   route_match_t *match,
+                                   uint8_t depth,
+                                   Arena *arena);
+
 // Splits a path into segments (/users/123/posts -> ["users", "123", "posts"])
 int tokenize_path(Arena *arena, const char *path, size_t path_len, tokenized_path_t *result)
 {
@@ -89,23 +96,128 @@ int tokenize_path(Arena *arena, const char *path, size_t path_len, tokenized_pat
     return 0;
 }
 
+static trie_node_t *advance_to_next_segment(trie_node_t *node,
+                                            const tokenized_path_t *path,
+                                            uint8_t segment_idx,
+                                            route_match_t *match,
+                                            uint8_t depth,
+                                            Arena *arena)
+{
+    if (segment_idx + 1 >= path->count)
+    {
+        // Last segment, check if this node is is_end
+        return node->is_end ? node : NULL;
+    }
+
+    // There are more segments, continue with '/'
+    unsigned char sep = '/';
+    if (node->children[sep])
+    {
+        return match_segments(node->children[sep],
+                              path, 
+                              segment_idx + 1,
+                              match, depth + 1,
+                              arena);
+    }
+
+    return NULL;
+}
+
+static int add_param_to_match(route_match_t *match, 
+                              Arena *arena,
+                              const char *key_data, 
+                              size_t key_len,
+                              const char *value_data, 
+                              size_t value_len)
+{
+    if (!match)
+        return -1;
+
+    if (match->param_count < MAX_INLINE_PARAMS && !match->params)
+    {
+        param_match_t *param = &match->inline_params[match->param_count];
+        param->key.data = key_data;
+        param->key.len = key_len;
+        param->value.data = value_data;
+        param->value.len = value_len;
+        match->param_count++;
+        return 0;
+    }
+
+    if (match->param_count == MAX_INLINE_PARAMS && !match->params)
+    {
+        uint8_t new_capacity = MAX_INLINE_PARAMS * 2;
+        param_match_t *new_params = arena_alloc(arena, sizeof(param_match_t) * new_capacity);
+        if (!new_params)
+        {
+            LOG_ERROR("Failed to allocate dynamic param storage");
+            return -1;
+        }
+
+        arena_memcpy(new_params, match->inline_params, 
+                     sizeof(param_match_t) * MAX_INLINE_PARAMS);
+
+        match->params = new_params;
+        match->param_capacity = new_capacity;
+
+        LOG_DEBUG("Route params overflow: switched to dynamic allocation (%d params)",
+                  new_capacity);
+    }
+
+    if (match->params && match->param_count >= match->param_capacity)
+    {
+        uint8_t new_capacity = match->param_capacity * 2;
+        
+        if (new_capacity > 64)
+        {
+            LOG_ERROR("Route parameter limit exceeded: %d", new_capacity);
+            return -1;
+        }
+
+        param_match_t *new_params = arena_realloc(arena,
+                                                  match->params,
+                                                  sizeof(param_match_t) * match->param_capacity,
+                                                  sizeof(param_match_t) * new_capacity);
+        if (!new_params)
+        {
+            LOG_ERROR("Failed to reallocate param storage");
+            return -1;
+        }
+
+        match->params = new_params;
+        match->param_capacity = new_capacity;
+    }
+
+    param_match_t *target = match->params ? 
+                            &match->params[match->param_count] : 
+                            &match->inline_params[match->param_count];
+    
+    target->key.data = key_data;
+    target->key.len = key_len;
+    target->value.data = value_data;
+    target->value.len = value_len;
+    
+    match->param_count++;
+    return 0;
+}
+
 static trie_node_t *match_segments(trie_node_t *node,
                                    const tokenized_path_t *path,
                                    uint8_t segment_idx,
                                    route_match_t *match,
-                                   uint8_t depth)
+                                   uint8_t depth,
+                                   Arena *arena)
 {
     if (!node || depth > MAX_PATH_SEGMENTS)
         return NULL;
 
-    // Path is completely finished
     if (segment_idx >= path->count)
         return node->is_end ? node : NULL;
 
     const path_segment_t *segment = &path->segments[segment_idx];
     trie_node_t *result = NULL;
 
-    // Try exact (literal) match
+    // Exact match
     if (!segment->is_param && !segment->is_wildcard)
     {
         trie_node_t *current = node;
@@ -118,64 +230,43 @@ static trie_node_t *match_segments(trie_node_t *node,
 
         if (current)
         {
-            if (segment_idx + 1 >= path->count)
-            {
-                // The last segment
-                // Is the exact match is_end?
-                if (current->is_end)
-                    return current;
-            }
-            else
-            {
-                // There are more segments, continue
-                unsigned char sep = '/';
-                if (current->children[sep])
-                {
-                    result = match_segments(
-                        current->children[sep], path, segment_idx + 1, match, depth + 1);
-                    if (result)
-                        return result;
-                }
-            }
+            result = advance_to_next_segment(current, path, segment_idx, 
+                                            match, depth, arena);
+            if (result)
+                return result;
         }
     }
 
-    // Try param match
+    // Param match
     if (node->param_child)
     {
-        uint8_t original_param_count = match ? match->param_count : 0;
+        uint8_t snapshot_count = match ? match->param_count : 0;
 
-        // Add the param
-        if (match && match->param_count < 32)
+        // Capture parameter
+        if (match)
         {
-            match->params[match->param_count].key.data = node->param_child->param_name;
-            match->params[match->param_count].key.len = strlen(node->param_child->param_name);
-            match->params[match->param_count].value.data = segment->start;
-            match->params[match->param_count].value.len = segment->len;
-            match->param_count++;
-        }
-
-        // Try the longer path first
-        if (segment_idx + 1 < path->count)
-        {
-            unsigned char sep = '/';
-            if (node->param_child->children[sep])
+            if (add_param_to_match(match, arena,
+                                   node->param_child->param_name,
+                                   strlen(node->param_child->param_name),
+                                   segment->start,
+                                   segment->len) != 0)
             {
-                result = match_segments(
-                    node->param_child->children[sep], path, segment_idx + 1, match, depth + 1);
-                if (result)
-                    return result;
+                return NULL;
             }
         }
-        
-        // There is no longer path
-        // Is this node is_end and the path has finished?
-        if (segment_idx + 1 >= path->count && node->param_child->is_end)
-            return node->param_child;
 
-        // None of them works, rollback
+        result = advance_to_next_segment(node->param_child,
+                                         path, segment_idx,
+                                         match,
+                                         depth,
+                                         arena);
+        
+        if (result)
+            return result;
+
+        // Rollback on failure
         if (match)
-            match->param_count = original_param_count;
+            match->param_count = snapshot_count;
     }
 
     // Wildcard
@@ -256,10 +347,12 @@ static int method_to_index(llhttp_method_t method)
     }
 }
 
+// Arena is for for dynamic param allocation (if >8 params)
 bool route_trie_match(route_trie_t *trie,
                       llhttp_t *parser,
                       const tokenized_path_t *tokenized_path,
-                      route_match_t *match)
+                      route_match_t *match,
+                      Arena *arena)
 {
     if (!trie || !parser || !tokenized_path || !match)
         return false;
@@ -273,6 +366,8 @@ bool route_trie_match(route_trie_t *trie,
     match->handler = NULL;
     match->middleware_ctx = NULL;
     match->param_count = 0;
+    match->params = NULL;
+    match->param_capacity = MAX_INLINE_PARAMS;
 
     trie_node_t *matched_node = NULL;
 
@@ -288,7 +383,7 @@ bool route_trie_match(route_trie_t *trie,
         if (start_node->children[sep])
             start_node = start_node->children[sep];
 
-        matched_node = match_segments(start_node, tokenized_path, 0, match, 0);
+        matched_node = match_segments(start_node, tokenized_path, 0, match, 0, arena);
     }
 
     if (matched_node && matched_node->handlers[method_idx])

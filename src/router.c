@@ -28,10 +28,12 @@ static int extract_url_params(Arena *arena, const route_match_t *match, request_
         return -1;
     }
 
+    const param_match_t *source = match->params ? match->params : match->inline_params;
+
     for (uint8_t i = 0; i < match->param_count; i++)
     {
-        const string_view_t *key_sv = &match->params[i].key;
-        const string_view_t *value_sv = &match->params[i].value;
+        const string_view_t *key_sv = &source[i].key;
+        const string_view_t *value_sv = &source[i].value;
 
         char *key = arena_alloc(arena, key_sv->len + 1);
         if (!key)
@@ -262,7 +264,7 @@ int router(client_t *client, const char *request_data, size_t request_len)
     }
 
     route_match_t match;
-    if (!route_trie_match(global_route_trie, persistent_ctx->parser, &tokenized_path, &match))
+    if (!route_trie_match(global_route_trie, persistent_ctx->parser, &tokenized_path, &match, request_arena))
     {
         LOG_DEBUG("Route not found: %s %s", persistent_ctx->method, path);
 
