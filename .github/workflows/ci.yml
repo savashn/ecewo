@@ -122,6 +122,53 @@ jobs:
         name: macos-test-results
         path: build/Testing/Temporary/
 
+  windows-ucrt64-build-test:
+    name: Windows (MinGW-w64 UCRT64)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        update: true
+        msystem: UCRT64
+        install: >-
+          mingw-w64-ucrt-x86_64-toolchain
+          mingw-w64-ucrt-x86_64-cmake
+          mingw-w64-ucrt-x86_64-ninja
+    
+    - name: Configure CMake
+      run: |
+        cmake -G Ninja -B build \
+          -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
+          -DECEWO_BUILD_TESTS=ON
+    
+    - name: Build
+      run: cmake --build build --config ${{env.BUILD_TYPE}} --parallel
+    
+    - name: Kill any process using test port
+      run: |
+        netstat -ano | findstr :8888 | awk '{print $5}' | xargs -r taskkill //PID //F || true
+      continue-on-error: true
+      shell: bash
+
+    - name: Run tests
+      working-directory: build
+      run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure --verbose
+    
+    - name: Upload test results
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-ucrt64-test-results
+        path: build/Testing/Temporary/
+
   memory-check:
     name: Memory Leak Check (Valgrind)
     runs-on: ubuntu-latest

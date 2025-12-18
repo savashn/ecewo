@@ -22,7 +22,7 @@
 
 ## Requirements
 
-- A C compiler (GCC, Clang, MSVC)
+- GCC or Clang
 - CMake version 3.14 or higher
 
 ## Quick Start
