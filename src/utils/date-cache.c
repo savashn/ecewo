@@ -1,5 +1,6 @@
 #include "uv.h"
 #include <stdbool.h>
+#include <time.h>
 
 typedef struct
 {

@@ -456,7 +456,12 @@ MockResponse request(MockParams *params)
 
 int mock_init(test_routes_cb_t routes_callback)
 {
+    #ifdef _WIN32
+    _putenv_s("ECEWO_TEST_MODE", "1");
+    #else
     setenv("ECEWO_TEST_MODE", "1", 1);
+    #endif
+
     LOG_DEBUG("=== Starting Test Suite ===");
 
     server_ready = false;
@@ -497,6 +502,12 @@ void mock_cleanup(void)
     uv_sleep(100);
     
     LOG_DEBUG("Cleanup complete");
+
+    #ifdef _WIN32
+    _putenv_s("ECEWO_TEST_MODE", "");
+    #else
     unsetenv("ECEWO_TEST_MODE");
+    #endif
+
     return;
 }

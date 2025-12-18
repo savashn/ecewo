@@ -4,14 +4,14 @@
 #include "uv.h"
 #include <stdlib.h>
 
-static inline uint64_t get_time_ms(void)
+static uint64_t get_time_ms(void)
 {
     return uv_hrtime() / 1000000;
 }
 
-static inline unsigned long get_thread_id(void)
+static uint64_t get_thread_id(void)
 {
-    return (unsigned long)uv_thread_self();
+    return (uint64_t)(uintptr_t)uv_thread_self();
 }
 
 // ============================================================================
