@@ -30,7 +30,6 @@ static void write_completion_cb(uv_write_t *req, int status)
 
     if (write_req->arena)
     {
-        // Reset the arena for the next request but keep regions allocated
         arena_reset(write_req->arena);
     }
     else

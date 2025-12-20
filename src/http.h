@@ -4,7 +4,6 @@
 #include "ecewo.h"
 #include "llhttp.h"
 
-// Parse result enumeration
 typedef enum
 {
     PARSE_SUCCESS = 0,    // Parsing completed successfully
@@ -13,51 +12,44 @@ typedef enum
     PARSE_OVERFLOW = -2   // Buffer overflow or size limit exceeded
 } parse_result_t;
 
-// HTTP parsing context structure
 typedef struct
 {
-    Arena *arena;                // Arena for this context's memory
-    llhttp_t *parser;            // llhttp parser instance
-    llhttp_settings_t *settings; // llhttp parser settings
+    Arena *arena;
+    llhttp_t *parser;
+    llhttp_settings_t *settings;
 
     // Dynamic URL parsing state
-    char *url;           // Dynamic URL buffer
-    size_t url_length;   // Current URL length
-    size_t url_capacity; // URL buffer capacity
-    size_t path_length;  // URL path length (except query)
+    char *url;
+    size_t url_length;
+    size_t url_capacity;
+    size_t path_length;
 
-    char *method;           // Dynamic method buffer
-    size_t method_length;   // Current method length
-    size_t method_capacity; // Method buffer capacity
+    char *method;
+    size_t method_length;
+    size_t method_capacity;
 
-    // Request data containers
-    request_t headers;      // Headers container
-    request_t query_params; // Query parameters container
-    request_t url_params;   // URL parameters container
+    request_t headers;
+    request_t query_params;
+    request_t url_params;
 
-    // Body parsing
-    char *body;           // Request body buffer
-    size_t body_length;   // Body length
-    size_t body_capacity; // Body buffer capacity
+    char *body;
+    size_t body_length;
+    size_t body_capacity;
 
-    // HTTP protocol information
-    uint8_t http_major;   // HTTP major version
-    uint8_t http_minor;   // HTTP minor version
-    uint16_t status_code; // Status code (for responses)
+    uint8_t http_major;
+    uint8_t http_minor;
+    uint16_t status_code;
 
-    // Parsing state flags
-    bool message_complete; // true when message parsing is complete
-    bool keep_alive;       // true for keep-alive, false for close
-    bool headers_complete; // true when headers are fully parsed
+    bool message_complete;
+    bool keep_alive;
+    bool headers_complete;
 
-    // Temporary header parsing
-    char *current_header_field;   // Dynamic current header field buffer
-    size_t header_field_length;   // Current header field length
-    size_t header_field_capacity; // Header field buffer capacity
+    char *current_header_field;
+    size_t header_field_length;
+    size_t header_field_capacity;
 
-    // Error tracking
-    llhttp_errno_t last_error; // Last parse error
-    const char *error_reason;  // Error description
+    llhttp_errno_t last_error;
+    const char *error_reason;
 } http_context_t;
 
 // Using in router.c

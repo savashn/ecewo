@@ -42,7 +42,7 @@
                 if (!mw[i])                                                               \
                 {                                                                         \
                     LOG_ERROR("NULL middleware handler at index %d", i);                  \
-                    free(mw);                                                             \
+                    if (mw_count > MAX_STACK_MW) free(mw);                                \
                     va_end(args);                                                         \
                     return;                                                               \
                 }                                                                         \
