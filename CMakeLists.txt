@@ -9,7 +9,7 @@ if(POLICY CMP0092)
     cmake_policy(SET CMP0092 NEW) # Don't add /W3 by default
 endif()
 
-set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
 
