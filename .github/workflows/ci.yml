@@ -203,6 +203,35 @@ jobs:
         name: windows-ucrt64-test-results
         path: build/Testing/Temporary/
 
+  windows-build-test:
+    name: Windows (MSVC)
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure CMake
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
+          -DECEWO_BUILD_TESTS=ON
+      shell: bash
+
+    - name: Build
+      run: cmake --build build --config ${{env.BUILD_TYPE}} --parallel
+
+    - name: Run tests
+      working-directory: build
+      run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure --verbose
+
+    - name: Upload test results
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-test-results
+        path: build/Testing/Temporary/
+
   memory-check:
     name: Memory Leak Check (Valgrind)
     runs-on: ubuntu-latest
