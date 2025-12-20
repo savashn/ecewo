@@ -59,6 +59,7 @@ if(NOT TARGET ecewo::ecewo)
         src/router.c
         src/middleware.c
         src/route-trie.c
+        src/route-register.c
         src/arena.c
         src/arena-pool.c
         src/spawn.c

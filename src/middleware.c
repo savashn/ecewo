@@ -129,49 +129,6 @@ void hook(MiddlewareHandler middleware_handler)
     global_middleware[global_middleware_count++] = middleware_handler;
 }
 
-void register_route(http_method_t method,
-                           const char *path,
-                           MiddlewareArray middleware,
-                           RequestHandler handler)
-{
-    if (!handler || !path || !global_route_trie)
-    {
-        LOG_ERROR("Invalid route registration parameters");
-        return;
-    }
-
-    MiddlewareInfo *middleware_info = calloc(1, sizeof(MiddlewareInfo));
-    if (!middleware_info)
-    {
-        LOG_DEBUG("Memory allocation failed for middleware info");
-        return;
-    }
-
-    middleware_info->handler = handler;
-
-    if (middleware.count > 0 && middleware.handlers)
-    {
-        middleware_info->middleware = malloc(sizeof(MiddlewareHandler) * middleware.count);
-        if (!middleware_info->middleware)
-        {
-            LOG_DEBUG("Memory allocation failed for middleware handlers");
-            free(middleware_info);
-            return;
-        }
-        memcpy(middleware_info->middleware, middleware.handlers,
-               sizeof(MiddlewareHandler) * middleware.count);
-        middleware_info->middleware_count = middleware.count;
-    }
-
-    int result = route_trie_add(global_route_trie, (llhttp_method_t)method, path, handler, middleware_info);
-    if (result != 0)
-    {
-        LOG_DEBUG("Failed to add route to trie: %d %s", method, path);
-        free_middleware_info(middleware_info);
-        return;
-    }
-}
-
 void reset_middleware(void)
 {
     if (global_middleware)

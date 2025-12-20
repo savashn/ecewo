@@ -166,19 +166,6 @@ typedef enum
 typedef void (*RequestHandler)(Req *req, Res *res);
 typedef int (*MiddlewareHandler)(Req *req, Res *res, Chain *chain);
 
-typedef struct
-{
-    MiddlewareHandler *handlers;
-    uint16_t count;
-} MiddlewareArray;
-
-#define use(...) \
-    ((MiddlewareArray){ \
-        .handlers = (MiddlewareHandler[]){__VA_ARGS__}, \
-        .count = sizeof((MiddlewareHandler[]){__VA_ARGS__}) / sizeof(MiddlewareHandler)})
-
-#define NO_MW ((MiddlewareArray){.handlers = NULL, .count = 0})
-
 typedef enum
 {
     SERVER_OK = 0,
@@ -312,43 +299,37 @@ typedef enum
     HTTP_METHOD_PATCH = 28
 } http_method_t;
 
-extern void register_route(http_method_t method,
-                           const char *path,
-                           MiddlewareArray middleware,
-                           RequestHandler handler);
+#define MW(...) \
+    (sizeof((void*[]){__VA_ARGS__}) / sizeof(void*) - 1)
 
-#define ROUTE_CHOOSER(_1, _2, _3, NAME, ...) NAME
+void register_get(const char *path, int mw_count, ...);
+void register_post(const char *path, int mw_count, ...);
+void register_put(const char *path, int mw_count, ...);
+void register_patch(const char *path, int mw_count, ...);
+void register_del(const char *path, int mw_count, ...);
+void register_head(const char *path, int mw_count, ...);
+void register_options(const char *path, int mw_count, ...);
 
-static inline void route_without_mw(int method, const char *path, RequestHandler handler)
-{
-    register_route((http_method_t)method, path, NO_MW, handler);
-}
+#define get(path, ...) \
+    register_get(path, MW(__VA_ARGS__), __VA_ARGS__)
 
-static inline void route_with_mw(int method, const char *path, MiddlewareArray mw, RequestHandler handler)
-{
-    register_route((http_method_t)method, path, mw, handler);
-}
+#define post(path, ...) \
+    register_post(path, MW(__VA_ARGS__), __VA_ARGS__)
 
-#define get(...) \
-    ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_without_mw)(HTTP_METHOD_GET, __VA_ARGS__)
+#define put(path, ...) \
+    register_put(path, MW(__VA_ARGS__), __VA_ARGS__)
 
-#define post(...) \
-    ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_without_mw)(HTTP_METHOD_POST, __VA_ARGS__)
+#define patch(path, ...) \
+    register_patch(path, MW(__VA_ARGS__), __VA_ARGS__)
 
-#define put(...) \
-    ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_without_mw)(HTTP_METHOD_PUT, __VA_ARGS__)
+#define del(path, ...) \
+    register_del(path, MW(__VA_ARGS__), __VA_ARGS__)
 
-#define patch(...) \
-    ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_without_mw)(HTTP_METHOD_PATCH, __VA_ARGS__)
+#define head(path, ...) \
+    register_head(path, MW(__VA_ARGS__), __VA_ARGS__)
 
-#define del(...) \
-    ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_without_mw)(HTTP_METHOD_DELETE, __VA_ARGS__)
-
-#define head(...) \
-    ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_without_mw)(HTTP_METHOD_HEAD, __VA_ARGS__)
-
-#define options(...) \
-    ROUTE_CHOOSER(__VA_ARGS__, route_with_mw, route_without_mw)(HTTP_METHOD_OPTIONS, __VA_ARGS__)
+#define options(path, ...) \
+    register_options(path, MW(__VA_ARGS__), __VA_ARGS__)
 
 // ============================================================================
 // DEVELOPMENT FUNCTIONS

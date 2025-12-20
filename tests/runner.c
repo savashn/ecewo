@@ -22,11 +22,11 @@ void setup_routes(void)
     post("/echo-body", handler_post_body);
 
     // test-middleware
-    get("/mw-order", use(middleware_first, middleware_second, middleware_third), handler_middleware_order);
-    get("/mw-abort", use(middleware_abort), handler_should_not_reach);
+    get("/mw-order", middleware_first, middleware_second, middleware_third, handler_middleware_order);
+    get("/mw-abort", middleware_abort, handler_should_not_reach);
 
     // test-context
-    get("/context", use(context_middleware), context_handler);
+    get("/context", context_middleware, context_handler);
 
     // test-response
     get("/json-response", handler_json_response);
