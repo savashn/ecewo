@@ -374,7 +374,7 @@ int main(void)
     get("/users", get_all_users);
     post("/user", add_user);
 
-    shutdown_hook(destroy_app);
+    server_atexit(destroy_app);
 
     if (server_listen(3000) != SERVER_OK)
     {

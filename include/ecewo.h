@@ -190,7 +190,7 @@ int server_init(void);
 int server_listen(uint16_t port);
 void server_run(void);
 void server_shutdown(void);
-void shutdown_hook(shutdown_callback_t callback);
+void server_atexit(shutdown_callback_t callback);
 bool server_is_running(void);
 int get_active_connections(void);
 uv_loop_t *get_loop(void);
@@ -274,7 +274,7 @@ void arena_free(Arena *a);
 // Middleware Functions
 // ============================================================================
 
-void hook(MiddlewareHandler middleware_handler);
+void use(MiddlewareHandler middleware_handler);
 int next(Req *req, Res *res, Chain *chain);
 
 // ============================================================================

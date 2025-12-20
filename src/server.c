@@ -949,7 +949,7 @@ void server_run(void)
     server_cleanup();
 }
 
-void shutdown_hook(shutdown_callback_t callback)
+void server_atexit(shutdown_callback_t callback)
 {
     g_server.shutdown_callback = callback;
 }

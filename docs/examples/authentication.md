@@ -93,7 +93,7 @@ int main(void)
 
     post("/login", handle_login);
 
-    shutdown_hook(cleanup_app);
+    server_atexit(cleanup_app);
     server_listen(3000);
     server_run();
     return 0;
@@ -157,7 +157,7 @@ int main(void)
     post("/login", handle_login);
     get("/logout", handle_logout); // We also added it
 
-    shutdown_hook(cleanup_app);
+    server_atexit(cleanup_app);
     server_listen(3000);
     server_run();
     return 0;
@@ -246,7 +246,7 @@ int main(void)
     post("/login", handle_login);
     post("/logout", handle_logout);
 
-    shutdown_hook(cleanup_app);
+    server_atexit(cleanup_app);
     server_listen(3000);
     server_run();
     return 0;
@@ -314,7 +314,7 @@ int main(void)
     post("/login", handle_login);
     post("/logout", handle_logout);
 
-    shutdown_hook(cleanup_app);
+    server_atexit(cleanup_app);
     server_listen(3000);
     server_run();
     return 0;

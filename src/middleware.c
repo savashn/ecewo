@@ -111,7 +111,7 @@ int execute_handler_with_middleware(
     return execute(req, res, middleware_info);
 }
 
-void hook(MiddlewareHandler middleware_handler)
+void use(MiddlewareHandler middleware_handler)
 {
     if (global_middleware_count >= global_middleware_capacity)
     {
@@ -119,7 +119,7 @@ void hook(MiddlewareHandler middleware_handler)
         MiddlewareHandler *tmp = realloc(global_middleware, new_cap * sizeof *tmp);
         if (!tmp)
         {
-            LOG_DEBUG("Reallocation failed in hook");
+            LOG_DEBUG("Reallocation failed in global middleware");
             return;
         }
         global_middleware = tmp;
