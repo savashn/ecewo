@@ -7,6 +7,7 @@
 #include "router.h"
 #include "arena.h"
 #include "utils.h"
+#include "logger.h"
 
 #ifndef MAX_CONNECTIONS
 #define MAX_CONNECTIONS 10000

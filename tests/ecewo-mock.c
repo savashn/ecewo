@@ -2,6 +2,10 @@
 #include "ecewo-mock.h"
 #include "uv.h"
 #include <stdlib.h>
+#include <stdio.h>
+
+#define LOG_ERROR(fmt, ...) \
+    fprintf(stderr, "[ERROR] " fmt "\n", ##__VA_ARGS__)
 
 #define MAX_RETRIES 10
 #define RETRY_DELAY_MS 100
@@ -446,7 +450,6 @@ MockResponse request(MockParams *params)
         response.status_code = -1;
     }
 
-    // Cleanup
     free(request_data);
     free(client.response_buffer);
     uv_loop_close(&loop);
@@ -461,8 +464,6 @@ int mock_init(test_routes_cb_t routes_callback)
     #else
     setenv("ECEWO_TEST_MODE", "1", 1);
     #endif
-
-    LOG_DEBUG("=== Starting Test Suite ===");
 
     server_ready = false;
     shutdown_requested = false;
@@ -486,8 +487,6 @@ int mock_init(test_routes_cb_t routes_callback)
 
 void mock_cleanup(void)
 {
-    LOG_DEBUG("=== Cleaning Up Test Suite ===");
-    
     MockParams params = {
         .method = MOCK_GET,
         .path = "/ecewo-test-shutdown",
@@ -501,8 +500,6 @@ void mock_cleanup(void)
     uv_thread_join(&server_thread);
     uv_sleep(100);
     
-    LOG_DEBUG("Cleanup complete");
-
     #ifdef _WIN32
     _putenv_s("ECEWO_TEST_MODE", "");
     #else

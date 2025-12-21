@@ -2,6 +2,7 @@
 #include <limits.h>
 #include <ctype.h>
 #include "http.h"
+#include "logger.h"
 
 #define MIN_BUFFER_SIZE 64
 #define GROWTH_FACTOR 1.5

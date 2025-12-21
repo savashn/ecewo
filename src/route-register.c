@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include "route-trie.h"
 #include "middleware.h"
+#include "logger.h"
 
 #define MAX_STACK_MW 8
 

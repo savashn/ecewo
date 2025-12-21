@@ -2,6 +2,7 @@
 #include <inttypes.h>
 #include "route-trie.h"
 #include "middleware.h"
+#include "logger.h"
 
 static trie_node_t *match_segments(trie_node_t *node,
                                    const tokenized_path_t *path,

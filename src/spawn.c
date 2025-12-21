@@ -1,5 +1,6 @@
 #include "uv.h"
 #include "ecewo.h"
+#include "logger.h"
 #include <stdlib.h>
 
 typedef struct

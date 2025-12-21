@@ -1,5 +1,6 @@
 #include "arena.h"
 #include "uv.h"
+#include "logger.h"
 #include <stdlib.h>
 #include <stdint.h>
 
@@ -199,11 +200,13 @@ void arena_pool_init(void)
 
     arena_pool.initialized = true;
     
-    double allocated_mb = (allocated * ARENA_REGION_SIZE) / (1024.0 * 1024.0);
-    LOG_DEBUG("Arena pool initialized: %d/%d arenas (%.2f MB)",
-              allocated,
-              ARENA_POOL_SIZE,
-              allocated_mb);
+    #ifdef ECEWO_DEBUG
+        double allocated_mb = (allocated * ARENA_REGION_SIZE) / (1024.0 * 1024.0);
+        LOG_DEBUG("Arena pool initialized: %d/%d arenas (%.2f MB)",
+                  allocated,
+                  ARENA_POOL_SIZE,
+                  allocated_mb);
+    #endif
 }
 
 void arena_pool_destroy(void)
@@ -213,6 +216,7 @@ void arena_pool_destroy(void)
 
     uv_mutex_lock(&arena_pool.mutex);
 
+    #ifdef ECEWO_DEBUG
     // Statistics before destruction
     if (arena_pool.grow_count > 0 || arena_pool.shrink_count > 0)
     {
@@ -222,6 +226,7 @@ void arena_pool_destroy(void)
         LOG_DEBUG("  Grow operations: %d", arena_pool.grow_count);
         LOG_DEBUG("  Shrink operations: %d", arena_pool.shrink_count);
     }
+    #endif
 
     for (int i = 0; i < arena_pool.head; i++)
     {
@@ -365,6 +370,7 @@ void arena_pool_release(Arena *arena)
     }
 }
 
+#ifdef ECEWO_DEBUG
 void arena_pool_print_stats(void)
 {
     if (!arena_pool.initialized)
@@ -391,6 +397,8 @@ void arena_pool_print_stats(void)
     
     uv_mutex_unlock(&arena_pool.mutex);
 }
+
+#endif
 
 bool arena_pool_is_initialized(void)
 {

@@ -5,6 +5,7 @@
 #include "arena.h"
 #include "utils.h"
 #include "request.h"
+#include "logger.h"
 
 extern void send_error(Arena *request_arena, uv_tcp_t *client_socket, int error_code);
 
@@ -176,17 +177,17 @@ int router(client_t *client, const char *request_data, size_t request_len)
         return 2;
 
     case PARSE_OVERFLOW:
-        LOG_DEBUG("HTTP parsing failed: size limits exceeded");
+        LOG_ERROR("HTTP parsing failed: size limits exceeded");
         if (persistent_ctx->error_reason)
-            LOG_DEBUG(" - %s", persistent_ctx->error_reason);
+            LOG_ERROR(" - %s", persistent_ctx->error_reason);
         send_error(NULL, handle, 413);
         return 1;
 
     case PARSE_ERROR:
     default:
-        LOG_DEBUG("HTTP parsing failed: %s", parse_result_to_string(parse_result));
+        LOG_ERROR("HTTP parsing failed: %s", parse_result_to_string(parse_result));
         if (persistent_ctx->error_reason)
-            LOG_DEBUG(" - %s", persistent_ctx->error_reason);
+            LOG_ERROR(" - %s", persistent_ctx->error_reason);
         send_error(NULL, handle, 400);
         return 1;
     }
@@ -214,10 +215,10 @@ int router(client_t *client, const char *request_data, size_t request_len)
         parse_result_t finish_result = http_finish_parsing(persistent_ctx);
         if (finish_result != PARSE_SUCCESS)
         {
-            LOG_DEBUG("HTTP finish parsing failed: %s", parse_result_to_string(finish_result));
+            LOG_ERROR("HTTP finish parsing failed: %s", parse_result_to_string(finish_result));
 
             if (persistent_ctx->error_reason)
-                LOG_DEBUG(" - %s", persistent_ctx->error_reason);
+                LOG_ERROR(" - %s", persistent_ctx->error_reason);
 
             send_error(request_arena, handle, 400);
             return 1;
@@ -308,7 +309,6 @@ int router(client_t *client, const char *request_data, size_t request_len)
 
     if (execution_result != 0)
     {
-        LOG_ERROR("Handler execution failed");
         send_error(request_arena, handle, 500);
         return 1;
     }

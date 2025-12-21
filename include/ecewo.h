@@ -9,17 +9,6 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
-#include <stdio.h> // LOG_ macros
-
-#ifdef ECEWO_DEBUG
-#define LOG_DEBUG(fmt, ...) \
-    fprintf(stderr, "[DEBUG] " fmt "\n", ##__VA_ARGS__)
-#else
-    #define LOG_DEBUG(fmt, ...) ((void)0)
-#endif
-
-#define LOG_ERROR(fmt, ...) \
-    fprintf(stderr, "[ERROR] " fmt "\n", ##__VA_ARGS__)
 
 typedef struct uv_loop_s uv_loop_t;
 typedef struct uv_timer_s uv_timer_t;
