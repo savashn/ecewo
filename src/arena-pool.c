@@ -247,7 +247,7 @@ void arena_pool_destroy(void)
     LOG_DEBUG("Arena pool destroyed");
 }
 
-Arena *arena_pool_acquire(void)
+Arena *arena_borrow(void)
 {
     if (!arena_pool.initialized)
     {
@@ -316,7 +316,7 @@ Arena *arena_pool_acquire(void)
     return arena;
 }
 
-void arena_pool_release(Arena *arena)
+void arena_return(Arena *arena)
 {
     if (!arena)
         return;

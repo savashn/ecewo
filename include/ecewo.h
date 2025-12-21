@@ -215,8 +215,8 @@ void *arena_memcpy(void *dest, const void *src, size_t n);
 void arena_free(Arena *a);
 
 // ARENA POOL
-Arena *arena_pool_acquire(void);
-void arena_pool_release(Arena *arena);
+Arena *arena_borrow(void);
+void arena_return(Arena *arena);
 #ifdef ECEWO_DEBUG
 void arena_pool_stats(void);
 #endif

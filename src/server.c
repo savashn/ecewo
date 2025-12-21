@@ -122,7 +122,7 @@ static void on_client_closed(uv_handle_t *handle)
         g_server.active_connections--;
 
         if (client->connection_arena)
-            arena_pool_release(client->connection_arena);
+            arena_return(client->connection_arena);
 
         free(client);
     }
@@ -144,7 +144,7 @@ static void close_client(client_t *client)
             g_server.active_connections--;
             
             if (client->connection_arena)
-                arena_pool_release(client->connection_arena);
+                arena_return(client->connection_arena);
             
             free(client);
         }
@@ -242,14 +242,14 @@ static int client_connection_init(client_t *client)
     if (!client)
         return -1;
 
-    client->connection_arena = arena_pool_acquire();
+    client->connection_arena = arena_borrow();
     if (!client->connection_arena)
         return -1;
 
     http_context_t *ctx = arena_alloc(client->connection_arena, sizeof(http_context_t));
     if (!ctx)
     {
-        arena_pool_release(client->connection_arena);
+        arena_return(client->connection_arena);
         client->connection_arena = NULL;
         return -1;
     }
@@ -534,7 +534,7 @@ void server_shutdown(void)
             g_server.active_connections--;
             
             if (current->connection_arena)
-                arena_pool_release(current->connection_arena);
+                arena_return(current->connection_arena);
             
             free(current);
         }
@@ -856,7 +856,7 @@ static void on_connection(uv_stream_t *server, int status)
     if (uv_tcp_init(g_server.loop, &client->handle) != 0)
     {
         if (client->connection_arena)
-            arena_pool_release(client->connection_arena);
+            arena_return(client->connection_arena);
 
         free(client);
         return;
