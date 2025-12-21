@@ -31,6 +31,7 @@ We did this with JSON in [this example](/examples/using-json#creating-json). Now
 
 #include "ecewo.h"
 #include "cbor.h"
+#include <stdio.h>
 
 void hello_world_cbor(Req *req, Res *res)
 {
@@ -58,7 +59,7 @@ void hello_world_cbor(Req *req, Res *res)
 
 int main(void)
 {
-    if (server_init() != SERVER_OK)
+    if (server_init() != 0)
     {
         fprintf(stderr, "Failed to initialize server\n");
         return 1;
@@ -66,7 +67,7 @@ int main(void)
 
     get("/cbor", hello_world_cbor);
 
-    if (server_listen(3000) != SERVER_OK)
+    if (server_listen(3000) != 0)
     {
         fprintf(stderr, "Failed to start server\n");
         return 1;
@@ -86,6 +87,7 @@ You can see [the exact example](/examples/using-json/#parsing-json) with JSON.
 
 #include "ecewo.h"
 #include "cbor.h"
+#include <stdio.h>
 
 void handle_user_cbor(Req *req, Res *res)
 {
@@ -181,7 +183,7 @@ cleanup:
 
 int main(void)
 {
-    if (server_init() != SERVER_OK)
+    if (server_init() != 0)
     {
         fprintf(stderr, "Failed to initialize server\n");
         return 1;
@@ -189,7 +191,7 @@ int main(void)
 
     post("/cbor", handle_user_cbor);
 
-    if (server_listen(3000) != SERVER_OK)
+    if (server_listen(3000) != 0)
     {
         fprintf(stderr, "Failed to start server\n");
         return 1;

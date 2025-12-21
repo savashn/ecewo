@@ -23,12 +23,14 @@ typedef struct Arena
     ArenaRegion *begin, *end;
 } Arena;
 
+// Internal struct, do not use it
 typedef struct
 {
     const char *key;
     const char *value;
 } request_item_t;
 
+// Internal struct, do not use it
 typedef struct
 {
     request_item_t *items;
@@ -55,6 +57,7 @@ typedef struct
     bool is_head_request;
 } Req;
 
+// Internal struct, do not use it
 typedef struct
 {
     const char *name;
@@ -155,80 +158,35 @@ typedef enum
 typedef void (*RequestHandler)(Req *req, Res *res);
 typedef int (*MiddlewareHandler)(Req *req, Res *res, Chain *chain);
 
-typedef enum
-{
-    SERVER_OK = 0,
-    SERVER_ALREADY_INITIALIZED = -1,
-    SERVER_NOT_INITIALIZED = -2,
-    SERVER_ALREADY_RUNNING = -3,
-    SERVER_INIT_FAILED = -4,
-    SERVER_OUT_OF_MEMORY = -5,
-    SERVER_BIND_FAILED = -6,
-    SERVER_LISTEN_FAILED = -7,
-    SERVER_INVALID_PORT = -8,
-} server_error_t;
-
 typedef void (*shutdown_callback_t)(void);
 typedef void (*timer_callback_t)(void *user_data);
 
-// ============================================================================
-// Server Functions
-// ============================================================================
-
+// SERVER FUNCTIONS
 int server_init(void);
 int server_listen(uint16_t port);
 void server_run(void);
 void server_shutdown(void);
 void server_atexit(shutdown_callback_t callback);
-bool server_is_running(void);
-int get_active_connections(void);
-uv_loop_t *get_loop(void);
 
-typedef struct TakeoverConfig
-{
-    void *alloc_cb;
-    void *read_cb;
-    void *close_cb;
-    void *user_data;
-} TakeoverConfig;
-
-int connection_takeover(Res *res, const TakeoverConfig *config);
-uv_tcp_t *get_client_handle(Res *res);
-
-// ============================================================================
-// Timer Functions
-// ============================================================================
-
+// TIMER FUNCTIONS
 Timer *set_timeout(timer_callback_t callback, uint64_t delay_ms, void *user_data);
 Timer *set_interval(timer_callback_t callback, uint64_t interval_ms, void *user_data);
 void clear_timer(Timer *timer);
 
-// ============================================================================
-// Request Functions
-// ============================================================================
-
+// REQUEST FUNCTIONS
 const char *get_param(const Req *req, const char *key);
 const char *get_query(const Req *req, const char *key);
 const char *get_header(const Req *req, const char *key);
 
-void set_context(Req *req, const char *key, void *data, size_t size);
-void *get_context(Req *req, const char *key);
+// RESPONSE FUNCTIONS
+void reply(Res *res, int status, const void *body, size_t body_len);
+void redirect(Res *res, int status, const char *url);
 
-// ============================================================================
-// Response Functions
-// ============================================================================
-
-// Set header - DOES NOT check for duplicates!
+// set_header DOES NOT check for duplicates!
 // User is responsible for avoiding duplicate headers.
 // Multiple calls with same name will add multiple headers.
 void set_header(Res *res, const char *name, const char *value);
 
-void reply(Res *res, int status, const void *body, size_t body_len);
-void redirect(Res *res, int status, const char *url);
-
-// Helper functions that set Content-Type header
-// WARNING: Do not call set_header("Content-Type", ...) before these!
-// These will add Content-Type, potentially creating duplicates.
 static inline void send_text(Res *res, int status, const char *body)
 {
     set_header(res, "Content-Type", "text/plain");
@@ -247,10 +205,7 @@ static inline void send_json(Res *res, int status, const char *body)
     reply(res, status, body, strlen(body));
 }
 
-// ============================================================================
-// Memory Functions (Arena)
-// ============================================================================
-
+// ARENA FUNCTIONS
 void *arena_alloc(Arena *a, size_t size_bytes);
 void *arena_realloc(Arena *a, void *oldptr, size_t oldsz, size_t newsz);
 char *arena_strdup(Arena *a, const char *cstr);
@@ -259,24 +214,24 @@ char *arena_sprintf(Arena *a, const char *format, ...);
 void *arena_memcpy(void *dest, const void *src, size_t n);
 void arena_free(Arena *a);
 
-// ============================================================================
-// Middleware Functions
-// ============================================================================
+// ARENA POOL
+Arena *arena_pool_acquire(void);
+void arena_pool_release(Arena *arena);
+#ifdef ECEWO_DEBUG
+void arena_pool_stats(void);
+#endif
 
+// MIDDLEWARE FUNCTIONS
 void use(MiddlewareHandler middleware_handler);
 int next(Req *req, Res *res, Chain *chain);
+void set_context(Req *req, const char *key, void *data, size_t size);
+void *get_context(Req *req, const char *key);
 
-// ============================================================================
-// Task Functions
-// ============================================================================
-
+// TASK SPAWN
 typedef void (*spawn_handler_t)(void *context);
 int spawn(void *context, spawn_handler_t work_fn, spawn_handler_t done_fn);
 
-// ============================================================================
-// Route Registration
-// ============================================================================
-
+// ROUTE REGISTRATION
 typedef enum
 {
     HTTP_METHOD_DELETE = 0,
@@ -320,12 +275,25 @@ void register_options(const char *path, int mw_count, ...);
 #define options(path, ...) \
     register_options(path, MW(__VA_ARGS__), __VA_ARGS__)
 
-// ============================================================================
-// DEVELOPMENT FUNCTIONS
-// ============================================================================
-
+// DEVELOPMENT FUNCTIONS FOR EXTERNAL MODULES
 void increment_async_work(void);
 void decrement_async_work(void);
+uv_loop_t *get_loop(void);
+
+typedef struct TakeoverConfig
+{
+    void *alloc_cb;
+    void *read_cb;
+    void *close_cb;
+    void *user_data;
+} TakeoverConfig;
+
+int connection_takeover(Res *res, const TakeoverConfig *config);
+uv_tcp_t *get_client_handle(Res *res);
+
+// DEBUG FUNCTIONS
+bool server_is_running(void);
+int get_active_connections(void);
 int get_pending_async_work(void);
 
 #ifdef __cplusplus

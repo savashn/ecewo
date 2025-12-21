@@ -371,7 +371,7 @@ void arena_pool_release(Arena *arena)
 }
 
 #ifdef ECEWO_DEBUG
-void arena_pool_print_stats(void)
+void arena_pool_stats(void)
 {
     if (!arena_pool.initialized)
     {

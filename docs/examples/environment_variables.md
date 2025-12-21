@@ -34,10 +34,11 @@ Let's parse it in `main.c`:
 
 #include "ecewo.h"
 #include "dotenv.h"
+#include <stdio.h>
 
 int main(void)
 {
-    if (server_init() != SERVER_OK)
+    if (server_init() != 0)
     {
         fprintf(stderr, "Failed to initialize server\n");
         return 1;
@@ -54,7 +55,7 @@ int main(void)
     // to use it as PORT
     const int PORT = (int)atoi(port);
 
-    if (server_listen(PORT) != SERVER_OK)
+    if (server_listen(PORT) != 0)
     {
         fprintf(stderr, "Failed to start server\n");
         return 1;

@@ -351,14 +351,16 @@ void get_all_users(Req *req, Res *res)
 
 #include "ecewo.h"
 #include "db/db.h"
+#include <stdio.h>
 
-void destroy_app(void) {
+void destroy_app(void)
+{
     sqlite3_close(db);
 }
 
 int main(void)
 {
-    if (server_init() != SERVER_OK)
+    if (server_init() != 0)
     {
         fprintf(stderr, "Failed to initialize server\n");
         return 1;
@@ -376,7 +378,7 @@ int main(void)
 
     server_atexit(destroy_app);
 
-    if (server_listen(3000) != SERVER_OK)
+    if (server_listen(3000) != 0)
     {
         fprintf(stderr, "Failed to start server\n");
         return 1;

@@ -46,7 +46,7 @@ static void server_thread_fn(void *arg)
 {
     (void)arg;
 
-    if (server_init() != SERVER_OK)
+    if (server_init() != 0)
     {
         LOG_ERROR("Failed to initialize server");
         return;
@@ -58,7 +58,7 @@ static void server_thread_fn(void *arg)
     get("/ecewo-test-shutdown", shutdown_handler);
     get("/ecewo-test-check", test_handler);
 
-    if (server_listen(TEST_PORT) != SERVER_OK)
+    if (server_listen(TEST_PORT) != 0)
     {
         LOG_ERROR("Failed to start server on port %d", TEST_PORT);
         return;

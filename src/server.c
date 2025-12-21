@@ -33,6 +33,19 @@
 #define CLEANUP_TIMEOUT_MS 5000
 #endif
 
+typedef enum
+{
+    SERVER_OK = 0,
+    SERVER_ALREADY_INITIALIZED = -1,
+    SERVER_NOT_INITIALIZED = -2,
+    SERVER_ALREADY_RUNNING = -3,
+    SERVER_INIT_FAILED = -4,
+    SERVER_OUT_OF_MEMORY = -5,
+    SERVER_BIND_FAILED = -6,
+    SERVER_LISTEN_FAILED = -7,
+    SERVER_INVALID_PORT = -8,
+} server_error_t;
+
 typedef struct timer_data_s
 {
     timer_callback_t callback;

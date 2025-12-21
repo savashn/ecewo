@@ -21,12 +21,6 @@ ArenaRegion *new_region(size_t capacity);
 // Pool
 void arena_pool_init(void);
 void arena_pool_destroy(void);
-Arena *arena_pool_acquire(void);
-void arena_pool_release(Arena *arena);
 bool arena_pool_is_initialized(void);
-
-#ifdef ECEWO_DEBUG
-void arena_pool_print_stats(void);
-#endif
 
 #endif

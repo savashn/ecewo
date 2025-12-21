@@ -17,6 +17,7 @@ Let's write our `hello world` example again, but this time it will send a JSON o
 
 #include "ecewo.h"
 #include "cJSON.h"
+#include <stdio.h>
 
 void hello_world(Req *req, Res *res)
 {
@@ -39,7 +40,7 @@ void hello_world(Req *req, Res *res)
 
 int main(void)
 {
-    if (server_init() != SERVER_OK)
+    if (server_init() != 0)
     {
         fprintf(stderr, "Failed to initialize server\n");
         return 1;
@@ -47,7 +48,7 @@ int main(void)
 
     get("/", hello_world);
 
-    if (server_listen(3000) != SERVER_OK)
+    if (server_listen(3000) != 0)
     {
         fprintf(stderr, "Failed to start server\n");
         return 1;
@@ -73,6 +74,7 @@ This time, let's take a JSON and print it to console.
 
 #include "ecewo.h"
 #include "cJSON.h"
+#include <stdio.h>
 
 void handle_user(Req *req, Res *res)
 {
@@ -113,7 +115,7 @@ void handle_user(Req *req, Res *res)
 
 int main(void)
 {
-    if (server_init() != SERVER_OK)
+    if (server_init() != 0)
     {
         fprintf(stderr, "Failed to initialize server\n");
         return 1;
@@ -121,7 +123,7 @@ int main(void)
 
     post("/user", handle_user);
 
-    if (server_listen(3000) != SERVER_OK)
+    if (server_listen(3000) != 0)
     {
         fprintf(stderr, "Failed to start server\n");
         return 1;
