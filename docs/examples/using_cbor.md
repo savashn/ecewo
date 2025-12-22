@@ -54,7 +54,7 @@ void hello_world_cbor(Req *req, Res *res)
 
     // Send the CBOR response with status code 200
     set_header(res, "Content-Type", "application/cbor");
-    reply(res, 200, "application/cbor", buffer, len);
+    reply(res, 200, buffer, len);
 }
 
 int main(void)

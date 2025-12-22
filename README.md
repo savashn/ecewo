@@ -1,5 +1,5 @@
 <div align="center">
-    <img src="https://raw.githubusercontent.com/savashn/ecewo/main/assets/ecewo.svg" />
+    <img src="https://raw.githubusercontent.com/savashn/ecewo/main/.github/assets/ecewo.svg" />
 </div>
 
 <div align="center">
