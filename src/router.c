@@ -305,13 +305,7 @@ int router(client_t *client, const char *request_data, size_t request_len)
         return res->keep_alive ? 0 : 1;
     }
 
-    int execution_result = execute_handler_with_middleware(req, res, middleware_info);
-
-    if (execution_result != 0)
-    {
-        send_error(request_arena, handle, 500);
-        return 1;
-    }
+    chain_start(req, res, middleware_info);
 
     if (!res->replied)
     {

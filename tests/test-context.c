@@ -3,7 +3,8 @@
 #include "tester.h"
 #include <string.h>
 
-typedef struct {
+typedef struct
+{
     char *user_id;
     char *role;
 } user_ctx_t;
@@ -19,7 +20,7 @@ int context_middleware(Req *req, Res *res, Next next)
     
     set_context(req, "user_ctx", ctx, sizeof(user_ctx_t));
     
-    return next(req, res);
+    next(req, res);
 }
 
 void context_handler(Req *req, Res *res)

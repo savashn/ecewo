@@ -1,79 +1,87 @@
 #include <stdlib.h>
+#include <stdbool.h>
 #include "middleware.h"
 #include "route-trie.h"
 #include "server.h"
 #include "logger.h"
 
-typedef struct Chain Chain;
+typedef struct
+{
+    MiddlewareHandler *handlers;
+    RequestHandler route_handler;
+    uint16_t count;
+    uint16_t current;
+    bool next_called;
+} Chain;
 
 MiddlewareHandler *global_middleware = NULL;
 uint16_t global_middleware_count = 0;
 uint16_t global_middleware_capacity = 0;
 
-static int execute_next(Req *req, Res *res)
+static void execute_next(Req *req, Res *res)
 {
     if (!req || !res)
     {
-        LOG_ERROR("NULL request or response in execute_next");
-        return -1;
+        LOG_ERROR("NULL request or response");
+        return;
     }
     
     Chain *chain = (Chain*)req->chain;
     
     if (!chain)
     {
-        LOG_ERROR("NULL chain in execute_next");
-        return -1;
+        LOG_ERROR("NULL chain");
+        return;
     }
     
     if (chain->current < chain->count)
     {
         MiddlewareHandler next_middleware = chain->handlers[chain->current++];
+        
         if (next_middleware)
         {
-            return next_middleware(req, res, execute_next);
+            next_middleware(req, res, execute_next);
+            return;
         }
         else
         {
-            return execute_next(req, res);
+            execute_next(req, res);
+            return;
         }
     }
     else
     {
         if (chain->route_handler)
-        {
             chain->route_handler(req, res);
-            return 1;
-        }
-        return 0;
+
+        return;
     }
 }
 
-static int execute(Req *req, Res *res, MiddlewareInfo *middleware_info)
+void chain_start(Req *req, Res *res, MiddlewareInfo *middleware_info)
 {
     if (!req || !res || !middleware_info || !middleware_info->handler)
-        return -1;
+        return;
 
     int total_middleware_count = global_middleware_count + middleware_info->middleware_count;
 
     if (total_middleware_count == 0)
     {
         middleware_info->handler(req, res);
-        return 0;
+        return;
     }
 
-    MiddlewareHandler *combined_handlers = arena_alloc(
-        req->arena,
-        sizeof(MiddlewareHandler) * total_middleware_count);
+    MiddlewareHandler *combined_handlers = arena_alloc(req->arena, sizeof(MiddlewareHandler) * total_middleware_count);
 
     if (!combined_handlers)
     {
         LOG_ERROR("Arena allocation failed for middleware handlers.");
         middleware_info->handler(req, res);
-        return -1;
+        return;
     }
 
-    arena_memcpy(combined_handlers, global_middleware,
+    arena_memcpy(combined_handlers,
+                 global_middleware,
                  sizeof(MiddlewareHandler) * global_middleware_count);
 
     if (middleware_info->middleware_count > 0 && middleware_info->middleware)
@@ -88,7 +96,7 @@ static int execute(Req *req, Res *res, MiddlewareInfo *middleware_info)
     {
         LOG_ERROR("Arena allocation failed for middleware chain.");
         middleware_info->handler(req, res);
-        return -1;
+        return;
     }
 
     chain->handlers = combined_handlers;
@@ -98,28 +106,7 @@ static int execute(Req *req, Res *res, MiddlewareInfo *middleware_info)
     
     req->chain = chain;
 
-    int result = execute_next(req, res);
-
-    if (result == -1)
-    {
-        LOG_ERROR("Middleware chain failed.");
-        return -1;
-    }
-
-    return 0;
-}
-
-int execute_handler_with_middleware(Req *req,
-                                    Res *res,
-                                    MiddlewareInfo *middleware_info)
-{
-    if (!req || !res || !middleware_info)
-    {
-        LOG_ERROR("NULL request, response or middleware info");
-        return -1;
-    }
-
-    return execute(req, res, middleware_info);
+    execute_next(req, res);
 }
 
 void use(MiddlewareHandler middleware_handler)

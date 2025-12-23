@@ -9,7 +9,7 @@ int middleware_first(Req *req, Res *res, Next next)
     int *order = arena_alloc(req->arena, sizeof(int));
     *order = ++middleware_order_tracker;
     set_context(req, "first", order, sizeof(int));
-    return next(req, res);
+    next(req, res);
 }
 
 int middleware_second(Req *req, Res *res, Next next)
@@ -17,7 +17,7 @@ int middleware_second(Req *req, Res *res, Next next)
     int *order = arena_alloc(req->arena, sizeof(int));
     *order = ++middleware_order_tracker;
     set_context(req, "second", order, sizeof(int));
-    return next(req, res);
+    next(req, res);
 }
 
 int middleware_third(Req *req, Res *res, Next next)
@@ -25,7 +25,7 @@ int middleware_third(Req *req, Res *res, Next next)
     int *order = arena_alloc(req->arena, sizeof(int));
     *order = ++middleware_order_tracker;
     set_context(req, "third", order, sizeof(int));
-    return next(req, res);
+    next(req, res);
 }
 
 void handler_middleware_order(Req *req, Res *res)

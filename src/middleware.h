@@ -4,13 +4,9 @@
 #include "ecewo.h"
 #include "llhttp.h"
 
-struct Chain
-{
-    MiddlewareHandler *handlers;  // Array of middleware handlers
-    uint16_t count;               // Number of handlers in the chain
-    uint16_t current;             // Current position in the middleware chain
-    RequestHandler route_handler; // The final route handler
-};
+#ifndef INITIAL_MW_CAPACITY
+#define INITIAL_MW_CAPACITY 8
+#endif
 
 typedef struct MiddlewareInfo
 {
@@ -19,15 +15,10 @@ typedef struct MiddlewareInfo
     RequestHandler handler;
 } MiddlewareInfo;
 
-#ifndef INITIAL_MW_CAPACITY
-#define INITIAL_MW_CAPACITY 8
-#endif
-
 extern MiddlewareHandler *global_middleware;
 extern uint16_t global_middleware_count;
 
-int execute_handler_with_middleware(Req *req, Res *res, MiddlewareInfo *middleware_info);
-
+void chain_start(Req *req, Res *res, MiddlewareInfo *middleware_info);
 void reset_middleware(void);
 void free_middleware_info(MiddlewareInfo *info);
 

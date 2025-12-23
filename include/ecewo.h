@@ -155,9 +155,9 @@ typedef enum
     NETWORK_AUTHENTICATION_REQUIRED = 511
 } http_status_t;
 
-typedef int (*Next)(Req*, Res*);
+typedef void (*Next)(Req*, Res*);
 typedef void (*RequestHandler)(Req *req, Res *res);
-typedef int (*MiddlewareHandler)(Req *req, Res *res, Next next);
+typedef void (*MiddlewareHandler)(Req *req, Res *res, Next next);
 
 typedef void (*shutdown_callback_t)(void);
 typedef void (*timer_callback_t)(void *user_data);
