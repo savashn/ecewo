@@ -29,17 +29,17 @@ int test_method_patch(void);
 int test_post_with_body(void);
 
 // test-middleware
-int middleware_first(Req *req, Res *res, Chain *chain);
-int middleware_second(Req *req, Res *res, Chain *chain);
-int middleware_third(Req *req, Res *res, Chain *chain);
+int middleware_first(Req *req, Res *res, Next next);
+int middleware_second(Req *req, Res *res, Next next);
+int middleware_third(Req *req, Res *res, Next next);
 void handler_middleware_order(Req *req, Res *res);
-int middleware_abort(Req *req, Res *res, Chain *chain);
+int middleware_abort(Req *req, Res *res, Next next);
 void handler_should_not_reach(Req *req, Res *res);
 int test_middleware_execution_order(void);
 int test_middleware_abort(void);
 
 // test-context
-int context_middleware(Req *req, Res *res, Chain *chain);
+int context_middleware(Req *req, Res *res, Next next);
 void context_handler(Req *req, Res *res);
 int test_context(void);
 

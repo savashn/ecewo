@@ -4,28 +4,28 @@
 
 static int middleware_order_tracker = 0;
 
-int middleware_first(Req *req, Res *res, Chain *chain)
+int middleware_first(Req *req, Res *res, Next next)
 {
     int *order = arena_alloc(req->arena, sizeof(int));
     *order = ++middleware_order_tracker;
     set_context(req, "first", order, sizeof(int));
-    return next(req, res, chain);
+    return next(req, res);
 }
 
-int middleware_second(Req *req, Res *res, Chain *chain)
+int middleware_second(Req *req, Res *res, Next next)
 {
     int *order = arena_alloc(req->arena, sizeof(int));
     *order = ++middleware_order_tracker;
     set_context(req, "second", order, sizeof(int));
-    return next(req, res, chain);
+    return next(req, res);
 }
 
-int middleware_third(Req *req, Res *res, Chain *chain)
+int middleware_third(Req *req, Res *res, Next next)
 {
     int *order = arena_alloc(req->arena, sizeof(int));
     *order = ++middleware_order_tracker;
     set_context(req, "third", order, sizeof(int));
-    return next(req, res, chain);
+    return next(req, res);
 }
 
 void handler_middleware_order(Req *req, Res *res)
@@ -42,10 +42,9 @@ void handler_middleware_order(Req *req, Res *res)
     send_text(res, 200, response);
 }
 
-int middleware_abort(Req *req, Res *res, Chain *chain)
+int middleware_abort(Req *req, Res *res, Next next)
 {
     (void)req;
-    (void)chain;
     send_text(res, 403, "Forbidden by middleware");
     return 0;  // Don't call next
 }

@@ -8,7 +8,7 @@ typedef struct {
     char *role;
 } user_ctx_t;
 
-int context_middleware(Req *req, Res *res, Chain *chain)
+int context_middleware(Req *req, Res *res, Next next)
 {
     const char *token = get_header(req, "Authorization");
     
@@ -19,7 +19,7 @@ int context_middleware(Req *req, Res *res, Chain *chain)
     
     set_context(req, "user_ctx", ctx, sizeof(user_ctx_t));
     
-    return next(req, res, chain);
+    return next(req, res);
 }
 
 void context_handler(Req *req, Res *res)

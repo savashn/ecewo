@@ -15,7 +15,6 @@ typedef struct uv_timer_s uv_timer_t;
 typedef struct uv_tcp_s uv_tcp_t;
 typedef uv_timer_t Timer;
 
-typedef struct Chain Chain;
 typedef struct ArenaRegion ArenaRegion;
 
 typedef struct Arena
@@ -55,6 +54,7 @@ typedef struct
     uint8_t http_major;
     uint8_t http_minor;
     bool is_head_request;
+    void *chain;
 } Req;
 
 // Internal struct, do not use it
@@ -155,8 +155,9 @@ typedef enum
     NETWORK_AUTHENTICATION_REQUIRED = 511
 } http_status_t;
 
+typedef int (*Next)(Req*, Res*);
 typedef void (*RequestHandler)(Req *req, Res *res);
-typedef int (*MiddlewareHandler)(Req *req, Res *res, Chain *chain);
+typedef int (*MiddlewareHandler)(Req *req, Res *res, Next next);
 
 typedef void (*shutdown_callback_t)(void);
 typedef void (*timer_callback_t)(void *user_data);
@@ -223,7 +224,6 @@ void arena_pool_stats(void);
 
 // MIDDLEWARE FUNCTIONS
 void use(MiddlewareHandler middleware_handler);
-int next(Req *req, Res *res, Chain *chain);
 void set_context(Req *req, const char *key, void *data, size_t size);
 void *get_context(Req *req, const char *key);
 

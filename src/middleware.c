@@ -4,29 +4,38 @@
 #include "server.h"
 #include "logger.h"
 
+typedef struct Chain Chain;
+
 MiddlewareHandler *global_middleware = NULL;
 uint16_t global_middleware_count = 0;
 uint16_t global_middleware_capacity = 0;
 
-int next(Req *req, Res *res, Chain *chain)
+static int execute_next(Req *req, Res *res)
 {
-    if (!chain || !req || !res)
+    if (!req || !res)
     {
-        LOG_ERROR("NULL middleware chain, request or response.");
+        LOG_ERROR("NULL request or response in execute_next");
         return -1;
     }
-
+    
+    Chain *chain = (Chain*)req->chain;
+    
+    if (!chain)
+    {
+        LOG_ERROR("NULL chain in execute_next");
+        return -1;
+    }
+    
     if (chain->current < chain->count)
     {
         MiddlewareHandler next_middleware = chain->handlers[chain->current++];
         if (next_middleware)
         {
-            return next_middleware(req, res, chain);
+            return next_middleware(req, res, execute_next);
         }
         else
         {
-            LOG_DEBUG("NULL middleware handler at position %d", chain->current - 1);
-            return next(req, res, chain);
+            return execute_next(req, res);
         }
     }
     else
@@ -86,8 +95,10 @@ static int execute(Req *req, Res *res, MiddlewareInfo *middleware_info)
     chain->count = total_middleware_count;
     chain->current = 0;
     chain->route_handler = middleware_info->handler;
+    
+    req->chain = chain;
 
-    int result = next(req, res, chain);
+    int result = execute_next(req, res);
 
     if (result == -1)
     {
@@ -98,10 +109,9 @@ static int execute(Req *req, Res *res, MiddlewareInfo *middleware_info)
     return 0;
 }
 
-int execute_handler_with_middleware(
-    Req *req,
-    Res *res,
-    MiddlewareInfo *middleware_info)
+int execute_handler_with_middleware(Req *req,
+                                    Res *res,
+                                    MiddlewareInfo *middleware_info)
 {
     if (!req || !res || !middleware_info)
     {
