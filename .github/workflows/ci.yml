@@ -229,7 +229,7 @@ jobs:
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: linux-test-results
+        name: windows-msvc-test-results
         path: build/Testing/Temporary/
 
   memory-check:
