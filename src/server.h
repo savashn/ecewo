@@ -31,6 +31,10 @@ struct client_s
 
     bool taken_over;
     void *takeover_user_data;
+
+    uv_timer_t *request_timeout_timer;
 };
+
+typedef struct client_s client_t;
 
 #endif

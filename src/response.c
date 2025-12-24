@@ -2,6 +2,7 @@
 #include "arena.h"
 #include "utils.h"
 #include "logger.h"
+#include "server.h"
 #include <stdlib.h>
 
 #ifdef ECEWO_DEBUG
@@ -18,7 +19,20 @@ typedef struct
     uv_buf_t buf;
     char *data;
     Arena *arena;
+    client_t *client;
 } write_req_t;
+
+static void end_request(client_t *client)
+{
+    client->request_in_progress = false;
+        
+    if (client->request_timeout_timer)
+    {
+        uv_timer_stop(client->request_timeout_timer);
+        uv_close((uv_handle_t *)client->request_timeout_timer, (uv_close_cb)free);
+        client->request_timeout_timer = NULL;
+    }
+}
 
 static void write_completion_cb(uv_write_t *req, int status)
 {
@@ -28,6 +42,9 @@ static void write_completion_cb(uv_write_t *req, int status)
     write_req_t *write_req = (write_req_t *)req;
     if (!write_req)
         return;
+
+    if (write_req->client)
+        end_request(write_req->client);
 
     if (write_req->arena)
     {
@@ -111,6 +128,7 @@ void send_error(Arena *arena, uv_tcp_t *client_socket, int error_code)
         memset(&write_req->req, 0, sizeof(uv_write_t));
         write_req->data = response;
         write_req->arena = arena;
+        write_req->client = (client_t *)client_socket->data;
 
         write_req->buf = uv_buf_init(response, (unsigned int)response_len);
 
@@ -120,6 +138,9 @@ void send_error(Arena *arena, uv_tcp_t *client_socket, int error_code)
         {
             LOG_ERROR("Write error: %s", uv_strerror(res));
             arena_reset(arena);
+
+            if (write_req->client)
+                end_request(write_req->client);
         }
     }
     else
@@ -164,6 +185,7 @@ void send_error(Arena *arena, uv_tcp_t *client_socket, int error_code)
         memset(&write_req->req, 0, sizeof(uv_write_t));
         write_req->data = response;
         write_req->arena = NULL;
+        write_req->client = (client_t *)client_socket->data;
         write_req->buf = uv_buf_init(response, (unsigned int)written);
 
         int res = uv_write(&write_req->req, (uv_stream_t *)client_socket,
@@ -173,6 +195,9 @@ void send_error(Arena *arena, uv_tcp_t *client_socket, int error_code)
             LOG_DEBUG("Write error: %s", uv_strerror(res));
             free(response);
             free(write_req);
+
+            if (write_req->client)
+                end_request(write_req->client);
         }
     }
 }
@@ -306,6 +331,7 @@ void reply(Res *res, int status, const void *body, size_t body_len)
     memset(write_req, 0, sizeof(write_req_t));
     write_req->data = response;
     write_req->arena = res->arena;
+    write_req->client = (client_t *)res->client_socket->data;
     write_req->buf = uv_buf_init(response, (unsigned int)total_len);
 
     if (uv_is_closing((uv_handle_t *)res->client_socket))
@@ -321,6 +347,9 @@ void reply(Res *res, int status, const void *body, size_t body_len)
     {
         LOG_DEBUG("Write error: %s", uv_strerror(result));
         arena_reset(res->arena);
+
+        if (write_req->client)
+            end_request(write_req->client);
     }
 }
 

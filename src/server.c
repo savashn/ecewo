@@ -21,6 +21,10 @@
 #define IDLE_TIMEOUT_MS 60000
 #endif
 
+#ifndef REQUEST_TIMEOUT_MS
+#define REQUEST_TIMEOUT_MS 30000
+#endif
+
 #ifndef CLEANUP_INTERVAL_MS
 #define CLEANUP_INTERVAL_MS 30000
 #endif
@@ -732,6 +736,18 @@ int server_init(void)
     return SERVER_OK;
 }
 
+static void on_request_timeout(uv_timer_t *handle)
+{
+    client_t *client = (client_t *)handle->data;
+    
+    LOG_ERROR("Request timeout - closing connection");
+    
+    if (client->connection_arena)
+        arena_reset(client->connection_arena);
+    
+    close_client(client);
+}
+
 static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 {
     client_t *client = (client_t *)stream->data;
@@ -770,6 +786,25 @@ static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
     {
         client_context_reset(client);
         client->request_in_progress = true;
+
+        if (!client->request_timeout_timer)
+        {
+            client->request_timeout_timer = malloc(sizeof(uv_timer_t));
+            if (client->request_timeout_timer)
+            {
+                uv_timer_init(g_server.loop, client->request_timeout_timer);
+                client->request_timeout_timer->data = client;
+            }
+        }
+        
+        if (client->request_timeout_timer)
+        {
+            uv_timer_start(client->request_timeout_timer, 
+                           on_request_timeout, 
+                           REQUEST_TIMEOUT_MS,
+                           0  // Non-repeating
+            );
+        }
     }
 
     if (buf && buf->base)
@@ -778,21 +813,20 @@ static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 
         switch (result)
         {
-        case 0:
-            // Request completed successfully, keep-alive
+        case REQUEST_KEEP_ALIVE:
             client->keep_alive_enabled = true;
             client->request_in_progress = false;
             break;
 
-        case 1:
-            // Close connection (error or Connection: close)
+        case REQUEST_CLOSE:
             close_client(client);
             break;
 
-        case 2:
-            // PARSE_INCOMPLETE - wait for more data
-            // request_in_progress stays true
-            // Don't close, don't reset
+        case REQUEST_PENDING:
+            // It may be PARSE_INCOMPLETE, need to wait for more data
+            // or may be an async operation
+            // request_in_progress should stay true
+            // don not close, do not reset
             break;
 
         default:
