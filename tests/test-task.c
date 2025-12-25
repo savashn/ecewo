@@ -2,20 +2,21 @@
 #include "ecewo-mock.h"
 #include "tester.h"
 
-typedef struct {
+typedef struct
+{
     Res *res;
     int result;
 } compute_ctx_t;
 
 static void compute_work(void *context)
 {
-    compute_ctx_t *ctx = context;
+    compute_ctx_t *ctx = (compute_ctx_t *)context;
     ctx->result = 42 * 2;
 }
 
 static void compute_done(void *context)
 {
-    compute_ctx_t *ctx = context;
+    compute_ctx_t *ctx = (compute_ctx_t *)context;
     
     char *response = arena_sprintf(ctx->res->arena, "result=%d", ctx->result);
     send_text(ctx->res, 200, response);

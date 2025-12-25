@@ -2,7 +2,8 @@
 #include "ecewo-mock.h"
 #include "tester.h"
 
-typedef struct {
+typedef struct
+{
     Res *res;
     int total;
     int completed;
@@ -12,25 +13,25 @@ typedef struct {
 
 static void parallel_work_1(void *context)
 {
-    parallel_ctx_t *ctx = context;
+    parallel_ctx_t *ctx = (parallel_ctx_t *)context;
     ctx->results[0] = 10;
 }
 
 static void parallel_work_2(void *context)
 {
-    parallel_ctx_t *ctx = context;
+    parallel_ctx_t *ctx = (parallel_ctx_t *)context;
     ctx->results[1] = 20;
 }
 
 static void parallel_work_3(void *context)
 {
-    parallel_ctx_t *ctx = context;
+    parallel_ctx_t *ctx = (parallel_ctx_t *)context;
     ctx->results[2] = 30;
 }
 
 static void parallel_done(void *context)
 {
-    parallel_ctx_t *ctx = context;
+    parallel_ctx_t *ctx = (parallel_ctx_t *)context;
     
     ctx->completed++;
     

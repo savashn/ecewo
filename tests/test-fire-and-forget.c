@@ -5,7 +5,9 @@
 
 static int background_counter = 0;
 
-typedef struct {
+typedef struct
+{
+    Arena *arena;
     int increment;
 } background_ctx_t;
 
@@ -13,25 +15,25 @@ static void background_work(void *context)
 {
     background_ctx_t *ctx = context;
     background_counter += ctx->increment;
-    free(ctx);
+    arena_return(ctx->arena);
 }
 
 void handler_fire_and_forget(Req *req, Res *res)
 {
-    (void)req;
+    Arena *bg_arena = arena_borrow();
     
-    background_ctx_t *ctx = malloc(sizeof(background_ctx_t));
+    background_ctx_t *ctx = arena_alloc(bg_arena, sizeof(background_ctx_t));
+    ctx->arena = bg_arena;
     ctx->increment = 10;
     
     spawn(ctx, background_work, NULL);
-    
-    send_json(res, 202, "{\"status\":\"accepted\"}");
+    send_text(res, ACCEPTED, "Status: Accepted");
 }
 
 void handler_check_counter(Req *req, Res *res)
 {
-    char *response = arena_sprintf(req->arena, "{\"counter\":%d}", background_counter);
-    send_json(res, 200, response);
+    char *response = arena_sprintf(req->arena, "Counter: %d", background_counter);
+    send_text(res, 200, response);
 }
 
 int test_spawn_fire_and_forget(void)
@@ -45,7 +47,7 @@ int test_spawn_fire_and_forget(void)
     
     MockResponse res1 = request(&params1);
     ASSERT_EQ(202, res1.status_code);
-    ASSERT_EQ_STR("{\"status\":\"accepted\"}", res1.body);
+    ASSERT_EQ_STR("Status: Accepted", res1.body);
     free_request(&res1);
     
     uv_sleep(100);
@@ -57,7 +59,7 @@ int test_spawn_fire_and_forget(void)
     
     MockResponse res2 = request(&params2);
     ASSERT_EQ(200, res2.status_code);
-    ASSERT_EQ_STR("{\"counter\":10}", res2.body);
+    ASSERT_EQ_STR("Counter: 10", res2.body);
     free_request(&res2);
     
     RETURN_OK();
