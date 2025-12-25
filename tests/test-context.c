@@ -18,7 +18,7 @@ int context_middleware(Req *req, Res *res, Next next)
     ctx->user_id = arena_strdup(req->arena, "user123");
     ctx->role = arena_strdup(req->arena, "admin");
     
-    set_context(req, "user_ctx", ctx, sizeof(user_ctx_t));
+    set_context(req, "user_ctx", ctx);
     
     next(req, res);
 }

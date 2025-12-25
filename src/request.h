@@ -8,7 +8,6 @@ typedef struct
 {
     char *key;
     void *data;
-    size_t size;
 } context_entry_t;
 
 struct context_t

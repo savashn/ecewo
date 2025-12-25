@@ -224,7 +224,7 @@ void arena_pool_stats(void);
 
 // MIDDLEWARE FUNCTIONS
 void use(MiddlewareHandler middleware_handler);
-void set_context(Req *req, const char *key, void *data, size_t size);
+void set_context(Req *req, const char *key, void *data);
 void *get_context(Req *req, const char *key);
 
 // TASK SPAWN

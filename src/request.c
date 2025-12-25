@@ -36,9 +36,9 @@ const char *get_header(const Req *req, const char *key)
     return req ? get_req(&req->headers, key) : NULL;
 }
 
-void set_context(Req *req, const char *key, void *data, size_t size)
+void set_context(Req *req, const char *key, void *data)
 {
-    if (!req || !req->ctx || !key || !data)
+    if (!req || !req->ctx || !key)
         return;
 
     context_t *ctx = req->ctx;
@@ -47,11 +47,7 @@ void set_context(Req *req, const char *key, void *data, size_t size)
     {
         if (ctx->entries[i].key && strcmp(ctx->entries[i].key, key) == 0)
         {
-            ctx->entries[i].data = arena_alloc(req->arena, size);
-            if (!ctx->entries[i].data)
-                return;
-            arena_memcpy(ctx->entries[i].data, data, size);
-            ctx->entries[i].size = size;
+            ctx->entries[i].data = data;
             return;
         }
     }
@@ -60,20 +56,17 @@ void set_context(Req *req, const char *key, void *data, size_t size)
     {
         uint32_t new_capacity = ctx->capacity == 0 ? 8 : ctx->capacity * 2;
 
-        context_entry_t *new_entries = arena_realloc(req->arena,
-                                                     ctx->entries,
-                                                     ctx->capacity * sizeof(context_entry_t),
-                                                     new_capacity * sizeof(context_entry_t));
+        context_entry_t *new_entries = arena_realloc(
+            req->arena,
+            ctx->entries,
+            ctx->capacity * sizeof(context_entry_t),
+            new_capacity * sizeof(context_entry_t)
+        );
 
         if (!new_entries)
             return;
 
-        for (uint32_t i = ctx->capacity; i < new_capacity; i++)
-        {
-            new_entries[i].key = NULL;
-            new_entries[i].data = NULL;
-            new_entries[i].size = 0;
-        }
+        memset(&new_entries[ctx->capacity], 0, (new_capacity - ctx->capacity) * sizeof(context_entry_t));
 
         ctx->entries = new_entries;
         ctx->capacity = new_capacity;
@@ -85,19 +78,13 @@ void set_context(Req *req, const char *key, void *data, size_t size)
     if (!entry->key)
         return;
 
-    entry->data = arena_alloc(req->arena, size);
-    if (!entry->data)
-        return;
-
-    arena_memcpy(entry->data, data, size);
-    entry->size = size;
-
+    entry->data = data;
     ctx->count++;
 }
 
 void *get_context(Req *req, const char *key)
 {
-    if (!req || !key)
+    if (!req || !req->ctx || !key)
         return NULL;
 
     context_t *ctx = req->ctx;
