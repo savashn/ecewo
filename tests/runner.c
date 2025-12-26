@@ -25,8 +25,18 @@ void setup_routes(void)
     get("/mw-order", middleware_first, middleware_second, middleware_third, handler_middleware_order);
     get("/mw-abort", middleware_abort, handler_should_not_reach);
 
+    // test-async-middleware
+    get("/mw-async", middleware_async_auth, handler_protected);
+
     // test-context
     get("/context", context_middleware, context_handler);
+    get("/no-middleware", handler_no_middleware);
+    get("/nonexistent-key", handler_nonexistent_key);
+    get("/overwrite", handler_overwrite);
+    get("/multiple-keys", handler_multiple_keys);
+    get("/null-data", handler_null_data);
+    get("/chain-context", middleware_first_ctx, middleware_second_ctx, handler_chain_context);
+    get("/complex-data", handler_complex_data);
 
     // test-response
     get("/json-response", handler_json_response);
@@ -92,8 +102,19 @@ int main(void)
     RUN_TEST(test_middleware_execution_order);
     RUN_TEST(test_middleware_abort);
 
+    // Async Middleware
+    RUN_TEST(test_async_auth_middleware);
+    RUN_TEST(test_async_auth_no_token);
+
     // Middleware Context
-    RUN_TEST(test_context);
+    RUN_TEST(test_context_basic);
+    RUN_TEST(test_context_missing);
+    RUN_TEST(test_context_nonexistent_key);
+    RUN_TEST(test_context_overwrite);
+    RUN_TEST(test_context_multiple_keys);
+    RUN_TEST(test_context_null_data);
+    RUN_TEST(test_context_middleware_chain);
+    RUN_TEST(test_context_unauthorized);
 
     // Response Types
     RUN_TEST(test_json_content_type);

@@ -38,10 +38,39 @@ void handler_should_not_reach(Req *req, Res *res);
 int test_middleware_execution_order(void);
 int test_middleware_abort(void);
 
+// test-async-middleware
+void middleware_async_auth(Req *req, Res *res, Next next);
+void handler_protected(Req *req, Res *res);
+int test_async_auth_middleware(void);
+int test_async_auth_no_token(void);
+
 // test-context
 void context_middleware(Req *req, Res *res, Next next);
 void context_handler(Req *req, Res *res);
-int test_context(void);
+void handler_no_middleware(Req *req, Res *res);
+int test_context_basic(void);
+int test_context_missing(void);
+
+void handler_nonexistent_key(Req *req, Res *res);
+int test_context_nonexistent_key(void);
+
+void handler_overwrite(Req *req, Res *res);
+int test_context_overwrite(void);
+
+void handler_multiple_keys(Req *req, Res *res);
+int test_context_multiple_keys(void);
+
+void handler_null_data(Req *req, Res *res);
+int test_context_null_data(void);
+
+void middleware_first_ctx(Req *req, Res *res, Next next);
+void middleware_second_ctx(Req *req, Res *res, Next next);
+void handler_chain_context(Req *req, Res *res);
+int test_context_middleware_chain(void);
+
+void handler_complex_data(Req *req, Res *res);
+int test_context_complex_data(void);
+int test_context_unauthorized(void);
 
 // test-response
 void handler_json_response(Req *req, Res *res);

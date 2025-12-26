@@ -140,6 +140,7 @@ if(ECEWO_BUILD_TESTS)
     add_executable(ecewo_test
         tests/runner.c
         tests/ecewo-mock.c
+        tests/test-async-middleware.c
         tests/test-body.c
         tests/test-blocking.c
         tests/test-concurrent-request.c
