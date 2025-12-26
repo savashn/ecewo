@@ -516,14 +516,12 @@ MockResponse request(MockParams *params)
     }
 
     uint64_t loop_start = uv_now(&loop);
-    int loop_iterations = 0;
     int no_events_count = 0;
-    
+
     while (!client.done && client.status == 0)
     {
         int events = uv_run(&loop, UV_RUN_ONCE);
-        loop_iterations++;
-        
+
         if (events == 0)
         {
             no_events_count++;
@@ -535,12 +533,14 @@ MockResponse request(MockParams *params)
             }
             
             uv_sleep(1);
-        } else
+        }
+        else
         {
             no_events_count = 0;
         }
         
-        if ((uv_now(&loop) - loop_start) > 5000) {
+        if ((uv_now(&loop) - loop_start) > 5000)
+        {
             client.status = -1;
             break;
         }

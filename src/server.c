@@ -667,8 +667,12 @@ static void on_signal(uv_signal_t *handle, int signum)
     if (g_server.shutdown_requested)
         return;
 
-    const char *signal_name = (signum == SIGINT) ? "SIGINT" : "SIGTERM";
-    LOG_DEBUG("Received %s, shutting down...", signal_name);
+    #ifdef ECEWO_DEBUG
+        const char *signal_name = (signum == SIGINT) ? "SIGINT" : "SIGTERM";
+        LOG_DEBUG("Received %s, shutting down...", signal_name);
+    #else
+        (void)signum;
+    #endif
     
     uv_async_send(&g_server.shutdown_async);
 }

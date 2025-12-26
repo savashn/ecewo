@@ -38,7 +38,7 @@ static size_t calculate_next_size(size_t current, size_t needed)
 
     while (new_size < needed)
     {
-        if (new_size > SIZE_MAX / GROWTH_FACTOR)
+        if (new_size > (size_t)(SIZE_MAX / GROWTH_FACTOR))
         {
             new_size = needed + MIN_BUFFER_SIZE;
             break;

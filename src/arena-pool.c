@@ -171,7 +171,10 @@ void arena_pool_init(void)
     }
 
     // Pre-allocate arenas
-    uint16_t allocated = 0;
+    #ifdef ECEWO_DEBUG
+        uint16_t allocated = 0;
+    #endif
+
     for (uint16_t i = 0; i < preallocate; i++)
     {
         Arena *arena = calloc(1, sizeof(Arena));
@@ -194,8 +197,11 @@ void arena_pool_init(void)
         
         arena->begin = arena->end;
         arena_pool.arenas[arena_pool.head++] = arena;
-        allocated++;
         arena_pool.total_allocated++;
+
+        #ifdef ECEWO_DEBUG
+            allocated++;
+        #endif
     }
 
     arena_pool.initialized = true;
