@@ -4,6 +4,7 @@
 #include "logger.h"
 #include "server.h"
 #include <stdlib.h>
+#include <ctype.h>
 
 #ifdef ECEWO_DEBUG
     #ifdef _WIN32
@@ -353,11 +354,71 @@ void reply(Res *res, int status, const void *body, size_t body_len)
     }
 }
 
+static bool is_valid_header_char(char c)
+{
+    unsigned char uc = (unsigned char)c;
+    
+    if (uc == '\r' || uc == '\n')
+        return false;
+    
+    return (uc == '\t') || (uc >= 32 && uc <= 126);
+}
+
+static bool is_valid_header_name(const char *name)
+{
+    if (!name || !*name)
+        return false;
+
+    for (const char *p = name; *p; p++)
+    {
+        unsigned char c = *p;
+        if (!(isalnum(c) || c == '-' || c == '_'))
+            return false;
+    }
+
+    return true;
+}
+
+static bool is_valid_header_value(const char *value)
+{
+    if (!value)
+        return false;
+
+    for (const char *p = value; *p; p++)
+    {
+        if (*p == '\r' || *p == '\n')
+        {
+            LOG_ERROR("Invalid character in header value: CRLF detected");
+            return false;
+        }
+
+        if (!is_valid_header_char(*p))
+        {
+            LOG_ERROR("Invalid character in header value: 0x%02x", (unsigned char)*p);
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void set_header(Res *res, const char *name, const char *value)
 {
     if (!res || !res->arena || !name || !value)
     {
-        LOG_DEBUG("Invalid argument(s) to set_header");
+        LOG_ERROR("Invalid argument(s) to set_header");
+        return;
+    }
+
+    if (!is_valid_header_name(name))
+    {
+        LOG_ERROR("Invalid header name: '%s'", name);
+        return;
+    }
+
+    if (!is_valid_header_value(value))
+    {
+        LOG_ERROR("Invalid header value for '%s'", name);
         return;
     }
 
@@ -377,23 +438,22 @@ void set_header(Res *res, const char *name, const char *value)
         }
     }
 #endif
-
+    
     if (res->header_count >= res->header_capacity)
     {
         uint16_t new_cap = res->header_capacity ? res->header_capacity * 2 : 8;
-
+        
         http_header_t *tmp = arena_realloc(res->arena, res->headers,
                                            res->header_capacity * sizeof(http_header_t),
                                            new_cap * sizeof(http_header_t));
 
         if (!tmp)
         {
-            LOG_DEBUG("Failed to realloc headers array");
+            LOG_ERROR("Failed to realloc headers array");
             return;
         }
 
-        memset(&tmp[res->header_capacity], 0,
-               (new_cap - res->header_capacity) * sizeof(http_header_t));
+        memset(&tmp[res->header_capacity], 0, (new_cap - res->header_capacity) * sizeof(http_header_t));
 
         res->headers = tmp;
         res->header_capacity = new_cap;
@@ -404,7 +464,7 @@ void set_header(Res *res, const char *name, const char *value)
 
     if (!res->headers[res->header_count].name || !res->headers[res->header_count].value)
     {
-        LOG_DEBUG("Failed to allocate memory in set_header");
+        LOG_ERROR("Failed to allocate memory in set_header");
         return;
     }
 
@@ -415,7 +475,14 @@ void redirect(Res *res, int status, const char *url)
 {
     if (!res || !url)
         return;
-
+    
+    if (!is_valid_header_value(url))
+    {
+        LOG_ERROR("Invalid redirect URL (CRLF detected)");
+        send_text(res, BAD_REQUEST, "Bad Request");
+        return;
+    }
+    
     set_header(res, "Location", url);
 
     const char *message;
