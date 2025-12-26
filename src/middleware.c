@@ -11,7 +11,6 @@ typedef struct
     RequestHandler route_handler;
     uint16_t count;
     uint16_t current;
-    bool next_called;
 } Chain;
 
 MiddlewareHandler *global_middleware = NULL;
@@ -36,25 +35,13 @@ static void execute_next(Req *req, Res *res)
     
     if (chain->current < chain->count)
     {
-        MiddlewareHandler next_middleware = chain->handlers[chain->current++];
-        
-        if (next_middleware)
-        {
-            next_middleware(req, res, execute_next);
-            return;
-        }
-        else
-        {
-            execute_next(req, res);
-            return;
-        }
+        MiddlewareHandler mw = chain->handlers[chain->current++];
+        mw(req, res, execute_next);
     }
     else
     {
         if (chain->route_handler)
             chain->route_handler(req, res);
-
-        return;
     }
 }
 
@@ -111,14 +98,20 @@ void chain_start(Req *req, Res *res, MiddlewareInfo *middleware_info)
 
 void use(MiddlewareHandler middleware_handler)
 {
+    if (!middleware_handler)
+    {
+        LOG_ERROR("NULL middleware handler");
+        abort();
+    }
+
     if (global_middleware_count >= global_middleware_capacity)
     {
         int new_cap = global_middleware_capacity ? global_middleware_capacity * 2 : INITIAL_MW_CAPACITY;
         MiddlewareHandler *tmp = realloc(global_middleware, new_cap * sizeof *tmp);
         if (!tmp)
         {
-            LOG_DEBUG("Reallocation failed in global middleware");
-            return;
+            LOG_ERROR("Reallocation failed in global middleware");
+            abort();
         }
         global_middleware = tmp;
         global_middleware_capacity = new_cap;
