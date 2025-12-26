@@ -193,12 +193,14 @@ void send_error(Arena *arena, uv_tcp_t *client_socket, int error_code)
                            &write_req->buf, 1, write_completion_cb);
         if (res < 0)
         {
-            LOG_DEBUG("Write error: %s", uv_strerror(res));
+            LOG_ERROR("Write error: %s", uv_strerror(res));
+            client_t *client = write_req->client;
+
             free(response);
             free(write_req);
 
-            if (write_req->client)
-                end_request(write_req->client);
+            if (client)
+                end_request(client);
         }
     }
 }
