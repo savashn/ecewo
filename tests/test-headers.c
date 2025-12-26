@@ -39,3 +39,67 @@ int test_request_headers(void)
     free_request(&res);
     RETURN_OK();
 }
+
+void handler_set_headers(Req *req, Res *res)
+{
+    (void)req;
+    set_header(res, "X-Custom-Header", "test-value");
+    set_header(res, "X-Request-Id", "12345");
+    set_header(res, "Cache-Control", "no-cache");
+    send_text(res, 200, "OK");
+}
+
+int test_set_headers(void)
+{
+    MockParams params = {
+        .method = MOCK_GET,
+        .path = "/custom-headers"
+    };
+    
+    MockResponse res = request(&params);
+    
+    ASSERT_EQ(200, res.status_code);
+    ASSERT_EQ_STR("OK", res.body);
+    
+    ASSERT_NOT_NULL(mock_get_header(&res, "Content-Type"));
+    ASSERT_NOT_NULL(mock_get_header(&res, "content-type"));
+    ASSERT_NOT_NULL(mock_get_header(&res, "CONTENT-TYPE"));
+    ASSERT_NOT_NULL(mock_get_header(&res, "CoNtEnT-TyPe"));
+    
+    ASSERT_EQ_STR("text/plain", mock_get_header(&res, "Content-Type"));
+    ASSERT_EQ_STR("test-value", mock_get_header(&res, "X-Custom-Header"));
+    ASSERT_EQ_STR("12345", mock_get_header(&res, "X-Request-Id"));
+    ASSERT_EQ_STR("no-cache", mock_get_header(&res, "Cache-Control"));
+    
+    free_request(&res);
+    RETURN_OK();
+}
+
+void handler_header_injection(Req *req, Res *res)
+{
+    (void)req;
+    
+    set_header(res, "X-Evil", "value\r\nSet-Cookie: hacked=1");
+    set_header(res, "X-Valid", "normal-value");
+    send_text(res, 200, "OK");
+}
+
+int test_header_injection(void)
+{
+    MockParams params = {
+        .method = MOCK_GET,
+        .path = "/header-injection"
+    };
+    
+    MockResponse res = request(&params);
+    
+    ASSERT_EQ(200, res.status_code);
+    
+    ASSERT_NULL(mock_get_header(&res, "X-Evil"));
+    ASSERT_NULL(mock_get_header(&res, "Set-Cookie"));
+    
+    ASSERT_EQ_STR("normal-value", mock_get_header(&res, "X-Valid"));
+    
+    free_request(&res);
+    RETURN_OK();
+}

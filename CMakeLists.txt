@@ -118,6 +118,22 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     message(STATUS "=================================")
 endif()
 
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(ecewo PRIVATE
+            -Wall
+            -Wextra
+            -Wstrict-prototypes
+        )
+    endif()
+    
+    if(MSVC)
+        target_compile_options(ecewo PRIVATE
+            /W4
+        )
+    endif()
+endif()
+
 if(ECEWO_BUILD_TESTS)
     enable_testing()
 
@@ -146,5 +162,23 @@ if(ECEWO_BUILD_TESTS)
     )
 
     target_link_libraries(ecewo_test PRIVATE ecewo)
+    
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(ecewo_test PRIVATE
+            -Wall
+            -Wextra
+            -Werror
+            -Wstrict-prototypes
+            -Wincompatible-pointer-types
+        )
+    endif()
+    
+    if(MSVC)
+        target_compile_options(ecewo_test PRIVATE
+            /W4
+            /WX
+        )
+    endif()
+    
     add_test(NAME ecewo_all_tests COMMAND ecewo_test)
 endif()

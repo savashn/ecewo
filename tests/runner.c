@@ -31,17 +31,20 @@ void setup_routes(void)
     // test-response
     get("/json-response", handler_json_response);
     get("/html-response", handler_html_response);
-    get("/custom-headers", handler_custom_header);
     get("/status", handler_status_codes);
 
     // test-headers
     get("/headers", handler_echo_headers);
+    get("/custom-headers", handler_set_headers);
+    get("/header-injection", handler_header_injection);
 
     // test-body
     post("/large-body", handler_large_body);
 
     // test-redirect
     get("/old-path", handler_redirect);
+    get("/new-location", handler_new_location);
+    get("/redirect-injection", handler_header_injection);
     
     // test-concurrent request
     get("/counter", handler_counter);
@@ -103,12 +106,15 @@ int main(void)
 
     // Request Headers
     RUN_TEST(test_request_headers);
+    RUN_TEST(test_set_headers);
+    RUN_TEST(test_header_injection);
 
     // Large Body Handling
     RUN_TEST(test_large_body);
 
     // Redirect
-    RUN_TEST(test_redirect_301);
+    RUN_TEST(test_redirect);
+    RUN_TEST(test_header_injection);
     
     // Sequential Request
     RUN_TEST(test_sequential_requests);

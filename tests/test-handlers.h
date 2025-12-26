@@ -29,27 +29,28 @@ int test_method_patch(void);
 int test_post_with_body(void);
 
 // test-middleware
-int middleware_first(Req *req, Res *res, Next next);
-int middleware_second(Req *req, Res *res, Next next);
-int middleware_third(Req *req, Res *res, Next next);
+void middleware_first(Req *req, Res *res, Next next);
+void middleware_second(Req *req, Res *res, Next next);
+void middleware_third(Req *req, Res *res, Next next);
 void handler_middleware_order(Req *req, Res *res);
-int middleware_abort(Req *req, Res *res, Next next);
+void middleware_abort(Req *req, Res *res, Next next);
 void handler_should_not_reach(Req *req, Res *res);
 int test_middleware_execution_order(void);
 int test_middleware_abort(void);
 
 // test-context
-int context_middleware(Req *req, Res *res, Next next);
+void context_middleware(Req *req, Res *res, Next next);
 void context_handler(Req *req, Res *res);
 int test_context(void);
 
 // test-response
 void handler_json_response(Req *req, Res *res);
-void handler_html_response(Req *req, Res *res);
-void handler_custom_header(Req *req, Res *res);
-void handler_status_codes(Req *req, Res *res);
 int test_json_content_type(void);
+
+void handler_html_response(Req *req, Res *res);
 int test_html_content_type(void);
+
+void handler_status_codes(Req *req, Res *res);
 int test_status_201(void);
 int test_status_404(void);
 int test_status_500(void);
@@ -60,13 +61,23 @@ int test_404_wrong_method(void);
 void handler_echo_headers(Req *req, Res *res);
 int test_request_headers(void);
 
+void handler_set_headers(Req *req, Res *res);
+int test_set_headers(void);
+
+void handler_header_injection(Req *req, Res *res);
+int test_header_injection(void);
+
 // test-body
 void handler_large_body(Req *req, Res *res);
 int test_large_body(void);
 
 // test-redirect
 void handler_redirect(Req *req, Res *res);
-int test_redirect_301(void);
+void handler_new_location(Req *req, Res *res);
+int test_redirect(void);
+
+void handler_redirect_injection(Req *req, Res *res);
+int test_redirect_injection(void);
 
 // test-concurrent-request
 void handler_counter(Req *req, Res *res);

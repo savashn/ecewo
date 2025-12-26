@@ -2,36 +2,11 @@
 #include "ecewo-mock.h"
 #include "tester.h"
 
+// JSON
 void handler_json_response(Req *req, Res *res)
 {
     (void)req;
     send_json(res, 200, "{\"status\":\"ok\"}");
-}
-
-void handler_html_response(Req *req, Res *res)
-{
-    (void)req;
-    send_html(res, 200, "<h1>Hello</h1>");
-}
-
-void handler_custom_header(Req *req, Res *res)
-{
-    (void)req;
-    set_header(res, "X-Custom", "test-value");
-    set_header(res, "X-Request-Id", "12345");
-    send_text(res, 200, "OK");
-}
-
-void handler_status_codes(Req *req, Res *res)
-{
-    const char *code = get_query(req, "code");
-    if (!code) {
-        send_text(res, 400, "Missing code");
-        return;
-    }
-    
-    int status = atoi(code);
-    send_text(res, status, "Status test");
 }
 
 int test_json_content_type(void)
@@ -50,6 +25,13 @@ int test_json_content_type(void)
     RETURN_OK();
 }
 
+// HTML
+void handler_html_response(Req *req, Res *res)
+{
+    (void)req;
+    send_html(res, 200, "<h1>Hello</h1>");
+}
+
 int test_html_content_type(void)
 {
     MockParams params = {
@@ -64,6 +46,19 @@ int test_html_content_type(void)
     
     free_request(&res);
     RETURN_OK();
+}
+
+// STATUS CODES
+void handler_status_codes(Req *req, Res *res)
+{
+    const char *code = get_query(req, "code");
+    if (!code) {
+        send_text(res, 400, "Missing code");
+        return;
+    }
+    
+    int status = atoi(code);
+    send_text(res, status, "Status test");
 }
 
 int test_status_201(void)

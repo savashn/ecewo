@@ -3,6 +3,13 @@
 #include "uv.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h> // strcasecmp in mock_get_header
+
+#ifdef _WIN32
+    #define strcasecmp _stricmp
+#else
+    #include <strings.h>
+#endif
 
 #define LOG_ERROR(fmt, ...) \
     fprintf(stderr, "[ERROR] " fmt "\n", ##__VA_ARGS__)
@@ -16,7 +23,8 @@ static bool server_ready = false;
 static bool shutdown_requested = false;
 static test_routes_cb_t test_routes = NULL;
 
-typedef struct {
+typedef struct
+{
     uv_tcp_t tcp;
     uv_connect_t connect_req;
     uv_write_t write_req;
@@ -33,12 +41,14 @@ typedef struct {
 
 static void shutdown_handler(Req *req, Res *res)
 {
+    (void)req;
     send_text(res, 200, "Shutting down");
     uv_stop(get_loop());
 }
 
 static void test_handler(Req *req, Res *res)
 {
+    (void)req;
     send_text(res, OK, "Test");
 }
 
@@ -76,6 +86,7 @@ static void on_close(uv_handle_t *handle)
 
 static void on_shutdown(uv_shutdown_t *req, int status)
 {
+    (void)status;
     http_client_t *client = (http_client_t *)req->data;
     uv_close((uv_handle_t *)&client->tcp, on_close);
 }
@@ -105,6 +116,7 @@ static void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *b
 
 static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 {
+    (void)buf;
     http_client_t *client = (http_client_t *)stream->data;
     
     if (nread < 0)
@@ -263,20 +275,102 @@ static void parse_response(http_client_t *client)
     
     client->response->status_code = status;
 
+    // Find header section
+    char *headers_start = strchr(client->response_buffer, '\n');
+    if (!headers_start)
+        return;
+    headers_start++;
+
     char *body_start = strstr(client->response_buffer, "\r\n\r\n");
-    if (body_start)
+    if (!body_start)
+        return;
+
+    // Parse headers
+    char *header_end = body_start;
+    char *line = headers_start;
+    
+    // Count headers
+    size_t header_count = 0;
+    char *temp = line;
+    while (temp < header_end)
     {
-        body_start += 4;
-        size_t body_len = strlen(body_start);
+        char *next_line = strstr(temp, "\r\n");
+        if (!next_line || next_line >= header_end)
+            break;
         
-        if (body_len > 0)
+        if (strchr(temp, ':') && strchr(temp, ':') < next_line)
+            header_count++;
+        
+        temp = next_line + 2;
+    }
+    
+    // Allocate headers
+    if (header_count > 0)
+    {
+        client->response->headers = malloc(sizeof(MockHeaders) * header_count);
+        if (!client->response->headers)
+            return;
+        
+        // Parse each header
+        size_t idx = 0;
+        temp = line;
+        while (temp < header_end && idx < header_count)
         {
-            client->response->body = malloc(body_len + 1);
-            if (client->response->body)
+            char *next_line = strstr(temp, "\r\n");
+            if (!next_line || next_line >= header_end)
+                break;
+            
+            char *colon = strchr(temp, ':');
+            if (!colon || colon >= next_line)
             {
-                strcpy(client->response->body, body_start);
-                client->response->body_len = body_len;
+                temp = next_line + 2;
+                continue;
             }
+            
+            // Extract key
+            size_t key_len = colon - temp;
+            char *key = malloc(key_len + 1);
+            if (!key)
+                break;
+            memcpy(key, temp, key_len);
+            key[key_len] = '\0';
+            
+            // Extract value (skip ': ')
+            char *value_start = colon + 1;
+            while (*value_start == ' ' || *value_start == '\t')
+                value_start++;
+            
+            size_t value_len = next_line - value_start;
+            char *value = malloc(value_len + 1);
+            if (!value)
+            {
+                free(key);
+                break;
+            }
+            memcpy(value, value_start, value_len);
+            value[value_len] = '\0';
+            
+            client->response->headers[idx].key = key;
+            client->response->headers[idx].value = value;
+            idx++;
+            
+            temp = next_line + 2;
+        }
+        
+        client->response->header_count = idx;
+    }
+
+    // Parse body
+    body_start += 4;
+    size_t body_len = strlen(body_start);
+    
+    if (body_len > 0)
+    {
+        client->response->body = malloc(body_len + 1);
+        if (client->response->body)
+        {
+            strcpy(client->response->body, body_start);
+            client->response->body_len = body_len;
         }
     }
 }
@@ -312,11 +406,26 @@ static bool wait_for_server_ready(void)
 
 void free_request(MockResponse *res)
 {
-    if (res && res->body)
+    if (!res)
+        return;
+    
+    if (res->body)
     {
         free(res->body);
         res->body = NULL;
         res->body_len = 0;
+    }
+    
+    if (res->headers)
+    {
+        for (size_t i = 0; i < res->header_count; i++)
+        {
+            free((void*)res->headers[i].key);
+            free((void*)res->headers[i].value);
+        }
+        free(res->headers);
+        res->headers = NULL;
+        res->header_count = 0;
     }
 }
 
@@ -439,6 +548,12 @@ MockResponse request(MockParams *params)
     
     uint64_t end_time = uv_hrtime();
     uint64_t duration_ms = (end_time - start_time) / 1000000;
+
+    #ifdef ECEWO_DEBUG
+        printf("Request completed in %lu ms\n", (unsigned long)duration_ms);
+    #else
+        (void)duration_ms;
+    #endif
     
     if (client.status == 0 && client.response_buffer)
     {
@@ -507,4 +622,18 @@ void mock_cleanup(void)
     #endif
 
     return;
+}
+
+const char *mock_get_header(MockResponse *res, const char *key)
+{
+    if (!res || !res->headers || !key)
+        return NULL;
+    
+    for (size_t i = 0; i < res->header_count; i++)
+    {
+        if (strcasecmp(res->headers[i].key, key) == 0)
+            return res->headers[i].value;
+    }
+    
+    return NULL;
 }

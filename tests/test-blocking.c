@@ -18,7 +18,8 @@ static uint64_t get_thread_id(void)
 // Spawn Thread ID Test
 // ============================================================================
 
-typedef struct {
+typedef struct
+{
     Res *res;
     unsigned long main_thread_id;
     unsigned long work_thread_id;
@@ -51,6 +52,7 @@ static void thread_test_done(void *context)
 
 void handler_thread_test(Req *req, Res *res)
 {
+    (void)req;
     thread_test_ctx_t *ctx = arena_alloc(res->arena, sizeof(thread_test_ctx_t));
     ctx->res = res;
     ctx->main_thread_id = get_thread_id();

@@ -9,12 +9,9 @@ typedef struct
     char *role;
 } user_ctx_t;
 
-int context_middleware(Req *req, Res *res, Next next)
+void context_middleware(Req *req, Res *res, Next next)
 {
-    const char *token = get_header(req, "Authorization");
-    
     user_ctx_t *ctx = arena_alloc(req->arena, sizeof(user_ctx_t));
-
     ctx->user_id = arena_strdup(req->arena, "user123");
     ctx->role = arena_strdup(req->arena, "admin");
     
