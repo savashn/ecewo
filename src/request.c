@@ -1,39 +1,57 @@
 #include "ecewo.h"
 #include "request.h"
 
-static const char *get_req(const request_t *request, const char *key)
+#ifdef _WIN32
+    #define strcasecmp _stricmp
+#else
+    #include <strings.h>
+#endif
+
+static const char *get_req(const request_t *request, const char *key, bool case_insensitive)
 {
     if (!request || !request->items || !key || request->count == 0)
         return NULL;
-
+    
     size_t key_len = strlen(key);
-
+    
     for (uint16_t i = 0; i < request->count; i++)
     {
-        if (request->items[i].key &&
-            strlen(request->items[i].key) == key_len &&
-            memcmp(request->items[i].key, key, key_len) == 0)
-        {
+        if (!request->items[i].key)
+            continue;
+        
+        bool match = case_insensitive 
+            ? (strcasecmp(request->items[i].key, key) == 0)
+            : (strcmp(request->items[i].key, key) == 0);
+        
+        if (match)
             return request->items[i].value;
-        }
     }
-
+    
     return NULL;
 }
 
 const char *get_param(const Req *req, const char *key)
 {
-    return req ? get_req(&req->params, key) : NULL;
+    if (!req || !key)
+        return NULL;
+
+    return get_req(&req->params, key, false);
 }
 
 const char *get_query(const Req *req, const char *key)
 {
-    return req ? get_req(&req->query, key) : NULL;
+    if (!req || !key)
+        return NULL;
+
+    return get_req(&req->query, key, false);
 }
 
 const char *get_header(const Req *req, const char *key)
 {
-    return req ? get_req(&req->headers, key) : NULL;
+    if (!req || !key)
+        return NULL;
+
+    return get_req(&req->headers, key, true);
 }
 
 void set_context(Req *req, const char *key, void *data)
