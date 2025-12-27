@@ -182,6 +182,8 @@ if(ECEWO_BUILD_TESTS)
             /wd4152 # Variadic macros (for route registration)
             /wd4100 # Unused parameters (for handlers)
             /wd4996 # Deprecated CRT (strcpy, sscanf - safe in tests)
+            /wd4267 # size_t conversions
+            /wd4245 # signed/unsigned
         )
     endif()
     
