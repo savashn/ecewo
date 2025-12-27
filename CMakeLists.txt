@@ -171,6 +171,7 @@ if(ECEWO_BUILD_TESTS)
             -Werror
             -Wstrict-prototypes
             -Wincompatible-pointer-types
+            -Wno-unused-parameter
         )
     endif()
     
@@ -178,6 +179,9 @@ if(ECEWO_BUILD_TESTS)
         target_compile_options(ecewo_test PRIVATE
             /W4
             /WX
+            /wd4152 # Variadic macros (for route registration)
+            /wd4100 # Unused parameters (for handlers)
+            /wd4996 # Deprecated CRT (strcpy, sscanf - safe in tests)
         )
     endif()
     
