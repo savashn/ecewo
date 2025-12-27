@@ -3,6 +3,7 @@
 #include "ecewo-mock.h"
 #include "uv.h"
 #include <stdlib.h>
+#include <inttypes.h>
 
 static uint64_t get_time_ms(void)
 {
@@ -21,9 +22,9 @@ static uint64_t get_thread_id(void)
 typedef struct
 {
     Res *res;
-    unsigned long main_thread_id;
-    unsigned long work_thread_id;
-    unsigned long done_thread_id;
+    uint64_t main_thread_id;
+    uint64_t work_thread_id;
+    uint64_t done_thread_id;
 } thread_test_ctx_t;
 
 static void thread_test_work(void *context)
@@ -38,10 +39,11 @@ static void thread_test_done(void *context)
     thread_test_ctx_t *ctx = context;
     ctx->done_thread_id = get_thread_id();
     
-    char *response = arena_sprintf(ctx->res->arena, "%lu,%lu,%lu",
-        ctx->main_thread_id,
-        ctx->work_thread_id,
-        ctx->done_thread_id);
+    char *response = arena_sprintf(ctx->res->arena, "%" PRIu64 ",%" PRIu64 ",%" PRIu64,
+                                   ctx->main_thread_id,
+                                   ctx->work_thread_id,
+                                   ctx->done_thread_id
+    );
     
     send_text(ctx->res, 200, response);
 }
@@ -65,7 +67,7 @@ void handler_thread_test(Req *req, Res *res)
 void handler_get_main_thread(Req *req, Res *res)
 {
     (void)req;
-    char *response = arena_sprintf(res->arena, "%lu", get_thread_id());
+    char *response = arena_sprintf(res->arena, "%" PRIu64, get_thread_id());
     send_text(res, 200, response);
 }
 
@@ -86,7 +88,8 @@ void handler_slow(Req *req, Res *res)
 // Background Request Helper
 // ============================================================================
 
-typedef struct {
+typedef struct
+{
     const char *path;
     MockResponse response;
     uint64_t duration_ms;
@@ -120,8 +123,10 @@ int test_spawn_thread_ids(void)
     MockResponse main_res = request(&main_params);
     ASSERT_EQ(200, main_res.status_code);
     
-    unsigned long server_main_thread = strtoul(main_res.body, NULL, 10);
-    printf("\n  Server main thread: %lu\n", server_main_thread);
+    uint64_t server_main_thread;
+    sscanf(main_res.body, "%" SCNu64, &server_main_thread);
+    
+    printf("\n  Server main thread: %" PRIu64 "\n", server_main_thread);
     free_request(&main_res);
     
     MockParams spawn_params = {
@@ -133,13 +138,18 @@ int test_spawn_thread_ids(void)
     ASSERT_EQ(200, spawn_res.status_code);
     ASSERT_NOT_NULL(spawn_res.body);
     
-    unsigned long handler_tid, work_tid, done_tid;
-    int parsed = sscanf(spawn_res.body, "%lu,%lu,%lu", &handler_tid, &work_tid, &done_tid);
+    uint64_t handler_tid, work_tid, done_tid;
+    
+    int parsed = sscanf(spawn_res.body, "%" SCNu64 ",%" SCNu64 ",%" SCNu64,
+                        &handler_tid,
+                        &work_tid,
+                        &done_tid);
+
     ASSERT_EQ(3, parsed);
     
-    printf("  Handler thread: %lu\n", handler_tid);
-    printf("  Work thread:    %lu\n", work_tid);
-    printf("  Done thread:    %lu\n", done_tid);
+    printf("  Handler thread: %" PRIu64 "\n", handler_tid);
+    printf("  Work thread:    %" PRIu64 "\n", work_tid);
+    printf("  Done thread:    %" PRIu64 "\n", done_tid);
     
     ASSERT_EQ(server_main_thread, handler_tid);
     ASSERT_NE(server_main_thread, work_tid);
@@ -171,8 +181,8 @@ int test_spawn_not_blocking(void)
 
     uv_thread_join(&thread);
 
-    printf("\n  Spawn request: %lu ms\n", (unsigned long)slow_ctx.duration_ms);
-    printf("  Fast request: %lu ms (should be <50ms)\n", (unsigned long)fast_duration);
+    printf("\n  Spawn request: %" PRIu64 " ms\n", slow_ctx.duration_ms);
+    printf("  Fast request: %" PRIu64 " ms (should be <50ms)\n", fast_duration);
 
     ASSERT_EQ(200, slow_ctx.response.status_code);
     ASSERT_EQ(200, fast_res.status_code);
@@ -205,8 +215,8 @@ int test_sync_blocking(void)
 
     uv_thread_join(&thread);
 
-    printf("\n  Sync request: %lu ms\n", (unsigned long)slow_ctx.duration_ms);
-    printf("  Fast request: %lu ms (should be >=200ms)\n", (unsigned long)fast_duration);
+    printf("\n  Sync request: %" PRIu64 " ms\n", slow_ctx.duration_ms);
+    printf("  Fast request: %" PRIu64 " ms (should be >=200ms)\n", fast_duration);
 
     ASSERT_EQ(200, slow_ctx.response.status_code);
     ASSERT_EQ(200, fast_res.status_code);
