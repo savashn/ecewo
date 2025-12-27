@@ -111,7 +111,11 @@ static void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *b
     }
     
     buf->base = client->response_buffer + client->response_len;
-    buf->len = client->response_capacity - client->response_len;
+    #ifdef _WIN32
+        buf->len = (unsigned long)(client->response_capacity - client->response_len);
+    #else
+        buf->len = client->response_capacity - client->response_len;
+    #endif
 }
 
 static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
@@ -135,7 +139,7 @@ static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
     if (nread == 0)
         return;
     
-    client->response_len += nread;
+    client->response_len += (size_t)nread;
     client->response_buffer[client->response_len] = '\0';
     
     // Check if we have complete HTTP response
@@ -180,7 +184,8 @@ static void on_connect(uv_connect_t *req, int status)
         return;
     }
     
-    uv_buf_t buf = uv_buf_init(client->request_data, strlen(client->request_data));
+    size_t request_len = strlen(client->request_data);
+    uv_buf_t buf = uv_buf_init(client->request_data, (unsigned int)request_len);
     client->write_req.data = client;
     
     int result = uv_write(&client->write_req, (uv_stream_t *)&client->tcp, &buf, 1, on_write);
