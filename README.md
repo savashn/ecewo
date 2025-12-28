@@ -16,6 +16,7 @@
 - [Running Tests](#running-tests)
 - [Documentation](#documentation)
 - [Modules](#modules)
+- [Future Features](#future-features)
 - [Example App](#example-app)
 - [Contributing](#contributing)
 - [License](#license)
@@ -34,22 +35,18 @@
 
 void hello_world(Req *req, Res *res)
 {
-    (void)req;
     send_text(res, OK, "Hello, World!");
 }
 
-int main(void)
-{
-    if (server_init() != 0)
-    {
+int main(void) {
+    if (server_init() != 0) {
         fprintf(stderr, "Failed to initialize server\n");
         return 1;
     }
 
     get("/", hello_world);
 
-    if (server_listen(3000) != 0)
-    {
+    if (server_listen(3000) != 0) {
         fprintf(stderr, "Failed to start server\n");
         return 1;
     }
@@ -131,6 +128,14 @@ Refer to the [docs](/docs/) for usage.
 - [`ecewo-postgres`](https://github.com/savashn/ecewo-modules/tree/main/src/postgres) for async PostgreSQL integration.
 - [`ecewo-session`](https://github.com/savashn/ecewo-modules/tree/main/src/session) for session management.
 - [`ecewo-static`](https://github.com/savashn/ecewo-modules/tree/main/src/static) for static file serving.
+
+## Future Features
+
+- WebSocket
+- TLS
+- SSE
+- HTTP/2
+- C++ wrapper
 
 ## Example App
 
