@@ -5,10 +5,6 @@ if(POLICY CMP0135)
     cmake_policy(SET CMP0135 NEW) # DOWNLOAD_EXTRACT_TIMESTAMP
 endif()
 
-if(POLICY CMP0092)
-    cmake_policy(SET CMP0092 NEW) # Don't add /W3 by default
-endif()
-
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
@@ -76,6 +72,12 @@ if(NOT TARGET ecewo::ecewo)
 
     add_library(ecewo::ecewo ALIAS ecewo)
 
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(ecewo PRIVATE
+            -fno-strict-aliasing
+        )
+    endif()
+
     target_include_directories(ecewo 
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -118,22 +120,6 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     message(STATUS "=================================")
 endif()
 
-if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-        target_compile_options(ecewo PRIVATE
-            -Wall
-            -Wextra
-            -Wstrict-prototypes
-        )
-    endif()
-    
-    if(MSVC)
-        target_compile_options(ecewo PRIVATE
-            /W4
-        )
-    endif()
-endif()
-
 if(ECEWO_BUILD_TESTS)
     enable_testing()
 
@@ -172,18 +158,6 @@ if(ECEWO_BUILD_TESTS)
             -Wstrict-prototypes
             -Wincompatible-pointer-types
             -Wno-unused-parameter
-        )
-    endif()
-    
-    if(MSVC)
-        target_compile_options(ecewo_test PRIVATE
-            /W4
-            /WX
-            /wd4152 # Variadic macros (for route registration)
-            /wd4100 # Unused parameters (for handlers)
-            /wd4996 # Deprecated CRT (strcpy, sscanf - safe in tests)
-            /wd4267 # size_t conversions
-            /wd4245 # signed/unsigned
         )
     endif()
     
