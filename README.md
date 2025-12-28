@@ -33,8 +33,7 @@
 #include "ecewo.h"
 #include <stdio.h>
 
-void hello_world(Req *req, Res *res)
-{
+void hello_world(Req *req, Res *res) {
     send_text(res, OK, "Hello, World!");
 }
 
@@ -59,7 +58,7 @@ int main(void) {
 **CMakeLists.txt:**
 ```cmake
 cmake_minimum_required(VERSION 3.14)
-project(myproject VERSION 1.0.0 LANGUAGES C)
+project(app VERSION 1.0.0 LANGUAGES C)
 
 include(FetchContent)
 
@@ -78,10 +77,14 @@ add_executable(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME} PRIVATE ecewo)
 ```
 
-**Build:**
+**Build and Run:**
 
 ```shell
-mkdir build && cd build && cmake .. && cmake --build .
+mkdir build
+cd build
+cmake ..
+cmake --build .
+./app
 ```
 
 ## Benchmarks
