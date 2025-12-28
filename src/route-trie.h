@@ -11,8 +11,7 @@
 #define MAX_INLINE_PARAMS 8
 #endif
 
-typedef enum
-{
+typedef enum {
     METHOD_INDEX_DELETE,
     METHOD_INDEX_GET,
     METHOD_INDEX_HEAD,
@@ -37,15 +36,14 @@ typedef struct
     uint8_t capacity;
 } tokenized_path_t;
 
-typedef struct trie_node
-{
-    struct trie_node *children[128];       // ASCII characters
-    struct trie_node *param_child;         // For :param segments
-    struct trie_node *wildcard_child;      // For * wildcard
-    char *param_name;                      // Name of parameter if this is a param node
-    bool is_end;                           // Marks end of a route
+typedef struct trie_node {
+    struct trie_node *children[128]; // ASCII characters
+    struct trie_node *param_child; // For :param segments
+    struct trie_node *wildcard_child; // For * wildcard
+    char *param_name; // Name of parameter if this is a param node
+    bool is_end; // Marks end of a route
     RequestHandler handlers[METHOD_COUNT]; // Handlers for different HTTP methods
-    void *middleware_ctx[METHOD_COUNT];    // Middleware context for each method
+    void *middleware_ctx[METHOD_COUNT]; // Middleware context for each method
 } trie_node_t;
 
 typedef struct
@@ -72,8 +70,8 @@ typedef struct
 {
     RequestHandler handler;
     void *middleware_ctx;
-    param_match_t inline_params[MAX_INLINE_PARAMS];  // On stack
-    param_match_t *params;                           // On heap
+    param_match_t inline_params[MAX_INLINE_PARAMS]; // On stack
+    param_match_t *params; // On heap
     uint8_t param_count;
     uint8_t param_capacity; // For dynamic allocation
 } route_match_t;

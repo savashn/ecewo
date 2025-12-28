@@ -10,8 +10,7 @@
 #define READ_BUFFER_SIZE 16384
 #endif
 
-struct client_s
-{
+struct client_s {
     uv_tcp_t handle;
     uv_buf_t read_buf;
     char buffer[READ_BUFFER_SIZE];
@@ -27,7 +26,7 @@ struct client_s
     llhttp_settings_t persistent_settings;
     http_context_t persistent_context; // Lives in connection_arena
     bool parser_initialized;
-    bool request_in_progress;  // True while parsing a multi-packet request
+    bool request_in_progress; // True while parsing a multi-packet request
 
     bool taken_over;
     void *takeover_user_data;

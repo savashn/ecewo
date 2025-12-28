@@ -25,8 +25,7 @@
 
 static size_t calculate_next_size(size_t current, size_t needed)
 {
-    if (needed > ABSOLUTE_MAX_REQUEST)
-    {
+    if (needed > ABSOLUTE_MAX_REQUEST) {
         LOG_DEBUG("Request too large: %zu bytes", needed);
         return 0;
     }
@@ -36,17 +35,14 @@ static size_t calculate_next_size(size_t current, size_t needed)
 
     size_t new_size = current < MIN_BUFFER_SIZE ? MIN_BUFFER_SIZE : current;
 
-    while (new_size < needed)
-    {
-        if (new_size > (size_t)(SIZE_MAX / GROWTH_FACTOR))
-        {
+    while (new_size < needed) {
+        if (new_size > (size_t)(SIZE_MAX / GROWTH_FACTOR)) {
             new_size = needed + MIN_BUFFER_SIZE;
             break;
         }
 
         size_t next = (size_t)(new_size * GROWTH_FACTOR);
-        if (next <= new_size)
-        {
+        if (next <= new_size) {
             new_size = needed + MIN_BUFFER_SIZE;
             break;
         }
@@ -59,8 +55,7 @@ static size_t calculate_next_size(size_t current, size_t needed)
     return new_size > ABSOLUTE_MAX_REQUEST ? ABSOLUTE_MAX_REQUEST : new_size;
 }
 
-static int ensure_buffer_capacity(Arena *arena, char **buffer, size_t *capacity,
-                                  size_t current_length, size_t additional_needed)
+static int ensure_buffer_capacity(Arena *arena, char **buffer, size_t *capacity, size_t current_length, size_t additional_needed)
 {
     if (!arena || !buffer || !capacity)
         return -1;
@@ -70,8 +65,7 @@ static int ensure_buffer_capacity(Arena *arena, char **buffer, size_t *capacity,
     if (total_needed <= *capacity)
         return 0;
 
-    if (total_needed > ABSOLUTE_MAX_REQUEST)
-    {
+    if (total_needed > ABSOLUTE_MAX_REQUEST) {
         LOG_DEBUG("Request exceeds maximum size: %zu bytes", total_needed);
         return -2;
     }
@@ -100,23 +94,19 @@ static void parse_query(Arena *arena, const char *query_start, size_t query_len,
         return;
 
     int param_count = 1;
-    for (size_t i = 0; i < query_len; i++)
-    {
-        if (query_start[i] == '&')
-        {
+    for (size_t i = 0; i < query_len; i++) {
+        if (query_start[i] == '&') {
             param_count++;
-            if (param_count > MAX_QUERY_PARAMS)
-            {
+            if (param_count > MAX_QUERY_PARAMS) {
                 param_count = MAX_QUERY_PARAMS;
                 break;
             }
         }
     }
-    
+
     query->capacity = param_count;
     query->items = arena_alloc(arena, query->capacity * sizeof(request_item_t));
-    if (!query->items)
-    {
+    if (!query->items) {
         query->capacity = 0;
         return;
     }
@@ -124,49 +114,45 @@ static void parse_query(Arena *arena, const char *query_start, size_t query_len,
     const char *p = query_start;
     const char *end = query_start + query_len;
 
-    while (p < end && query->count < query->capacity)
-    {
+    while (p < end && query->count < query->capacity) {
         const char *key_start = p;
         const char *eq = NULL;
         const char *amp = NULL;
 
         // Find = and &
-        for (const char *s = p; s < end; s++)
-        {
-            if (*s == '=' && !eq) eq = s;
-            if (*s == '&') { amp = s; break; }
+        for (const char *s = p; s < end; s++) {
+            if (*s == '=' && !eq)
+                eq = s;
+            if (*s == '&') {
+                amp = s;
+                break;
+            }
         }
 
         const char *pair_end = amp ? amp : end;
 
-        if (eq && eq < pair_end)
-        {
+        if (eq && eq < pair_end) {
             size_t key_len = eq - key_start;
             size_t val_len = pair_end - (eq + 1);
-            
+
             char *key = arena_alloc(arena, key_len + 1);
-            if (key)
-            {
+            if (key) {
                 memcpy(key, key_start, key_len);
                 key[key_len] = '\0';
                 query->items[query->count].key = key;
             }
-            
-            if (val_len > 0)
-            {
+
+            if (val_len > 0) {
                 char *value = arena_alloc(arena, val_len + 1);
-                if (value)
-                {
+                if (value) {
                     memcpy(value, eq + 1, val_len);
                     value[val_len] = '\0';
                     query->items[query->count].value = value;
                 }
-            }
-            else
-            {
+            } else {
                 query->items[query->count].value = NULL;
             }
-            
+
             if (query->items[query->count].key)
                 query->count++;
         }
@@ -182,8 +168,7 @@ int on_url_cb(llhttp_t *parser, const char *at, size_t length)
 
     http_context_t *context = (http_context_t *)parser->data;
 
-    if (context->url_length + length > MAX_URL_LENGTH)
-    {
+    if (context->url_length + length > MAX_URL_LENGTH) {
         llhttp_set_error_reason(parser, ERROR_REASON_URL_TOO_LONG);
         return HPE_USER;
     }
@@ -193,13 +178,10 @@ int on_url_cb(llhttp_t *parser, const char *at, size_t length)
                                         &context->url_capacity,
                                         context->url_length,
                                         length);
-    if (result == -2)
-    {
+    if (result == -2) {
         llhttp_set_error_reason(parser, ERROR_REASON_URL_TOO_LONG);
         return HPE_USER;
-    }
-    else if (result != 0)
-    {
+    } else if (result != 0) {
         llhttp_set_error_reason(parser, ERROR_REASON_MEMORY_ALLOCATION);
         return HPE_INTERNAL;
     }
@@ -218,14 +200,12 @@ int on_header_field_cb(llhttp_t *parser, const char *at, size_t length)
 
     http_context_t *context = (http_context_t *)parser->data;
 
-    if (context->headers.count >= MAX_HEADERS_COUNT)
-    {
+    if (context->headers.count >= MAX_HEADERS_COUNT) {
         llhttp_set_error_reason(parser, ERROR_REASON_TOO_MANY_HEADERS);
         return HPE_USER;
     }
 
-    if (length > MAX_HEADER_SIZE)
-    {
+    if (length > MAX_HEADER_SIZE) {
         llhttp_set_error_reason(parser, ERROR_REASON_HEADER_TOO_LARGE);
         return HPE_USER;
     }
@@ -233,14 +213,11 @@ int on_header_field_cb(llhttp_t *parser, const char *at, size_t length)
     context->header_field_length = 0;
 
     int result = ensure_buffer_capacity(context->arena, &context->current_header_field,
-                                    &context->header_field_capacity, 0, length);
-    if (result == -2)
-    {
+                                        &context->header_field_capacity, 0, length);
+    if (result == -2) {
         llhttp_set_error_reason(parser, ERROR_REASON_HEADER_TOO_LARGE);
         return HPE_USER;
-    }
-    else if (result != 0)
-    {
+    } else if (result != 0) {
         llhttp_set_error_reason(parser, ERROR_REASON_MEMORY_ALLOCATION);
         return HPE_INTERNAL;
     }
@@ -278,8 +255,7 @@ int ensure_array_capacity(Arena *arena, request_t *array)
     if (!new_items)
         return -1;
 
-    for (int i = array->capacity; i < new_capacity; i++)
-    {
+    for (int i = array->capacity; i < new_capacity; i++) {
         new_items[i].key = NULL;
         new_items[i].value = NULL;
     }
@@ -296,21 +272,18 @@ int on_header_value_cb(llhttp_t *parser, const char *at, size_t length)
 
     http_context_t *context = (http_context_t *)parser->data;
 
-    if (context->header_field_length == 0)
-    {
+    if (context->header_field_length == 0) {
         llhttp_set_error_reason(parser, ERROR_REASON_INVALID_HEADER_FIELD);
         return HPE_USER;
     }
 
-    if (ensure_array_capacity(context->arena, &context->headers) != 0)
-    {
+    if (ensure_array_capacity(context->arena, &context->headers) != 0) {
         llhttp_set_error_reason(parser, ERROR_REASON_MEMORY_ALLOCATION);
         return HPE_INTERNAL;
     }
 
     char *key_copy = arena_alloc(context->arena, context->header_field_length + 1);
-    if (!key_copy)
-    {
+    if (!key_copy) {
         llhttp_set_error_reason(parser, ERROR_REASON_MEMORY_ALLOCATION);
         return HPE_INTERNAL;
     }
@@ -319,8 +292,7 @@ int on_header_value_cb(llhttp_t *parser, const char *at, size_t length)
     key_copy[context->header_field_length] = '\0';
 
     char *value_copy = arena_alloc(context->arena, length + 1);
-    if (!value_copy)
-    {
+    if (!value_copy) {
         llhttp_set_error_reason(parser, ERROR_REASON_MEMORY_ALLOCATION);
         return HPE_INTERNAL;
     }
@@ -342,24 +314,20 @@ int on_method_cb(llhttp_t *parser, const char *at, size_t length)
 
     http_context_t *context = (http_context_t *)parser->data;
 
-    if (context->method_length + length > MAX_METHOD_LENGTH)
-    {
+    if (context->method_length + length > MAX_METHOD_LENGTH) {
         llhttp_set_error_reason(parser, ERROR_REASON_METHOD_TOO_LONG);
         return HPE_USER;
     }
 
-    int result = ensure_buffer_capacity(context->arena, 
-                                        &context->method, 
+    int result = ensure_buffer_capacity(context->arena,
+                                        &context->method,
                                         &context->method_capacity,
-                                        context->method_length, 
+                                        context->method_length,
                                         length);
-    if (result == -2)
-    {
+    if (result == -2) {
         llhttp_set_error_reason(parser, ERROR_REASON_METHOD_TOO_LONG);
         return HPE_USER;
-    }
-    else if (result != 0)
-    {
+    } else if (result != 0) {
         llhttp_set_error_reason(parser, ERROR_REASON_MEMORY_ALLOCATION);
         return HPE_INTERNAL;
     }
@@ -384,13 +352,10 @@ int on_body_cb(llhttp_t *parser, const char *at, size_t length)
                                         context->body_length,
                                         length);
 
-    if (result == -2)
-    {
+    if (result == -2) {
         llhttp_set_error_reason(parser, ERROR_REASON_PAYLOAD_TOO_LARGE);
         return HPE_USER; // Payload too large
-    }
-    else if (result != 0)
-    {
+    } else if (result != 0) {
         llhttp_set_error_reason(parser, ERROR_REASON_MEMORY_ALLOCATION);
         return HPE_INTERNAL;
     }
@@ -425,17 +390,13 @@ int on_message_complete_cb(llhttp_t *parser)
     http_context_t *context = (http_context_t *)parser->data;
     context->message_complete = 1;
 
-    if (context->url && context->url_length > 0)
-    {
+    if (context->url && context->url_length > 0) {
         const char *qmark = memchr(context->url, '?', context->url_length);
-        if (qmark)
-        {
+        if (qmark) {
             context->path_length = qmark - context->url;
             size_t query_len = context->url_length - context->path_length - 1;
             parse_query(context->arena, qmark + 1, query_len, &context->query_params);
-        }
-        else
-        {
+        } else {
             context->path_length = context->url_length;
         }
     }
@@ -509,8 +470,7 @@ parse_result_t http_parse_request(http_context_t *context, const char *data, siz
     context->last_error = err;
     context->error_reason = llhttp_get_error_reason(context->parser);
 
-    switch (err)
-    {
+    switch (err) {
     case HPE_OK:
         if (context->message_complete)
             return PARSE_SUCCESS;
@@ -518,7 +478,7 @@ parse_result_t http_parse_request(http_context_t *context, const char *data, siz
 
     case HPE_PAUSED:
         return PARSE_INCOMPLETE;
-    
+
     case HPE_PAUSED_UPGRADE:
         if (context->message_complete)
             return PARSE_SUCCESS;
@@ -551,8 +511,7 @@ parse_result_t http_finish_parsing(http_context_t *context)
     context->last_error = err;
     context->error_reason = llhttp_get_error_reason(context->parser);
 
-    switch (err)
-    {
+    switch (err) {
     case HPE_OK:
         return PARSE_SUCCESS;
     case HPE_USER:
@@ -564,8 +523,7 @@ parse_result_t http_finish_parsing(http_context_t *context)
 
 const char *parse_result_to_string(parse_result_t result)
 {
-    switch (result)
-    {
+    switch (result) {
     case PARSE_SUCCESS:
         return "PARSE_SUCCESS";
     case PARSE_INCOMPLETE:

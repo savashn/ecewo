@@ -2,9 +2,9 @@
 #include "request.h"
 
 #ifdef _WIN32
-    #define strcasecmp _stricmp
+#define strcasecmp _stricmp
 #else
-    #include <strings.h>
+#include <strings.h>
 #endif
 
 static const char *get_req(const request_t *request, const char *key, bool case_insensitive)
@@ -12,12 +12,11 @@ static const char *get_req(const request_t *request, const char *key, bool case_
     if (!request || !request->items || !key || request->count == 0)
         return NULL;
 
-    for (uint16_t i = 0; i < request->count; i++)
-    {
+    for (uint16_t i = 0; i < request->count; i++) {
         if (!request->items[i].key)
             continue;
 
-        bool match = case_insensitive 
+        bool match = case_insensitive
             ? (strcasecmp(request->items[i].key, key) == 0)
             : (strcmp(request->items[i].key, key) == 0);
 
@@ -59,25 +58,21 @@ void set_context(Req *req, const char *key, void *data)
 
     context_t *ctx = req->ctx;
 
-    for (uint32_t i = 0; i < ctx->count; i++)
-    {
-        if (ctx->entries[i].key && strcmp(ctx->entries[i].key, key) == 0)
-        {
+    for (uint32_t i = 0; i < ctx->count; i++) {
+        if (ctx->entries[i].key && strcmp(ctx->entries[i].key, key) == 0) {
             ctx->entries[i].data = data;
             return;
         }
     }
 
-    if (ctx->count >= ctx->capacity)
-    {
+    if (ctx->count >= ctx->capacity) {
         uint32_t new_capacity = ctx->capacity == 0 ? 8 : ctx->capacity * 2;
 
         context_entry_t *new_entries = arena_realloc(
             req->arena,
             ctx->entries,
             ctx->capacity * sizeof(context_entry_t),
-            new_capacity * sizeof(context_entry_t)
-        );
+            new_capacity * sizeof(context_entry_t));
 
         if (!new_entries)
             return;
@@ -105,8 +100,7 @@ void *get_context(Req *req, const char *key)
 
     context_t *ctx = req->ctx;
 
-    for (uint32_t i = 0; i < ctx->count; i++)
-    {
+    for (uint32_t i = 0; i < ctx->count; i++) {
         if (ctx->entries[i].key && strcmp(ctx->entries[i].key, key) == 0)
             return ctx->entries[i].data;
     }

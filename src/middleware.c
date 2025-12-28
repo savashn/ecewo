@@ -19,27 +19,22 @@ uint16_t global_middleware_capacity = 0;
 
 static void execute_next(Req *req, Res *res)
 {
-    if (!req || !res)
-    {
+    if (!req || !res) {
         LOG_ERROR("NULL request or response");
         return;
     }
-    
-    Chain *chain = (Chain*)req->chain;
-    
-    if (!chain)
-    {
+
+    Chain *chain = (Chain *)req->chain;
+
+    if (!chain) {
         LOG_ERROR("NULL chain");
         return;
     }
-    
-    if (chain->current < chain->count)
-    {
+
+    if (chain->current < chain->count) {
         MiddlewareHandler mw = chain->handlers[chain->current++];
         mw(req, res, execute_next);
-    }
-    else
-    {
+    } else {
         if (chain->route_handler)
             chain->route_handler(req, res);
     }
@@ -52,16 +47,14 @@ void chain_start(Req *req, Res *res, MiddlewareInfo *middleware_info)
 
     int total_middleware_count = global_middleware_count + middleware_info->middleware_count;
 
-    if (total_middleware_count == 0)
-    {
+    if (total_middleware_count == 0) {
         middleware_info->handler(req, res);
         return;
     }
 
     MiddlewareHandler *combined_handlers = arena_alloc(req->arena, sizeof(MiddlewareHandler) * total_middleware_count);
 
-    if (!combined_handlers)
-    {
+    if (!combined_handlers) {
         LOG_ERROR("Arena allocation failed for middleware handlers.");
         middleware_info->handler(req, res);
         return;
@@ -71,16 +64,14 @@ void chain_start(Req *req, Res *res, MiddlewareInfo *middleware_info)
                  global_middleware,
                  sizeof(MiddlewareHandler) * global_middleware_count);
 
-    if (middleware_info->middleware_count > 0 && middleware_info->middleware)
-    {
+    if (middleware_info->middleware_count > 0 && middleware_info->middleware) {
         arena_memcpy(combined_handlers + global_middleware_count,
                      middleware_info->middleware,
                      sizeof(MiddlewareHandler) * middleware_info->middleware_count);
     }
 
     Chain *chain = arena_alloc(req->arena, sizeof(Chain));
-    if (!chain)
-    {
+    if (!chain) {
         LOG_ERROR("Arena allocation failed for middleware chain.");
         middleware_info->handler(req, res);
         return;
@@ -90,7 +81,7 @@ void chain_start(Req *req, Res *res, MiddlewareInfo *middleware_info)
     chain->count = total_middleware_count;
     chain->current = 0;
     chain->route_handler = middleware_info->handler;
-    
+
     req->chain = chain;
 
     execute_next(req, res);
@@ -98,18 +89,15 @@ void chain_start(Req *req, Res *res, MiddlewareInfo *middleware_info)
 
 void use(MiddlewareHandler middleware_handler)
 {
-    if (!middleware_handler)
-    {
+    if (!middleware_handler) {
         LOG_ERROR("NULL middleware handler");
         abort();
     }
 
-    if (global_middleware_count >= global_middleware_capacity)
-    {
+    if (global_middleware_count >= global_middleware_capacity) {
         int new_cap = global_middleware_capacity ? global_middleware_capacity * 2 : INITIAL_MW_CAPACITY;
         MiddlewareHandler *tmp = realloc(global_middleware, new_cap * sizeof *tmp);
-        if (!tmp)
-        {
+        if (!tmp) {
             LOG_ERROR("Reallocation failed in global middleware");
             abort();
         }
@@ -122,8 +110,7 @@ void use(MiddlewareHandler middleware_handler)
 
 void reset_middleware(void)
 {
-    if (global_middleware)
-    {
+    if (global_middleware) {
         free(global_middleware);
         global_middleware = NULL;
     }
@@ -133,10 +120,8 @@ void reset_middleware(void)
 
 void free_middleware_info(MiddlewareInfo *info)
 {
-    if (info)
-    {
-        if (info->middleware)
-        {
+    if (info) {
+        if (info->middleware) {
             free(info->middleware);
             info->middleware = NULL;
         }

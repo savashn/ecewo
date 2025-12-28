@@ -33,12 +33,12 @@ void handler_middleware_order(Req *req, Res *res)
     int *first = get_context(req, "first");
     int *second = get_context(req, "second");
     int *third = get_context(req, "third");
-    
+
     char *response = arena_sprintf(req->arena, "%d,%d,%d",
-        first ? *first : 0,
-        second ? *second : 0,
-        third ? *third : 0);
-    
+                                   first ? *first : 0,
+                                   second ? *second : 0,
+                                   third ? *third : 0);
+
     send_text(res, 200, response);
 }
 
@@ -59,17 +59,17 @@ void handler_should_not_reach(Req *req, Res *res)
 int test_middleware_execution_order(void)
 {
     middleware_order_tracker = 0;
-    
+
     MockParams params = {
         .method = MOCK_GET,
         .path = "/mw-order"
     };
-    
+
     MockResponse res = request(&params);
-    
+
     ASSERT_EQ(200, res.status_code);
     ASSERT_EQ_STR("1,2,3", res.body);
-    
+
     free_request(&res);
     RETURN_OK();
 }
@@ -80,12 +80,12 @@ int test_middleware_abort(void)
         .method = MOCK_GET,
         .path = "/mw-abort"
     };
-    
+
     MockResponse res = request(&params);
-    
+
     ASSERT_EQ(403, res.status_code);
     ASSERT_EQ_STR("Forbidden by middleware", res.body);
-    
+
     free_request(&res);
     RETURN_OK();
 }

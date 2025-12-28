@@ -3,8 +3,7 @@
 
 #include <stdint.h>
 
-typedef enum
-{
+typedef enum {
     MOCK_GET,
     MOCK_POST,
     MOCK_PUT,

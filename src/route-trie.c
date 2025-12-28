@@ -20,8 +20,7 @@ int tokenize_path(Arena *arena, const char *path, size_t path_len, tokenized_pat
     memset(result, 0, sizeof(tokenized_path_t));
 
     // Skip leading slash
-    if (path_len > 0 && *path == '/')
-    {
+    if (path_len > 0 && *path == '/') {
         path++;
         path_len--;
     }
@@ -33,15 +32,12 @@ int tokenize_path(Arena *arena, const char *path, size_t path_len, tokenized_pat
     uint8_t segment_count = 0;
     const char *p = path;
     const char *end = path + path_len;
-    
-    while (p < end)
-    {
-        if (*p != '/')
-        {
+
+    while (p < end) {
+        if (*p != '/') {
             segment_count++;
 
-            if (segment_count > MAX_PATH_SEGMENTS)
-            {
+            if (segment_count > MAX_PATH_SEGMENTS) {
                 LOG_DEBUG("Path too deep: %" PRIu8 " segments (max %d)", segment_count, MAX_PATH_SEGMENTS);
                 return -1;
             }
@@ -49,9 +45,7 @@ int tokenize_path(Arena *arena, const char *path, size_t path_len, tokenized_pat
             // Skip to next '/' or end
             while (p < end && *p != '/')
                 p++;
-        }
-        else
-        {
+        } else {
             p++;
         }
     }
@@ -67,8 +61,7 @@ int tokenize_path(Arena *arena, const char *path, size_t path_len, tokenized_pat
     p = path;
     result->count = 0;
 
-    while (p < end && result->count < result->capacity)
-    {
+    while (p < end && result->count < result->capacity) {
         // Skip slashes
         while (p < end && *p == '/')
             p++;
@@ -104,18 +97,16 @@ static trie_node_t *advance_to_next_segment(trie_node_t *node,
                                             uint8_t depth,
                                             Arena *arena)
 {
-    if (segment_idx + 1 >= path->count)
-    {
+    if (segment_idx + 1 >= path->count) {
         // Last segment, check if this node is is_end
         return node->is_end ? node : NULL;
     }
 
     // There are more segments, continue with '/'
     unsigned char sep = '/';
-    if (node->children[sep])
-    {
+    if (node->children[sep]) {
         return match_segments(node->children[sep],
-                              path, 
+                              path,
                               segment_idx + 1,
                               match, depth + 1,
                               arena);
@@ -124,18 +115,17 @@ static trie_node_t *advance_to_next_segment(trie_node_t *node,
     return NULL;
 }
 
-static int add_param_to_match(route_match_t *match, 
+static int add_param_to_match(route_match_t *match,
                               Arena *arena,
-                              const char *key_data, 
+                              const char *key_data,
                               size_t key_len,
-                              const char *value_data, 
+                              const char *value_data,
                               size_t value_len)
 {
     if (!match)
         return -1;
 
-    if (match->param_count < MAX_INLINE_PARAMS && !match->params)
-    {
+    if (match->param_count < MAX_INLINE_PARAMS && !match->params) {
         param_match_t *param = &match->inline_params[match->param_count];
         param->key.data = key_data;
         param->key.len = key_len;
@@ -145,17 +135,15 @@ static int add_param_to_match(route_match_t *match,
         return 0;
     }
 
-    if (match->param_count == MAX_INLINE_PARAMS && !match->params)
-    {
+    if (match->param_count == MAX_INLINE_PARAMS && !match->params) {
         uint8_t new_capacity = MAX_INLINE_PARAMS * 2;
         param_match_t *new_params = arena_alloc(arena, sizeof(param_match_t) * new_capacity);
-        if (!new_params)
-        {
+        if (!new_params) {
             LOG_ERROR("Failed to allocate dynamic param storage");
             return -1;
         }
 
-        arena_memcpy(new_params, match->inline_params, 
+        arena_memcpy(new_params, match->inline_params,
                      sizeof(param_match_t) * MAX_INLINE_PARAMS);
 
         match->params = new_params;
@@ -165,12 +153,10 @@ static int add_param_to_match(route_match_t *match,
                   new_capacity);
     }
 
-    if (match->params && match->param_count >= match->param_capacity)
-    {
+    if (match->params && match->param_count >= match->param_capacity) {
         uint8_t new_capacity = match->param_capacity * 2;
-        
-        if (new_capacity > 64)
-        {
+
+        if (new_capacity > 64) {
             LOG_ERROR("Route parameter limit exceeded: %d", new_capacity);
             return -1;
         }
@@ -179,8 +165,7 @@ static int add_param_to_match(route_match_t *match,
                                                   match->params,
                                                   sizeof(param_match_t) * match->param_capacity,
                                                   sizeof(param_match_t) * new_capacity);
-        if (!new_params)
-        {
+        if (!new_params) {
             LOG_ERROR("Failed to reallocate param storage");
             return -1;
         }
@@ -189,15 +174,13 @@ static int add_param_to_match(route_match_t *match,
         match->param_capacity = new_capacity;
     }
 
-    param_match_t *target = match->params ? 
-                            &match->params[match->param_count] : 
-                            &match->inline_params[match->param_count];
-    
+    param_match_t *target = match->params ? &match->params[match->param_count] : &match->inline_params[match->param_count];
+
     target->key.data = key_data;
     target->key.len = key_len;
     target->value.data = value_data;
     target->value.len = value_len;
-    
+
     match->param_count++;
     return 0;
 }
@@ -219,39 +202,34 @@ static trie_node_t *match_segments(trie_node_t *node,
     trie_node_t *result = NULL;
 
     // Exact match
-    if (!segment->is_param && !segment->is_wildcard)
-    {
+    if (!segment->is_param && !segment->is_wildcard) {
         trie_node_t *current = node;
 
-        for (size_t i = 0; i < segment->len && current; i++)
-        {
+        for (size_t i = 0; i < segment->len && current; i++) {
             unsigned char c = (unsigned char)segment->start[i];
             current = current->children[c];
         }
 
-        if (current)
-        {
-            result = advance_to_next_segment(current, path, segment_idx, 
-                                            match, depth, arena);
+        if (current) {
+            result = advance_to_next_segment(current, path, segment_idx,
+                                             match, depth, arena);
             if (result)
                 return result;
         }
     }
 
     // Param match
-    if (node->param_child)
-    {
+    if (node->param_child) {
         uint8_t snapshot_count = match ? match->param_count : 0;
 
         // Capture parameter
-        if (match)
-        {
+        if (match) {
             if (add_param_to_match(match, arena,
                                    node->param_child->param_name,
                                    strlen(node->param_child->param_name),
                                    segment->start,
-                                   segment->len) != 0)
-            {
+                                   segment->len)
+                != 0) {
                 return NULL;
             }
         }
@@ -261,7 +239,7 @@ static trie_node_t *match_segments(trie_node_t *node,
                                          match,
                                          depth,
                                          arena);
-        
+
         if (result)
             return result;
 
@@ -292,10 +270,8 @@ static void trie_node_free(trie_node_t *node)
     if (!node)
         return;
 
-    for (uint8_t i = 0; i < 128; i++)
-    {
-        if (node->children[i])
-        {
+    for (uint8_t i = 0; i < 128; i++) {
+        if (node->children[i]) {
             trie_node_free(node->children[i]);
         }
     }
@@ -306,12 +282,9 @@ static void trie_node_free(trie_node_t *node)
     if (node->wildcard_child)
         trie_node_free(node->wildcard_child);
 
-    if (node->is_end)
-    {
-        for (uint8_t i = 0; i < METHOD_COUNT; i++)
-        {
-            if (node->middleware_ctx[i])
-            {
+    if (node->is_end) {
+        for (uint8_t i = 0; i < METHOD_COUNT; i++) {
+            if (node->middleware_ctx[i]) {
                 MiddlewareInfo *middleware_info = (MiddlewareInfo *)node->middleware_ctx[i];
                 if (middleware_info)
                     free_middleware_info(middleware_info);
@@ -327,8 +300,7 @@ static void trie_node_free(trie_node_t *node)
 
 static int method_to_index(llhttp_method_t method)
 {
-    switch (method)
-    {
+    switch (method) {
     case HTTP_DELETE:
         return METHOD_INDEX_DELETE;
     case HTTP_GET:
@@ -372,13 +344,10 @@ bool route_trie_match(route_trie_t *trie,
 
     trie_node_t *matched_node = NULL;
 
-    if (tokenized_path->count == 0)
-    {
+    if (tokenized_path->count == 0) {
         if (trie->root->is_end)
             matched_node = trie->root;
-    }
-    else
-    {
+    } else {
         trie_node_t *start_node = trie->root;
         unsigned char sep = '/';
         if (start_node->children[sep])
@@ -387,8 +356,7 @@ bool route_trie_match(route_trie_t *trie,
         matched_node = match_segments(start_node, tokenized_path, 0, match, 0, arena);
     }
 
-    if (matched_node && matched_node->handlers[method_idx])
-    {
+    if (matched_node && matched_node->handlers[method_idx]) {
         match->handler = matched_node->handlers[method_idx];
         match->middleware_ctx = matched_node->middleware_ctx[method_idx];
         return true;
@@ -404,8 +372,7 @@ route_trie_t *route_trie_create(void)
         return NULL;
 
     trie->root = trie_node_create();
-    if (!trie->root)
-    {
+    if (!trie->root) {
         free(trie);
         return NULL;
     }
@@ -423,8 +390,7 @@ int route_trie_add(route_trie_t *trie,
         return -1;
 
     int method_idx = method_to_index(method);
-    if (method_idx < 0)
-    {
+    if (method_idx < 0) {
         LOG_DEBUG("Unsupported HTTP method: %d", method);
         return -1;
     }
@@ -435,10 +401,8 @@ int route_trie_add(route_trie_t *trie,
     if (*p == '/')
         p++;
 
-    while (*p)
-    {
-        if (*p == ':')
-        {
+    while (*p) {
+        if (*p == ':') {
             p++;
 
             const char *param_start = p;
@@ -447,8 +411,7 @@ int route_trie_add(route_trie_t *trie,
 
             size_t param_len = p - param_start;
 
-            if (!current->param_child)
-            {
+            if (!current->param_child) {
                 current->param_child = trie_node_create();
                 if (!current->param_child)
                     return -1;
@@ -462,11 +425,8 @@ int route_trie_add(route_trie_t *trie,
             }
 
             current = current->param_child;
-        }
-        else if (*p == '*')
-        {
-            if (!current->wildcard_child)
-            {
+        } else if (*p == '*') {
+            if (!current->wildcard_child) {
                 current->wildcard_child = trie_node_create();
                 if (!current->wildcard_child)
                     return -1;
@@ -474,15 +434,11 @@ int route_trie_add(route_trie_t *trie,
 
             current = current->wildcard_child;
             break;
-        }
-        else
-        {
-            while (*p && *p != '/')
-            {
+        } else {
+            while (*p && *p != '/') {
                 unsigned char c = (unsigned char)*p;
 
-                if (!current->children[c])
-                {
+                if (!current->children[c]) {
                     current->children[c] = trie_node_create();
                     if (!current->children[c])
                         return -1;
@@ -493,11 +449,9 @@ int route_trie_add(route_trie_t *trie,
             }
         }
 
-        if (*p == '/')
-        {
+        if (*p == '/') {
             unsigned char c = (unsigned char)'/';
-            if (!current->children[c])
-            {
+            if (!current->children[c]) {
                 current->children[c] = trie_node_create();
                 if (!current->children[c])
                     return -1;

@@ -55,10 +55,10 @@ void setup_routes(void)
     get("/old-path", handler_redirect);
     get("/new-location", handler_new_location);
     get("/redirect-injection", handler_header_injection);
-    
+
     // test-concurrent request
     get("/counter", handler_counter);
-    
+
     // test-spawn
     get("/compute", handler_compute);
     post("/background", handler_fire_and_forget);
@@ -70,7 +70,7 @@ void setup_routes(void)
     get("/main-thread", handler_get_main_thread);
     get("/fast", handler_fast);
     get("/slow", handler_slow);
-    
+
     // test-root
     get("/", handler_root);
 }
@@ -136,10 +136,10 @@ int main(void)
     // Redirect
     RUN_TEST(test_redirect);
     RUN_TEST(test_header_injection);
-    
+
     // Sequential Request
     RUN_TEST(test_sequential_requests);
-    
+
     // Spawn
     RUN_TEST(test_spawn_with_response);
     RUN_TEST(test_spawn_fire_and_forget);
@@ -149,7 +149,7 @@ int main(void)
     RUN_TEST(test_spawn_thread_ids);
     RUN_TEST(test_spawn_not_blocking);
     RUN_TEST(test_sync_blocking);
-    
+
     // Root
     RUN_TEST(test_root_path);
 

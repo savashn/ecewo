@@ -18,15 +18,15 @@ int test_sequential_requests(void)
             .method = MOCK_GET,
             .path = "/counter"
         };
-        
+
         MockResponse res = request(&params);
         ASSERT_EQ(200, res.status_code);
-        
+
         int count = atoi(res.body);
         ASSERT_EQ(i, count);
-        
+
         free_request(&res);
     }
-    
+
     RETURN_OK();
 }

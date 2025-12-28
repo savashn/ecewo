@@ -17,7 +17,7 @@ static void compute_work(void *context)
 static void compute_done(void *context)
 {
     compute_ctx_t *ctx = (compute_ctx_t *)context;
-    
+
     char *response = arena_sprintf(ctx->res->arena, "result=%d", ctx->result);
     send_text(ctx->res, 200, response);
 }
@@ -27,7 +27,7 @@ void handler_compute(Req *req, Res *res)
     compute_ctx_t *ctx = arena_alloc(req->arena, sizeof(compute_ctx_t));
     ctx->res = res;
     ctx->result = 0;
-    
+
     spawn(ctx, compute_work, compute_done);
 }
 
@@ -37,13 +37,13 @@ int test_spawn_with_response(void)
         .method = MOCK_GET,
         .path = "/compute"
     };
-    
+
     MockResponse res = request(&params);
-    
+
     ASSERT_EQ(200, res.status_code);
     ASSERT_NOT_NULL(res.body);
     ASSERT_EQ_STR("result=84", res.body);
-    
+
     free_request(&res);
     RETURN_OK();
 }

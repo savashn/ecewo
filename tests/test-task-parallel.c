@@ -32,17 +32,15 @@ static void parallel_work_3(void *context)
 static void parallel_done(void *context)
 {
     parallel_ctx_t *ctx = (parallel_ctx_t *)context;
-    
+
     ctx->completed++;
-    
-    if (ctx->has_error && ctx->completed == 1)
-    {
+
+    if (ctx->has_error && ctx->completed == 1) {
         send_text(ctx->res, 500, "spawn failed");
         return;
     }
-    
-    if (ctx->completed == ctx->total && !ctx->has_error)
-    {
+
+    if (ctx->completed == ctx->total && !ctx->has_error) {
         int sum = ctx->results[0] + ctx->results[1] + ctx->results[2];
         char *response = arena_sprintf(ctx->res->arena, "{\"sum\":%d}", sum);
         send_json(ctx->res, 200, response);
@@ -59,7 +57,7 @@ void handler_parallel(Req *req, Res *res)
     ctx->results[1] = 0;
     ctx->results[2] = 0;
     ctx->has_error = false;
-    
+
     spawn(ctx, parallel_work_1, parallel_done);
     spawn(ctx, parallel_work_2, parallel_done);
     spawn(ctx, parallel_work_3, parallel_done);
@@ -71,12 +69,12 @@ int test_spawn_parallel(void)
         .method = MOCK_GET,
         .path = "/parallel"
     };
-    
+
     MockResponse res = request(&params);
-    
+
     ASSERT_EQ(200, res.status_code);
     ASSERT_EQ_STR("{\"sum\":60}", res.body);
-    
+
     free_request(&res);
     RETURN_OK();
 }

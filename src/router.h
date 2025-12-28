@@ -4,8 +4,7 @@
 #include "ecewo.h"
 #include "server.h"
 
-typedef enum RouterResult
-{
+typedef enum RouterResult {
     REQUEST_KEEP_ALIVE,
     REQUEST_CLOSE,
     REQUEST_PENDING

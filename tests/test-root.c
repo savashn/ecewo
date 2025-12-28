@@ -14,12 +14,12 @@ int test_root_path(void)
         .method = MOCK_GET,
         .path = "/"
     };
-    
+
     MockResponse res = request(&params);
-    
+
     ASSERT_EQ(200, res.status_code);
     ASSERT_EQ_STR("root", res.body);
-    
+
     free_request(&res);
     RETURN_OK();
 }

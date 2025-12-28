@@ -38,13 +38,12 @@ static void thread_test_done(void *context)
 {
     thread_test_ctx_t *ctx = context;
     ctx->done_thread_id = get_thread_id();
-    
+
     char *response = arena_sprintf(ctx->res->arena, "%" PRIu64 ",%" PRIu64 ",%" PRIu64,
                                    ctx->main_thread_id,
                                    ctx->work_thread_id,
-                                   ctx->done_thread_id
-    );
-    
+                                   ctx->done_thread_id);
+
     send_text(ctx->res, 200, response);
 }
 
@@ -60,7 +59,7 @@ void handler_thread_test(Req *req, Res *res)
     ctx->main_thread_id = get_thread_id();
     ctx->work_thread_id = 0;
     ctx->done_thread_id = 0;
-    
+
     spawn(ctx, thread_test_work, thread_test_done);
 }
 
@@ -122,13 +121,13 @@ int test_spawn_thread_ids(void)
 
     MockResponse main_res = request(&main_params);
     ASSERT_EQ(200, main_res.status_code);
-    
+
     uint64_t server_main_thread;
     sscanf(main_res.body, "%" SCNu64, &server_main_thread);
-    
+
     printf("\n  Server main thread: %" PRIu64 "\n", server_main_thread);
     free_request(&main_res);
-    
+
     MockParams spawn_params = {
         .method = MOCK_GET,
         .path = "/thread-test"
@@ -137,24 +136,24 @@ int test_spawn_thread_ids(void)
     MockResponse spawn_res = request(&spawn_params);
     ASSERT_EQ(200, spawn_res.status_code);
     ASSERT_NOT_NULL(spawn_res.body);
-    
+
     uint64_t handler_tid, work_tid, done_tid;
-    
+
     int parsed = sscanf(spawn_res.body, "%" SCNu64 ",%" SCNu64 ",%" SCNu64,
                         &handler_tid,
                         &work_tid,
                         &done_tid);
 
     ASSERT_EQ(3, parsed);
-    
+
     printf("  Handler thread: %" PRIu64 "\n", handler_tid);
     printf("  Work thread:    %" PRIu64 "\n", work_tid);
     printf("  Done thread:    %" PRIu64 "\n", done_tid);
-    
+
     ASSERT_EQ(server_main_thread, handler_tid);
     ASSERT_NE(server_main_thread, work_tid);
     ASSERT_EQ(server_main_thread, done_tid);
-    
+
     free_request(&spawn_res);
     RETURN_OK();
 }

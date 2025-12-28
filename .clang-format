@@ -1,0 +1,9 @@
+---
+BasedOnStyle: WebKit
+Language: C
+
+PointerAlignment: Right
+ReferenceAlignment: Right
+SortIncludes: Never
+AlignAfterOpenBracket: Align
+BinPackParameters: false

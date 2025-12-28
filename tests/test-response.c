@@ -15,12 +15,12 @@ int test_json_content_type(void)
         .method = MOCK_GET,
         .path = "/json-response"
     };
-    
+
     MockResponse res = request(&params);
-    
+
     ASSERT_EQ(200, res.status_code);
     ASSERT_EQ_STR("{\"status\":\"ok\"}", res.body);
-    
+
     free_request(&res);
     RETURN_OK();
 }
@@ -38,12 +38,12 @@ int test_html_content_type(void)
         .method = MOCK_GET,
         .path = "/html-response"
     };
-    
+
     MockResponse res = request(&params);
-    
+
     ASSERT_EQ(200, res.status_code);
     ASSERT_EQ_STR("<h1>Hello</h1>", res.body);
-    
+
     free_request(&res);
     RETURN_OK();
 }
@@ -56,7 +56,7 @@ void handler_status_codes(Req *req, Res *res)
         send_text(res, 400, "Missing code");
         return;
     }
-    
+
     int status = atoi(code);
     send_text(res, status, "Status test");
 }
@@ -67,10 +67,10 @@ int test_status_201(void)
         .method = MOCK_GET,
         .path = "/status?code=201"
     };
-    
+
     MockResponse res = request(&params);
     ASSERT_EQ(201, res.status_code);
-    
+
     free_request(&res);
     RETURN_OK();
 }
@@ -81,10 +81,10 @@ int test_status_404(void)
         .method = MOCK_GET,
         .path = "/status?code=404"
     };
-    
+
     MockResponse res = request(&params);
     ASSERT_EQ(404, res.status_code);
-    
+
     free_request(&res);
     RETURN_OK();
 }
@@ -95,10 +95,10 @@ int test_status_500(void)
         .method = MOCK_GET,
         .path = "/status?code=500"
     };
-    
+
     MockResponse res = request(&params);
     ASSERT_EQ(500, res.status_code);
-    
+
     free_request(&res);
     RETURN_OK();
 }
@@ -109,10 +109,10 @@ int test_404_unknown_path(void)
         .method = MOCK_GET,
         .path = "/this/path/does/not/exist"
     };
-    
+
     MockResponse res = request(&params);
     ASSERT_EQ(404, res.status_code);
-    
+
     free_request(&res);
     RETURN_OK();
 }
@@ -124,10 +124,10 @@ int test_404_wrong_method(void)
         .method = MOCK_DELETE,
         .path = "/users/123"
     };
-    
+
     MockResponse res = request(&params);
     ASSERT_EQ(404, res.status_code);
-    
+
     free_request(&res);
     RETURN_OK();
 }

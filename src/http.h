@@ -4,12 +4,11 @@
 #include "ecewo.h"
 #include "llhttp.h"
 
-typedef enum
-{
-    PARSE_SUCCESS = 0,    // Parsing completed successfully
+typedef enum {
+    PARSE_SUCCESS = 0, // Parsing completed successfully
     PARSE_INCOMPLETE = 1, // Need more data
-    PARSE_ERROR = -1,     // Parse error occurred
-    PARSE_OVERFLOW = -2   // Buffer overflow or size limit exceeded
+    PARSE_ERROR = -1, // Parse error occurred
+    PARSE_OVERFLOW = -2 // Buffer overflow or size limit exceeded
 } parse_result_t;
 
 typedef struct

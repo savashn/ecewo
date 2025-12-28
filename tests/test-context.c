@@ -16,60 +16,56 @@ typedef struct
 void context_middleware(Req *req, Res *res, Next next)
 {
     const char *token = get_header(req, "Authorization");
-    
-    if (!token)
-    {
+
+    if (!token) {
         send_text(res, 401, "Unauthorized");
         return;
     }
-    
+
     user_ctx_t *ctx = arena_alloc(req->arena, sizeof(user_ctx_t));
     ctx->user_id = arena_strdup(req->arena, "user123");
     ctx->role = arena_strdup(req->arena, "admin");
-    
+
     set_context(req, "user_ctx", ctx);
-    
+
     next(req, res);
 }
 
 void context_handler(Req *req, Res *res)
 {
     user_ctx_t *ctx = (user_ctx_t *)get_context(req, "user_ctx");
-    
-    if (!ctx)
-    {
+
+    if (!ctx) {
         send_text(res, 500, "Internal Server Error");
         return;
     }
-    
-    if (strcmp(ctx->user_id, "user123") != 0 ||
-        strcmp(ctx->role, "admin") != 0)
-    {
+
+    if (strcmp(ctx->user_id, "user123") != 0 || strcmp(ctx->role, "admin") != 0) {
         send_text(res, FORBIDDEN, "Forbidden");
         return;
     }
-    
+
     send_text(res, 200, "Success!");
 }
 
 int test_context_basic(void)
 {
     MockHeaders headers[] = {
-        {"Authorization", "Bearer token"}
+        { "Authorization", "Bearer token" }
     };
-    
+
     MockParams params = {
         .method = MOCK_GET,
         .path = "/context",
         .headers = headers,
         .header_count = 1
     };
-    
+
     MockResponse res = request(&params);
-    
+
     ASSERT_EQ(200, res.status_code);
     ASSERT_EQ_STR("Success!", res.body);
-    
+
     free_request(&res);
     RETURN_OK();
 }
@@ -81,13 +77,12 @@ int test_context_basic(void)
 void handler_no_middleware(Req *req, Res *res)
 {
     user_ctx_t *ctx = (user_ctx_t *)get_context(req, "user_ctx");
-    
-    if (!ctx)
-    {
+
+    if (!ctx) {
         send_text(res, 500, "No context");
         return;
     }
-    
+
     send_text(res, 200, "OK");
 }
 
@@ -97,12 +92,12 @@ int test_context_missing(void)
         .method = MOCK_GET,
         .path = "/no-middleware"
     };
-    
+
     MockResponse res = request(&params);
-    
+
     ASSERT_EQ(500, res.status_code);
     ASSERT_EQ_STR("No context", res.body);
-    
+
     free_request(&res);
     RETURN_OK();
 }
@@ -114,7 +109,7 @@ int test_context_missing(void)
 void handler_nonexistent_key(Req *req, Res *res)
 {
     void *value = get_context(req, "nonexistent_key");
-    
+
     send_text(res, 200, value ? "found" : "null");
 }
 
@@ -124,12 +119,12 @@ int test_context_nonexistent_key(void)
         .method = MOCK_GET,
         .path = "/nonexistent-key"
     };
-    
+
     MockResponse res = request(&params);
-    
+
     ASSERT_EQ(200, res.status_code);
     ASSERT_EQ_STR("null", res.body);
-    
+
     free_request(&res);
     RETURN_OK();
 }
@@ -141,10 +136,10 @@ int test_context_nonexistent_key(void)
 void handler_overwrite(Req *req, Res *res)
 {
     set_context(req, "test", "value1");
-    set_context(req, "test", "value2");  // Should overwrite
-    
+    set_context(req, "test", "value2"); // Should overwrite
+
     const char *value = get_context(req, "test");
-    
+
     send_text(res, 200, value ? value : "null");
 }
 
@@ -154,12 +149,12 @@ int test_context_overwrite(void)
         .method = MOCK_GET,
         .path = "/overwrite"
     };
-    
+
     MockResponse res = request(&params);
-    
+
     ASSERT_EQ(200, res.status_code);
     ASSERT_EQ_STR("value2", res.body);
-    
+
     free_request(&res);
     RETURN_OK();
 }
@@ -173,11 +168,11 @@ void handler_multiple_keys(Req *req, Res *res)
     set_context(req, "key1", "a");
     set_context(req, "key2", "b");
     set_context(req, "key3", "c");
-    
+
     const char *v1 = get_context(req, "key1");
     const char *v2 = get_context(req, "key2");
     const char *v3 = get_context(req, "key3");
-    
+
     char *response = arena_sprintf(req->arena, "%s,%s,%s", v1, v2, v3);
     send_text(res, 200, response);
 }
@@ -188,12 +183,12 @@ int test_context_multiple_keys(void)
         .method = MOCK_GET,
         .path = "/multiple-keys"
     };
-    
+
     MockResponse res = request(&params);
-    
+
     ASSERT_EQ(200, res.status_code);
     ASSERT_EQ_STR("a,b,c", res.body);
-    
+
     free_request(&res);
     RETURN_OK();
 }
@@ -215,12 +210,12 @@ int test_context_null_data(void)
         .method = MOCK_GET,
         .path = "/null-data"
     };
-    
+
     MockResponse res = request(&params);
-    
+
     ASSERT_EQ(200, res.status_code);
     ASSERT_EQ_STR("null", res.body);
-    
+
     free_request(&res);
     RETURN_OK();
 }
@@ -245,12 +240,11 @@ void handler_chain_context(Req *req, Res *res)
 {
     const char *v1 = get_context(req, "mw1");
     const char *v2 = get_context(req, "mw2");
-    
+
     char *response = arena_sprintf(req->arena, "%s,%s",
-        v1 ? v1 : "null",
-        v2 ? v2 : "null"
-    );
-    
+                                   v1 ? v1 : "null",
+                                   v2 ? v2 : "null");
+
     send_text(res, 200, response);
 }
 
@@ -260,12 +254,12 @@ int test_context_middleware_chain(void)
         .method = MOCK_GET,
         .path = "/chain-context"
     };
-    
+
     MockResponse res = request(&params);
-    
+
     ASSERT_EQ(200, res.status_code);
     ASSERT_EQ_STR("first,second", res.body);
-    
+
     free_request(&res);
     RETURN_OK();
 }
@@ -289,20 +283,19 @@ void handler_complex_data(Req *req, Res *res)
     user->name = arena_strdup(req->arena, "John Doe");
     user->email = arena_strdup(req->arena, "john@example.com");
     user->is_admin = true;
-    
+
     set_context(req, "user", user);
-    
+
     // Retrieve and verify
     complex_user_t *retrieved = get_context(req, "user");
-    
-    char *response = arena_sprintf(req->arena, 
-        "id:%d,name:%s,email:%s,admin:%s",
-        retrieved->id,
-        retrieved->name,
-        retrieved->email,
-        retrieved->is_admin ? "yes" : "no"
-    );
-    
+
+    char *response = arena_sprintf(req->arena,
+                                   "id:%d,name:%s,email:%s,admin:%s",
+                                   retrieved->id,
+                                   retrieved->name,
+                                   retrieved->email,
+                                   retrieved->is_admin ? "yes" : "no");
+
     send_text(res, 200, response);
 }
 
@@ -312,12 +305,12 @@ int test_context_complex_data(void)
         .method = MOCK_GET,
         .path = "/complex-data"
     };
-    
+
     MockResponse res = request(&params);
-    
+
     ASSERT_EQ(200, res.status_code);
     ASSERT_EQ_STR("id:123,name:John Doe,email:john@example.com,admin:yes", res.body);
-    
+
     free_request(&res);
     RETURN_OK();
 }
@@ -333,12 +326,12 @@ int test_context_unauthorized(void)
         .path = "/context"
         // No Authorization header
     };
-    
+
     MockResponse res = request(&params);
-    
+
     ASSERT_EQ(401, res.status_code);
     ASSERT_EQ_STR("Unauthorized", res.body);
-    
+
     free_request(&res);
     RETURN_OK();
 }

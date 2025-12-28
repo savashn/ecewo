@@ -60,8 +60,7 @@ int spawn(void *context, spawn_handler_t work_fn, spawn_handler_t done_fn)
     if (!task)
         return -1;
 
-    if (uv_async_init(uv_default_loop(), &task->async_send, spawn_async_cb) != 0)
-    {
+    if (uv_async_init(uv_default_loop(), &task->async_send, spawn_async_cb) != 0) {
         free(task);
         return -1;
     }
@@ -80,8 +79,7 @@ int spawn(void *context, spawn_handler_t work_fn, spawn_handler_t done_fn)
         spawn_work_cb,
         spawn_after_work_cb);
 
-    if (result != 0)
-    {
+    if (result != 0) {
         uv_close((uv_handle_t *)&task->async_send, NULL);
         decrement_async_work();
         free(task);

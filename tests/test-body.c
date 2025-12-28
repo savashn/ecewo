@@ -15,21 +15,21 @@ int test_large_body(void)
     char *large_body = malloc(size + 1);
     memset(large_body, 'A', size);
     large_body[size] = '\0';
-    
+
     MockParams params = {
         .method = MOCK_POST,
         .path = "/large-body",
         .body = large_body
     };
-    
+
     MockResponse res = request(&params);
-    
+
     ASSERT_EQ(200, res.status_code);
-    
+
     char expected[32];
     snprintf(expected, sizeof(expected), "received=%zu", size);
     ASSERT_EQ_STR(expected, res.body);
-    
+
     free(large_body);
     free_request(&res);
     RETURN_OK();

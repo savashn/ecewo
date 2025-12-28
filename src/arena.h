@@ -7,8 +7,7 @@
 #define ARENA_REGION_SIZE (64 * 1024)
 #endif
 
-struct ArenaRegion
-{
+struct ArenaRegion {
     struct ArenaRegion *next;
     size_t count;
     size_t capacity;

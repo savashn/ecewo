@@ -28,8 +28,7 @@ void *arena_alloc(Arena *a, size_t size_bytes)
 {
     size_t size = (size_bytes + sizeof(uintptr_t) - 1) / sizeof(uintptr_t);
 
-    if (a->end == NULL)
-    {
+    if (a->end == NULL) {
         size_t capacity = ARENA_REGION_SIZE;
         if (capacity < size)
             capacity = size;
@@ -39,13 +38,11 @@ void *arena_alloc(Arena *a, size_t size_bytes)
         a->begin = a->end;
     }
 
-    while (a->end->count + size > a->end->capacity && a->end->next != NULL)
-    {
+    while (a->end->count + size > a->end->capacity && a->end->next != NULL) {
         a->end = a->end->next;
     }
 
-    if (a->end->count + size > a->end->capacity)
-    {
+    if (a->end->count + size > a->end->capacity) {
         size_t capacity = ARENA_REGION_SIZE;
         if (capacity < size)
             capacity = size;
@@ -72,8 +69,7 @@ void *arena_realloc(Arena *a, void *oldptr, size_t oldsz, size_t newsz)
 
     char *newptr_char = (char *)newptr;
     char *oldptr_char = (char *)oldptr;
-    for (size_t i = 0; i < oldsz; ++i)
-    {
+    for (size_t i = 0; i < oldsz; ++i) {
         newptr_char[i] = oldptr_char[i];
     }
     return newptr;
@@ -159,8 +155,7 @@ char *arena_sprintf(Arena *a, const char *format, ...)
 void arena_free(Arena *a)
 {
     ArenaRegion *r = a->begin;
-    while (r)
-    {
+    while (r) {
         ArenaRegion *r0 = r;
         r = r->next;
         free_region(r0);
@@ -173,13 +168,12 @@ void arena_reset(Arena *a)
 {
     if (!a || !a->begin)
         return;
-    
+
     ArenaRegion *region = a->begin;
-    while (region)
-    {
+    while (region) {
         region->count = 0;
         region = region->next;
     }
-    
+
     a->end = a->begin;
 }

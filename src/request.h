@@ -10,8 +10,7 @@ typedef struct
     void *data;
 } context_entry_t;
 
-struct context_t
-{
+struct context_t {
     context_entry_t *entries;
     uint32_t count;
     uint32_t capacity;

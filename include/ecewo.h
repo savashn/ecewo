@@ -17,8 +17,7 @@ typedef uv_timer_t Timer;
 
 typedef struct ArenaRegion ArenaRegion;
 
-typedef struct Arena
-{
+typedef struct Arena {
     ArenaRegion *begin, *end;
 } Arena;
 
@@ -80,8 +79,7 @@ typedef struct
     bool is_head_request;
 } Res;
 
-typedef enum
-{
+typedef enum {
     // 1xx Informational
     CONTINUE = 100,
     SWITCHING_PROTOCOLS = 101,
@@ -155,7 +153,7 @@ typedef enum
     NETWORK_AUTHENTICATION_REQUIRED = 511
 } http_status_t;
 
-typedef void (*Next)(Req*, Res*);
+typedef void (*Next)(Req *, Res *);
 typedef void (*RequestHandler)(Req *req, Res *res);
 typedef void (*MiddlewareHandler)(Req *req, Res *res, Next next);
 
@@ -232,8 +230,7 @@ typedef void (*spawn_handler_t)(void *context);
 int spawn(void *context, spawn_handler_t work_fn, spawn_handler_t done_fn);
 
 // ROUTE REGISTRATION
-typedef enum
-{
+typedef enum {
     HTTP_METHOD_DELETE = 0,
     HTTP_METHOD_GET = 1,
     HTTP_METHOD_HEAD = 2,
@@ -244,7 +241,7 @@ typedef enum
 } http_method_t;
 
 #define MW(...) \
-    (sizeof((void*[]){__VA_ARGS__}) / sizeof(void*) - 1)
+    (sizeof((void *[]) { __VA_ARGS__ }) / sizeof(void *) - 1)
 
 void register_get(const char *path, int mw_count, ...);
 void register_post(const char *path, int mw_count, ...);
@@ -280,8 +277,7 @@ void increment_async_work(void);
 void decrement_async_work(void);
 uv_loop_t *get_loop(void);
 
-typedef struct TakeoverConfig
-{
+typedef struct TakeoverConfig {
     void *alloc_cb;
     void *read_cb;
     void *close_cb;

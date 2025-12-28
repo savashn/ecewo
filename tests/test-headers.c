@@ -7,35 +7,35 @@ void handler_echo_headers(Req *req, Res *res)
     const char *auth = get_header(req, "Authorization");
     const char *content_type = get_header(req, "Content-Type");
     const char *custom = get_header(req, "X-Custom-Header");
-    
+
     char *response = arena_sprintf(req->arena, "auth=%s,ct=%s,custom=%s",
-        auth ? auth : "null",
-        content_type ? content_type : "null",
-        custom ? custom : "null");
-    
+                                   auth ? auth : "null",
+                                   content_type ? content_type : "null",
+                                   custom ? custom : "null");
+
     send_text(res, 200, response);
 }
 
 int test_request_headers(void)
 {
     MockHeaders headers[] = {
-        {"Authorization", "Bearer token123"},
-        {"Content-Type", "application/json"},
-        {"X-Custom-Header", "custom-value"}
+        { "Authorization", "Bearer token123" },
+        { "Content-Type", "application/json" },
+        { "X-Custom-Header", "custom-value" }
     };
-    
+
     MockParams params = {
         .method = MOCK_GET,
         .path = "/headers",
         .headers = headers,
         .header_count = 3
     };
-    
+
     MockResponse res = request(&params);
-    
+
     ASSERT_EQ(200, res.status_code);
     ASSERT_EQ_STR("auth=Bearer token123,ct=application/json,custom=custom-value", res.body);
-    
+
     free_request(&res);
     RETURN_OK();
 }
@@ -55,22 +55,22 @@ int test_set_headers(void)
         .method = MOCK_GET,
         .path = "/custom-headers"
     };
-    
+
     MockResponse res = request(&params);
-    
+
     ASSERT_EQ(200, res.status_code);
     ASSERT_EQ_STR("OK", res.body);
-    
+
     ASSERT_NOT_NULL(mock_get_header(&res, "Content-Type"));
     ASSERT_NOT_NULL(mock_get_header(&res, "content-type"));
     ASSERT_NOT_NULL(mock_get_header(&res, "CONTENT-TYPE"));
     ASSERT_NOT_NULL(mock_get_header(&res, "CoNtEnT-TyPe"));
-    
+
     ASSERT_EQ_STR("text/plain", mock_get_header(&res, "Content-Type"));
     ASSERT_EQ_STR("test-value", mock_get_header(&res, "X-Custom-Header"));
     ASSERT_EQ_STR("12345", mock_get_header(&res, "X-Request-Id"));
     ASSERT_EQ_STR("no-cache", mock_get_header(&res, "Cache-Control"));
-    
+
     free_request(&res);
     RETURN_OK();
 }
@@ -78,7 +78,7 @@ int test_set_headers(void)
 void handler_header_injection(Req *req, Res *res)
 {
     (void)req;
-    
+
     set_header(res, "X-Evil", "value\r\nSet-Cookie: hacked=1");
     set_header(res, "X-Valid", "normal-value");
     send_text(res, 200, "OK");
@@ -90,16 +90,16 @@ int test_header_injection(void)
         .method = MOCK_GET,
         .path = "/header-injection"
     };
-    
+
     MockResponse res = request(&params);
-    
+
     ASSERT_EQ(200, res.status_code);
-    
+
     ASSERT_NULL(mock_get_header(&res, "X-Evil"));
     ASSERT_NULL(mock_get_header(&res, "Set-Cookie"));
-    
+
     ASSERT_EQ_STR("normal-value", mock_get_header(&res, "X-Valid"));
-    
+
     free_request(&res);
     RETURN_OK();
 }

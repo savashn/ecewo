@@ -22,8 +22,7 @@ static int extract_url_params(Arena *arena, const route_match_t *match, request_
     url_params->capacity = match->param_count;
     url_params->count = match->param_count;
     url_params->items = arena_alloc(arena, sizeof(request_item_t) * url_params->capacity);
-    if (!url_params->items)
-    {
+    if (!url_params->items) {
         url_params->capacity = 0;
         url_params->count = 0;
         return -1;
@@ -31,8 +30,7 @@ static int extract_url_params(Arena *arena, const route_match_t *match, request_
 
     const param_match_t *source = match->params ? match->params : match->inline_params;
 
-    for (uint8_t i = 0; i < match->param_count; i++)
-    {
+    for (uint8_t i = 0; i < match->param_count; i++) {
         const string_view_t *key_sv = &source[i].key;
         const string_view_t *value_sv = &source[i].value;
 
@@ -103,20 +101,17 @@ static int populate_req_from_context(Req *req, http_context_t *ctx, const char *
 
     Arena *arena = req->arena;
 
-    if (ctx->method && ctx->method_length > 0)
-    {
+    if (ctx->method && ctx->method_length > 0) {
         req->method = arena_alloc(arena, ctx->method_length + 1);
         if (!req->method)
             return -1;
         arena_memcpy(req->method, ctx->method, ctx->method_length);
         req->method[ctx->method_length] = '\0';
 
-        req->is_head_request = (ctx->method_length == 4 && 
-                                memcmp(ctx->method, "HEAD", 4) == 0);
+        req->is_head_request = (ctx->method_length == 4 && memcmp(ctx->method, "HEAD", 4) == 0);
     }
 
-    if (path && path_len > 0)
-    {
+    if (path && path_len > 0) {
         req->path = arena_alloc(arena, path_len + 1);
         if (!req->path)
             return -1;
@@ -124,8 +119,7 @@ static int populate_req_from_context(Req *req, http_context_t *ctx, const char *
         req->path[path_len] = '\0';
     }
 
-    if (ctx->body && ctx->body_length > 0)
-    {
+    if (ctx->body && ctx->body_length > 0) {
         req->body = arena_alloc(arena, ctx->body_length + 1);
         if (!req->body)
             return -1;
@@ -148,8 +142,7 @@ int router(client_t *client, const char *request_data, size_t request_len)
     uv_tcp_t *handle = (uv_tcp_t *)&client->handle;
     http_context_t *persistent_ctx = &client->persistent_context;
 
-    if (!client || !request_data || request_len == 0)
-    {
+    if (!client || !request_data || request_len == 0) {
         if (client && client->handle.data)
             send_error(NULL, handle, 400);
         return REQUEST_CLOSE;
@@ -161,8 +154,7 @@ int router(client_t *client, const char *request_data, size_t request_len)
     // Parse the incoming data (appends to existing parsed data if partial)
     parse_result_t parse_result = http_parse_request(persistent_ctx, request_data, request_len);
 
-    switch (parse_result)
-    {
+    switch (parse_result) {
     case PARSE_SUCCESS:
         break;
 
@@ -190,8 +182,7 @@ int router(client_t *client, const char *request_data, size_t request_len)
 
     Arena *request_arena = client->connection_arena;
 
-    if (!request_arena)
-    {
+    if (!request_arena) {
         send_error(NULL, handle, 500);
         return REQUEST_CLOSE;
     }
@@ -199,18 +190,15 @@ int router(client_t *client, const char *request_data, size_t request_len)
     Req *req = create_req(request_arena, handle);
     Res *res = create_res(request_arena, handle);
 
-    if (!req || !res)
-    {
+    if (!req || !res) {
         send_error(request_arena, handle, 500);
         return REQUEST_CLOSE;
     }
 
     // Check if we need to finish parsing
-    if (http_message_needs_eof(persistent_ctx))
-    {
+    if (http_message_needs_eof(persistent_ctx)) {
         parse_result_t finish_result = http_finish_parsing(persistent_ctx);
-        if (finish_result != PARSE_SUCCESS)
-        {
+        if (finish_result != PARSE_SUCCESS) {
             LOG_ERROR("HTTP finish parsing failed: %s", parse_result_to_string(finish_result));
 
             if (persistent_ctx->error_reason)
@@ -226,24 +214,20 @@ int router(client_t *client, const char *request_data, size_t request_len)
     const char *path = persistent_ctx->url;
     size_t path_len = persistent_ctx->path_length;
 
-    if (!path || path_len == 0)
-    {
+    if (!path || path_len == 0) {
         path = "/";
         path_len = 1;
     }
 
-    if (!path)
-    {
+    if (!path) {
         send_error(request_arena, handle, 400);
         return REQUEST_CLOSE;
     }
 
-    if (!global_route_trie || !persistent_ctx->method)
-    {
+    if (!global_route_trie || !persistent_ctx->method) {
         LOG_DEBUG("Missing route trie (%p) or method (%s)",
                   (void *)global_route_trie,
-                  persistent_ctx->method ? persistent_ctx->method : "NULL"
-        );
+                  persistent_ctx->method ? persistent_ctx->method : "NULL");
 
         // 404 but still success response
         bool keep_alive = res->keep_alive;
@@ -253,16 +237,14 @@ int router(client_t *client, const char *request_data, size_t request_len)
         return keep_alive ? REQUEST_KEEP_ALIVE : REQUEST_CLOSE;
     }
 
-    tokenized_path_t tokenized_path = {0};
-    if (tokenize_path(request_arena, path, path_len, &tokenized_path) != 0)
-    {
+    tokenized_path_t tokenized_path = { 0 };
+    if (tokenize_path(request_arena, path, path_len, &tokenized_path) != 0) {
         send_error(request_arena, handle, 500);
         return REQUEST_CLOSE;
     }
 
     route_match_t match;
-    if (!route_trie_match(global_route_trie, persistent_ctx->parser, &tokenized_path, &match, request_arena))
-    {
+    if (!route_trie_match(global_route_trie, persistent_ctx->parser, &tokenized_path, &match, request_arena)) {
         LOG_DEBUG("Route not found: %s %s", persistent_ctx->method, path);
 
         bool keep_alive = res->keep_alive;
@@ -272,30 +254,26 @@ int router(client_t *client, const char *request_data, size_t request_len)
         return keep_alive ? REQUEST_KEEP_ALIVE : REQUEST_CLOSE;
     }
 
-    if (extract_url_params(request_arena, &match, &req->params) != 0)
-    {
+    if (extract_url_params(request_arena, &match, &req->params) != 0) {
         send_error(request_arena, handle, 500);
         return REQUEST_CLOSE;
     }
 
-    if (populate_req_from_context(req, persistent_ctx, path, path_len) != 0)
-    {
+    if (populate_req_from_context(req, persistent_ctx, path, path_len) != 0) {
         send_error(request_arena, handle, 500);
         return REQUEST_CLOSE;
     }
 
     res->is_head_request = req->is_head_request;
 
-    if (!match.handler)
-    {
+    if (!match.handler) {
         send_error(request_arena, handle, 500);
         return REQUEST_CLOSE;
     }
 
     MiddlewareInfo *middleware_info = (MiddlewareInfo *)match.middleware_ctx;
 
-    if (!middleware_info)
-    {
+    if (!middleware_info) {
         LOG_DEBUG("No middleware info");
         match.handler(req, res);
         return res->keep_alive ? REQUEST_KEEP_ALIVE : REQUEST_CLOSE;

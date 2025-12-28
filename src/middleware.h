@@ -8,8 +8,7 @@
 #define INITIAL_MW_CAPACITY 8
 #endif
 
-typedef struct MiddlewareInfo
-{
+typedef struct MiddlewareInfo {
     MiddlewareHandler *middleware;
     uint16_t middleware_count;
     RequestHandler handler;
