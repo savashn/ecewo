@@ -22,7 +22,7 @@
 
 ## Requirements
 
-- GCC or Clang
+- A C compiler (GCC or Clang)
 - CMake version 3.14 or higher
 
 ## Quick Start
@@ -34,6 +34,7 @@
 
 void hello_world(Req *req, Res *res)
 {
+    (void)req;
     send_text(res, OK, "Hello, World!");
 }
 
@@ -68,7 +69,7 @@ include(FetchContent)
 FetchContent_Declare(
     ecewo
     GIT_REPOSITORY https://github.com/savashn/ecewo.git
-    GIT_TAG v2.3.1
+    GIT_TAG v3.0.0
 )
 
 FetchContent_MakeAvailable(ecewo)
@@ -88,16 +89,18 @@ mkdir build && cd build && cmake .. && cmake --build .
 
 ## Benchmarks
 
-Here are 'Hello World' benchmark results for several frameworks compared to ecewo. See the source code of the [benchmark test](https://github.com/savashn/ecewo-benchmarks).
+Here are "Hello World" benchmark results comparing several frameworks with ecewo. See the source code of the [benchmark test](https://github.com/savashn/ecewo-benchmarks).
 
-Lower is better.
+- **Machine:** 12th Gen Intel Core i7-12700F x 20, 32GB RAM, SSD
+- **OS:** Fedora Workstation 43
+- **Method:** `wrk -t8 -c100 -d40s http://localhost:3000` * 2, taking the second results.
 
-| Framework  | Average | Median  | Max     | P90    | P95    |
-| ---------- | ------- | ------- | ------- | ------ | ------ |
-| ecewo      | 0.387ms | 0.152ms | 7.23ms  | 0.99ms | 1.09ms |
-| axum       | 0.442ms | 0.505ms | 5.61ms  | 1.01ms | 1.21ms |
-| go         | 0.958ms | 0.725ms | 12.62ms | 1.97ms | 2.48ms |
-| express.js | 1.85ms  | 1.58ms  | 11.05ms | 3.48ms | 4.27ms |
+| Framework | Req/Sec   | Transfer/Sec |
+|-----------|-----------|--------------|
+| ecewo     | 1,208,226 | 178.60 MB    |
+| axum      | 1,192,785 | 168.35 MB    |
+| go        | 893,248   | 115.85 MB    |
+| express   | 93,214    | 23.20 MB     |
 
 ## Dependencies
 
