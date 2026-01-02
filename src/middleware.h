@@ -9,9 +9,9 @@
 #endif
 
 typedef struct MiddlewareInfo {
-    MiddlewareHandler *middleware;
-    uint16_t middleware_count;
-    RequestHandler handler;
+  MiddlewareHandler *middleware;
+  uint16_t middleware_count;
+  RequestHandler handler;
 } MiddlewareInfo;
 
 extern MiddlewareHandler *global_middleware;

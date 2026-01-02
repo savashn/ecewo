@@ -18,139 +18,139 @@ typedef uv_timer_t Timer;
 typedef struct ArenaRegion ArenaRegion;
 
 typedef struct Arena {
-    ArenaRegion *begin, *end;
+  ArenaRegion *begin, *end;
 } Arena;
 
 // Internal struct, do not use it
 typedef struct
 {
-    const char *key;
-    const char *value;
+  const char *key;
+  const char *value;
 } request_item_t;
 
 // Internal struct, do not use it
 typedef struct
 {
-    request_item_t *items;
-    uint16_t count;
-    uint16_t capacity;
+  request_item_t *items;
+  uint16_t count;
+  uint16_t capacity;
 } request_t;
 
 typedef struct context_t context_t;
 
 typedef struct
 {
-    Arena *arena;
-    uv_tcp_t *client_socket;
-    char *method;
-    char *path;
-    char *body;
-    size_t body_len;
-    request_t headers;
-    request_t query;
-    request_t params;
-    context_t *ctx;
-    uint8_t http_major;
-    uint8_t http_minor;
-    bool is_head_request;
-    void *chain;
+  Arena *arena;
+  uv_tcp_t *client_socket;
+  char *method;
+  char *path;
+  char *body;
+  size_t body_len;
+  request_t headers;
+  request_t query;
+  request_t params;
+  context_t *ctx;
+  uint8_t http_major;
+  uint8_t http_minor;
+  bool is_head_request;
+  void *chain;
 } Req;
 
 // Internal struct, do not use it
 typedef struct
 {
-    const char *name;
-    const char *value;
+  const char *name;
+  const char *value;
 } http_header_t;
 
 typedef struct
 {
-    Arena *arena;
-    uv_tcp_t *client_socket;
-    uint16_t status;
-    char *content_type;
-    void *body;
-    size_t body_len;
-    bool keep_alive;
-    http_header_t *headers;
-    uint16_t header_count;
-    uint16_t header_capacity;
-    bool replied;
-    bool is_head_request;
+  Arena *arena;
+  uv_tcp_t *client_socket;
+  uint16_t status;
+  char *content_type;
+  void *body;
+  size_t body_len;
+  bool keep_alive;
+  http_header_t *headers;
+  uint16_t header_count;
+  uint16_t header_capacity;
+  bool replied;
+  bool is_head_request;
 } Res;
 
 typedef enum {
-    // 1xx Informational
-    CONTINUE = 100,
-    SWITCHING_PROTOCOLS = 101,
-    PROCESSING = 102,
-    EARLY_HINTS = 103,
+  // 1xx Informational
+  CONTINUE = 100,
+  SWITCHING_PROTOCOLS = 101,
+  PROCESSING = 102,
+  EARLY_HINTS = 103,
 
-    // 2xx Success
-    OK = 200,
-    CREATED = 201,
-    ACCEPTED = 202,
-    NON_AUTHORITATIVE_INFORMATION = 203,
-    NO_CONTENT = 204,
-    RESET_CONTENT = 205,
-    PARTIAL_CONTENT = 206,
-    MULTI_STATUS = 207,
-    ALREADY_REPORTED = 208,
-    IM_USED = 226,
+  // 2xx Success
+  OK = 200,
+  CREATED = 201,
+  ACCEPTED = 202,
+  NON_AUTHORITATIVE_INFORMATION = 203,
+  NO_CONTENT = 204,
+  RESET_CONTENT = 205,
+  PARTIAL_CONTENT = 206,
+  MULTI_STATUS = 207,
+  ALREADY_REPORTED = 208,
+  IM_USED = 226,
 
-    // 3xx Redirection
-    MULTIPLE_CHOICES = 300,
-    MOVED_PERMANENTLY = 301,
-    FOUND = 302,
-    SEE_OTHER = 303,
-    NOT_MODIFIED = 304,
-    USE_PROXY = 305,
-    TEMPORARY_REDIRECT = 307,
-    PERMANENT_REDIRECT = 308,
+  // 3xx Redirection
+  MULTIPLE_CHOICES = 300,
+  MOVED_PERMANENTLY = 301,
+  FOUND = 302,
+  SEE_OTHER = 303,
+  NOT_MODIFIED = 304,
+  USE_PROXY = 305,
+  TEMPORARY_REDIRECT = 307,
+  PERMANENT_REDIRECT = 308,
 
-    // 4xx Client Error
-    BAD_REQUEST = 400,
-    UNAUTHORIZED = 401,
-    PAYMENT_REQUIRED = 402,
-    FORBIDDEN = 403,
-    NOT_FOUND = 404,
-    METHOD_NOT_ALLOWED = 405,
-    NOT_ACCEPTABLE = 406,
-    PROXY_AUTHENTICATION_REQUIRED = 407,
-    REQUEST_TIMEOUT = 408,
-    CONFLICT = 409,
-    GONE = 410,
-    LENGTH_REQUIRED = 411,
-    PRECONDITION_FAILED = 412,
-    PAYLOAD_TOO_LARGE = 413,
-    URI_TOO_LONG = 414,
-    UNSUPPORTED_MEDIA_TYPE = 415,
-    RANGE_NOT_SATISFIABLE = 416,
-    EXPECTATION_FAILED = 417,
-    IM_A_TEAPOT = 418,
-    MISDIRECTED_REQUEST = 421,
-    UNPROCESSABLE_ENTITY = 422,
-    LOCKED = 423,
-    FAILED_DEPENDENCY = 424,
-    TOO_EARLY = 425,
-    UPGRADE_REQUIRED = 426,
-    PRECONDITION_REQUIRED = 428,
-    TOO_MANY_REQUESTS = 429,
-    REQUEST_HEADER_FIELDS_TOO_LARGE = 431,
-    UNAVAILABLE_FOR_LEGAL_REASONS = 451,
+  // 4xx Client Error
+  BAD_REQUEST = 400,
+  UNAUTHORIZED = 401,
+  PAYMENT_REQUIRED = 402,
+  FORBIDDEN = 403,
+  NOT_FOUND = 404,
+  METHOD_NOT_ALLOWED = 405,
+  NOT_ACCEPTABLE = 406,
+  PROXY_AUTHENTICATION_REQUIRED = 407,
+  REQUEST_TIMEOUT = 408,
+  CONFLICT = 409,
+  GONE = 410,
+  LENGTH_REQUIRED = 411,
+  PRECONDITION_FAILED = 412,
+  PAYLOAD_TOO_LARGE = 413,
+  URI_TOO_LONG = 414,
+  UNSUPPORTED_MEDIA_TYPE = 415,
+  RANGE_NOT_SATISFIABLE = 416,
+  EXPECTATION_FAILED = 417,
+  IM_A_TEAPOT = 418,
+  MISDIRECTED_REQUEST = 421,
+  UNPROCESSABLE_ENTITY = 422,
+  LOCKED = 423,
+  FAILED_DEPENDENCY = 424,
+  TOO_EARLY = 425,
+  UPGRADE_REQUIRED = 426,
+  PRECONDITION_REQUIRED = 428,
+  TOO_MANY_REQUESTS = 429,
+  REQUEST_HEADER_FIELDS_TOO_LARGE = 431,
+  UNAVAILABLE_FOR_LEGAL_REASONS = 451,
 
-    // 5xx Server Error
-    INTERNAL_SERVER_ERROR = 500,
-    NOT_IMPLEMENTED = 501,
-    BAD_GATEWAY = 502,
-    SERVICE_UNAVAILABLE = 503,
-    GATEWAY_TIMEOUT = 504,
-    HTTP_VERSION_NOT_SUPPORTED = 505,
-    VARIANT_ALSO_NEGOTIATES = 506,
-    INSUFFICIENT_STORAGE = 507,
-    LOOP_DETECTED = 508,
-    NOT_EXTENDED = 510,
-    NETWORK_AUTHENTICATION_REQUIRED = 511
+  // 5xx Server Error
+  INTERNAL_SERVER_ERROR = 500,
+  NOT_IMPLEMENTED = 501,
+  BAD_GATEWAY = 502,
+  SERVICE_UNAVAILABLE = 503,
+  GATEWAY_TIMEOUT = 504,
+  HTTP_VERSION_NOT_SUPPORTED = 505,
+  VARIANT_ALSO_NEGOTIATES = 506,
+  INSUFFICIENT_STORAGE = 507,
+  LOOP_DETECTED = 508,
+  NOT_EXTENDED = 510,
+  NETWORK_AUTHENTICATION_REQUIRED = 511
 } http_status_t;
 
 typedef void (*Next)(Req *, Res *);
@@ -186,22 +186,19 @@ void redirect(Res *res, int status, const char *url);
 // Multiple calls with same name will add multiple headers.
 void set_header(Res *res, const char *name, const char *value);
 
-static inline void send_text(Res *res, int status, const char *body)
-{
-    set_header(res, "Content-Type", "text/plain");
-    reply(res, status, body, strlen(body));
+static inline void send_text(Res *res, int status, const char *body) {
+  set_header(res, "Content-Type", "text/plain");
+  reply(res, status, body, strlen(body));
 }
 
-static inline void send_html(Res *res, int status, const char *body)
-{
-    set_header(res, "Content-Type", "text/html");
-    reply(res, status, body, strlen(body));
+static inline void send_html(Res *res, int status, const char *body) {
+  set_header(res, "Content-Type", "text/html");
+  reply(res, status, body, strlen(body));
 }
 
-static inline void send_json(Res *res, int status, const char *body)
-{
-    set_header(res, "Content-Type", "application/json");
-    reply(res, status, body, strlen(body));
+static inline void send_json(Res *res, int status, const char *body) {
+  set_header(res, "Content-Type", "application/json");
+  reply(res, status, body, strlen(body));
 }
 
 // ARENA FUNCTIONS
@@ -231,17 +228,17 @@ int spawn(void *context, spawn_handler_t work_fn, spawn_handler_t done_fn);
 
 // ROUTE REGISTRATION
 typedef enum {
-    HTTP_METHOD_DELETE = 0,
-    HTTP_METHOD_GET = 1,
-    HTTP_METHOD_HEAD = 2,
-    HTTP_METHOD_POST = 3,
-    HTTP_METHOD_PUT = 4,
-    HTTP_METHOD_OPTIONS = 6,
-    HTTP_METHOD_PATCH = 28
+  HTTP_METHOD_DELETE = 0,
+  HTTP_METHOD_GET = 1,
+  HTTP_METHOD_HEAD = 2,
+  HTTP_METHOD_POST = 3,
+  HTTP_METHOD_PUT = 4,
+  HTTP_METHOD_OPTIONS = 6,
+  HTTP_METHOD_PATCH = 28
 } http_method_t;
 
 #define MW(...) \
-    (sizeof((void *[]) { __VA_ARGS__ }) / sizeof(void *) - 1)
+  (sizeof((void *[]) { __VA_ARGS__ }) / sizeof(void *) - 1)
 
 void register_get(const char *path, int mw_count, ...);
 void register_post(const char *path, int mw_count, ...);
@@ -252,25 +249,25 @@ void register_head(const char *path, int mw_count, ...);
 void register_options(const char *path, int mw_count, ...);
 
 #define get(path, ...) \
-    register_get(path, MW(__VA_ARGS__), __VA_ARGS__)
+  register_get(path, MW(__VA_ARGS__), __VA_ARGS__)
 
 #define post(path, ...) \
-    register_post(path, MW(__VA_ARGS__), __VA_ARGS__)
+  register_post(path, MW(__VA_ARGS__), __VA_ARGS__)
 
 #define put(path, ...) \
-    register_put(path, MW(__VA_ARGS__), __VA_ARGS__)
+  register_put(path, MW(__VA_ARGS__), __VA_ARGS__)
 
 #define patch(path, ...) \
-    register_patch(path, MW(__VA_ARGS__), __VA_ARGS__)
+  register_patch(path, MW(__VA_ARGS__), __VA_ARGS__)
 
 #define del(path, ...) \
-    register_del(path, MW(__VA_ARGS__), __VA_ARGS__)
+  register_del(path, MW(__VA_ARGS__), __VA_ARGS__)
 
 #define head(path, ...) \
-    register_head(path, MW(__VA_ARGS__), __VA_ARGS__)
+  register_head(path, MW(__VA_ARGS__), __VA_ARGS__)
 
 #define options(path, ...) \
-    register_options(path, MW(__VA_ARGS__), __VA_ARGS__)
+  register_options(path, MW(__VA_ARGS__), __VA_ARGS__)
 
 // DEVELOPMENT FUNCTIONS FOR EXTERNAL MODULES
 void increment_async_work(void);
@@ -278,10 +275,10 @@ void decrement_async_work(void);
 uv_loop_t *get_loop(void);
 
 typedef struct TakeoverConfig {
-    void *alloc_cb;
-    void *read_cb;
-    void *close_cb;
-    void *user_data;
+  void *alloc_cb;
+  void *read_cb;
+  void *close_cb;
+  void *user_data;
 } TakeoverConfig;
 
 int connection_takeover(Res *res, const TakeoverConfig *config);

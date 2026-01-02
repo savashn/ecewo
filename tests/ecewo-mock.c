@@ -12,7 +12,7 @@
 #endif
 
 #define LOG_ERROR(fmt, ...) \
-    fprintf(stderr, "[ERROR] " fmt "\n", ##__VA_ARGS__)
+  fprintf(stderr, "[ERROR] " fmt "\n", ##__VA_ARGS__)
 
 #define MAX_RETRIES 10
 #define RETRY_DELAY_MS 100
@@ -25,580 +25,563 @@ static test_routes_cb_t test_routes = NULL;
 
 typedef struct
 {
-    uv_tcp_t tcp;
-    uv_connect_t connect_req;
-    uv_write_t write_req;
-    uv_shutdown_t shutdown_req;
-    MockResponse *response;
-    char *request_data;
-    char *response_buffer;
-    size_t response_len;
-    size_t response_capacity;
-    bool done;
-    int status;
-    uv_loop_t *loop;
+  uv_tcp_t tcp;
+  uv_connect_t connect_req;
+  uv_write_t write_req;
+  uv_shutdown_t shutdown_req;
+  MockResponse *response;
+  char *request_data;
+  char *response_buffer;
+  size_t response_len;
+  size_t response_capacity;
+  bool done;
+  int status;
+  uv_loop_t *loop;
 } http_client_t;
 
-static void shutdown_handler(Req *req, Res *res)
-{
-    (void)req;
-    send_text(res, 200, "Shutting down");
-    uv_stop(get_loop());
+static void shutdown_handler(Req *req, Res *res) {
+  (void)req;
+  send_text(res, 200, "Shutting down");
+  uv_stop(get_loop());
 }
 
-static void test_handler(Req *req, Res *res)
-{
-    (void)req;
-    send_text(res, OK, "Test");
+static void test_handler(Req *req, Res *res) {
+  (void)req;
+  send_text(res, OK, "Test");
 }
 
-static void server_thread_fn(void *arg)
-{
-    (void)arg;
+static void server_thread_fn(void *arg) {
+  (void)arg;
 
-    if (server_init() != 0) {
-        LOG_ERROR("Failed to initialize server");
-        return;
+  if (server_init() != 0) {
+    LOG_ERROR("Failed to initialize server");
+    return;
+  }
+
+  if (test_routes)
+    test_routes();
+
+  get("/ecewo-test-shutdown", shutdown_handler);
+  get("/ecewo-test-check", test_handler);
+
+  if (server_listen(TEST_PORT) != 0) {
+    LOG_ERROR("Failed to start server on port %d", TEST_PORT);
+    return;
+  }
+
+  server_ready = true;
+  server_run();
+}
+
+static void on_close(uv_handle_t *handle) {
+  http_client_t *client = (http_client_t *)handle->data;
+  client->done = true;
+}
+
+static void on_shutdown(uv_shutdown_t *req, int status) {
+  (void)status;
+  http_client_t *client = (http_client_t *)req->data;
+  uv_close((uv_handle_t *)&client->tcp, on_close);
+}
+
+static void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
+  http_client_t *client = (http_client_t *)handle->data;
+
+  // Expand buffer if needed
+  if (client->response_len + suggested_size > client->response_capacity) {
+    size_t new_capacity = client->response_capacity * 2;
+    if (new_capacity < client->response_len + suggested_size)
+      new_capacity = client->response_len + suggested_size;
+
+    char *new_buffer = realloc(client->response_buffer, new_capacity);
+    if (new_buffer) {
+      client->response_buffer = new_buffer;
+      client->response_capacity = new_capacity;
+    }
+  }
+
+  buf->base = client->response_buffer + client->response_len;
+#ifdef _WIN32
+  buf->len = (unsigned long)(client->response_capacity - client->response_len);
+#else
+  buf->len = client->response_capacity - client->response_len;
+#endif
+}
+
+static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf) {
+  (void)buf;
+  http_client_t *client = (http_client_t *)stream->data;
+
+  if (nread < 0) {
+    if (nread != UV_EOF) {
+      LOG_ERROR("Read error: %s", uv_strerror((int)nread));
+      client->status = -1;
     }
 
-    if (test_routes)
-        test_routes();
+    uv_shutdown(&client->shutdown_req, stream, on_shutdown);
+    client->shutdown_req.data = client;
+    return;
+  }
 
-    get("/ecewo-test-shutdown", shutdown_handler);
-    get("/ecewo-test-check", test_handler);
+  if (nread == 0)
+    return;
 
-    if (server_listen(TEST_PORT) != 0) {
-        LOG_ERROR("Failed to start server on port %d", TEST_PORT);
-        return;
-    }
+  client->response_len += (size_t)nread;
+  client->response_buffer[client->response_len] = '\0';
 
-    server_ready = true;
-    server_run();
+  // Check if we have complete HTTP response
+  if (strstr(client->response_buffer, "\r\n\r\n")) {
+    uv_read_stop(stream);
+    uv_shutdown(&client->shutdown_req, stream, on_shutdown);
+    client->shutdown_req.data = client;
+  }
 }
 
-static void on_close(uv_handle_t *handle)
-{
-    http_client_t *client = (http_client_t *)handle->data;
-    client->done = true;
-}
+static void on_write(uv_write_t *req, int status) {
+  http_client_t *client = (http_client_t *)req->data;
 
-static void on_shutdown(uv_shutdown_t *req, int status)
-{
-    (void)status;
-    http_client_t *client = (http_client_t *)req->data;
+  if (status < 0) {
+    LOG_ERROR("Write error: %s", uv_strerror(status));
+    client->status = -1;
     uv_close((uv_handle_t *)&client->tcp, on_close);
+    return;
+  }
+
+  int result = uv_read_start((uv_stream_t *)&client->tcp, alloc_buffer, on_read);
+  if (result < 0) {
+    LOG_ERROR("Read start error: %s", uv_strerror(result));
+    client->status = -1;
+    uv_close((uv_handle_t *)&client->tcp, on_close);
+  }
 }
 
-static void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
-{
-    http_client_t *client = (http_client_t *)handle->data;
+static void on_connect(uv_connect_t *req, int status) {
+  http_client_t *client = (http_client_t *)req->data;
 
-    // Expand buffer if needed
-    if (client->response_len + suggested_size > client->response_capacity) {
-        size_t new_capacity = client->response_capacity * 2;
-        if (new_capacity < client->response_len + suggested_size)
-            new_capacity = client->response_len + suggested_size;
+  if (status < 0) {
+    LOG_ERROR("Connection error: %s", uv_strerror(status));
+    client->status = -1;
+    uv_close((uv_handle_t *)&client->tcp, on_close);
+    return;
+  }
 
-        char *new_buffer = realloc(client->response_buffer, new_capacity);
-        if (new_buffer) {
-            client->response_buffer = new_buffer;
-            client->response_capacity = new_capacity;
-        }
-    }
+  size_t request_len = strlen(client->request_data);
+  uv_buf_t buf = uv_buf_init(client->request_data, (unsigned int)request_len);
+  client->write_req.data = client;
 
-    buf->base = client->response_buffer + client->response_len;
-#ifdef _WIN32
-    buf->len = (unsigned long)(client->response_capacity - client->response_len);
-#else
-    buf->len = client->response_capacity - client->response_len;
-#endif
+  int result = uv_write(&client->write_req, (uv_stream_t *)&client->tcp, &buf, 1, on_write);
+  if (result < 0) {
+    LOG_ERROR("Write error: %s", uv_strerror(result));
+    client->status = -1;
+    uv_close((uv_handle_t *)&client->tcp, on_close);
+  }
 }
 
-static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
-{
-    (void)buf;
-    http_client_t *client = (http_client_t *)stream->data;
+static char *build_http_request(MockParams *params) {
+  size_t body_len = (params->body) ? strlen(params->body) : 0;
+  size_t headers_estimate = 512;
 
-    if (nread < 0) {
-        if (nread != UV_EOF) {
-            LOG_ERROR("Read error: %s", uv_strerror((int)nread));
-            client->status = -1;
-        }
-
-        uv_shutdown(&client->shutdown_req, stream, on_shutdown);
-        client->shutdown_req.data = client;
-        return;
+  if (params->headers && params->header_count > 0) {
+    for (size_t i = 0; i < params->header_count; i++) {
+      headers_estimate += strlen(params->headers[i].key) + strlen(params->headers[i].value) + 4;
     }
+  }
 
-    if (nread == 0)
-        return;
+  size_t buffer_size = headers_estimate + body_len + 256;
 
-    client->response_len += (size_t)nread;
-    client->response_buffer[client->response_len] = '\0';
+  char *request = malloc(buffer_size);
+  if (!request)
+    return NULL;
 
-    // Check if we have complete HTTP response
-    if (strstr(client->response_buffer, "\r\n\r\n")) {
-        uv_read_stop(stream);
-        uv_shutdown(&client->shutdown_req, stream, on_shutdown);
-        client->shutdown_req.data = client;
+  int len = 0;
+  const char *method = "GET";
+
+  switch (params->method) {
+  case MOCK_GET:
+    method = "GET";
+    break;
+  case MOCK_POST:
+    method = "POST";
+    break;
+  case MOCK_PUT:
+    method = "PUT";
+    break;
+  case MOCK_PATCH:
+    method = "PATCH";
+    break;
+  case MOCK_DELETE:
+    method = "DELETE";
+    break;
+  }
+
+  len += snprintf(request + len, buffer_size - len,
+                  "%s %s HTTP/1.1\r\n"
+                  "Host: localhost:%d\r\n"
+                  "Connection: close\r\n",
+                  method, params->path, TEST_PORT);
+
+  if (params->headers && params->header_count > 0) {
+    for (size_t i = 0; i < params->header_count; i++) {
+      len += snprintf(request + len, buffer_size - len,
+                      "%s: %s\r\n",
+                      params->headers[i].key,
+                      params->headers[i].value);
     }
-}
+  }
 
-static void on_write(uv_write_t *req, int status)
-{
-    http_client_t *client = (http_client_t *)req->data;
-
-    if (status < 0) {
-        LOG_ERROR("Write error: %s", uv_strerror(status));
-        client->status = -1;
-        uv_close((uv_handle_t *)&client->tcp, on_close);
-        return;
-    }
-
-    int result = uv_read_start((uv_stream_t *)&client->tcp, alloc_buffer, on_read);
-    if (result < 0) {
-        LOG_ERROR("Read start error: %s", uv_strerror(result));
-        client->status = -1;
-        uv_close((uv_handle_t *)&client->tcp, on_close);
-    }
-}
-
-static void on_connect(uv_connect_t *req, int status)
-{
-    http_client_t *client = (http_client_t *)req->data;
-
-    if (status < 0) {
-        LOG_ERROR("Connection error: %s", uv_strerror(status));
-        client->status = -1;
-        uv_close((uv_handle_t *)&client->tcp, on_close);
-        return;
-    }
-
-    size_t request_len = strlen(client->request_data);
-    uv_buf_t buf = uv_buf_init(client->request_data, (unsigned int)request_len);
-    client->write_req.data = client;
-
-    int result = uv_write(&client->write_req, (uv_stream_t *)&client->tcp, &buf, 1, on_write);
-    if (result < 0) {
-        LOG_ERROR("Write error: %s", uv_strerror(result));
-        client->status = -1;
-        uv_close((uv_handle_t *)&client->tcp, on_close);
-    }
-}
-
-static char *build_http_request(MockParams *params)
-{
-    size_t body_len = (params->body) ? strlen(params->body) : 0;
-    size_t headers_estimate = 512;
-
-    if (params->headers && params->header_count > 0) {
-        for (size_t i = 0; i < params->header_count; i++) {
-            headers_estimate += strlen(params->headers[i].key) + strlen(params->headers[i].value) + 4;
-        }
-    }
-
-    size_t buffer_size = headers_estimate + body_len + 256;
-
-    char *request = malloc(buffer_size);
-    if (!request)
-        return NULL;
-
-    int len = 0;
-    const char *method = "GET";
-
-    switch (params->method) {
-    case MOCK_GET:
-        method = "GET";
-        break;
-    case MOCK_POST:
-        method = "POST";
-        break;
-    case MOCK_PUT:
-        method = "PUT";
-        break;
-    case MOCK_PATCH:
-        method = "PATCH";
-        break;
-    case MOCK_DELETE:
-        method = "DELETE";
-        break;
-    }
-
+  if (params->body && body_len > 0) {
     len += snprintf(request + len, buffer_size - len,
-                    "%s %s HTTP/1.1\r\n"
-                    "Host: localhost:%d\r\n"
-                    "Connection: close\r\n",
-                    method, params->path, TEST_PORT);
+                    "Content-Length: %zu\r\n",
+                    body_len);
+  }
 
-    if (params->headers && params->header_count > 0) {
-        for (size_t i = 0; i < params->header_count; i++) {
-            len += snprintf(request + len, buffer_size - len,
-                            "%s: %s\r\n",
-                            params->headers[i].key,
-                            params->headers[i].value);
-        }
-    }
+  len += snprintf(request + len, buffer_size - len, "\r\n");
 
-    if (params->body && body_len > 0) {
-        len += snprintf(request + len, buffer_size - len,
-                        "Content-Length: %zu\r\n",
-                        body_len);
-    }
+  if (params->body && body_len > 0) {
+    memcpy(request + len, params->body, body_len);
+    len += body_len;
+    request[len] = '\0';
+  }
 
-    len += snprintf(request + len, buffer_size - len, "\r\n");
-
-    if (params->body && body_len > 0) {
-        memcpy(request + len, params->body, body_len);
-        len += body_len;
-        request[len] = '\0';
-    }
-
-    return request;
+  return request;
 }
 
-static void parse_response(http_client_t *client)
-{
-    if (!client->response_buffer || client->response_len == 0) {
-        client->response->status_code = -1;
-        return;
-    }
+static void parse_response(http_client_t *client) {
+  if (!client->response_buffer || client->response_len == 0) {
+    client->response->status_code = -1;
+    return;
+  }
 
-    unsigned short status;
-    if (sscanf(client->response_buffer, "HTTP/1.1 %hu", &status) != 1) {
-        client->response->status_code = -1;
-        return;
-    }
+  unsigned short status;
+  if (sscanf(client->response_buffer, "HTTP/1.1 %hu", &status) != 1) {
+    client->response->status_code = -1;
+    return;
+  }
 
-    client->response->status_code = status;
+  client->response->status_code = status;
 
-    // Find header section
-    char *headers_start = strchr(client->response_buffer, '\n');
-    if (!headers_start)
-        return;
-    headers_start++;
+  // Find header section
+  char *headers_start = strchr(client->response_buffer, '\n');
+  if (!headers_start)
+    return;
+  headers_start++;
 
-    char *body_start = strstr(client->response_buffer, "\r\n\r\n");
-    if (!body_start)
-        return;
+  char *body_start = strstr(client->response_buffer, "\r\n\r\n");
+  if (!body_start)
+    return;
 
-    // Parse headers
-    char *header_end = body_start;
-    char *line = headers_start;
+  // Parse headers
+  char *header_end = body_start;
+  char *line = headers_start;
 
-    // Count headers
-    size_t header_count = 0;
-    char *temp = line;
-    while (temp < header_end) {
-        char *next_line = strstr(temp, "\r\n");
-        if (!next_line || next_line >= header_end)
-            break;
+  // Count headers
+  size_t header_count = 0;
+  char *temp = line;
+  while (temp < header_end) {
+    char *next_line = strstr(temp, "\r\n");
+    if (!next_line || next_line >= header_end)
+      break;
 
-        if (strchr(temp, ':') && strchr(temp, ':') < next_line)
-            header_count++;
+    if (strchr(temp, ':') && strchr(temp, ':') < next_line)
+      header_count++;
 
+    temp = next_line + 2;
+  }
+
+  // Allocate headers
+  if (header_count > 0) {
+    client->response->headers = malloc(sizeof(MockHeaders) * header_count);
+    if (!client->response->headers)
+      return;
+
+    // Parse each header
+    size_t idx = 0;
+    temp = line;
+    while (temp < header_end && idx < header_count) {
+      char *next_line = strstr(temp, "\r\n");
+      if (!next_line || next_line >= header_end)
+        break;
+
+      char *colon = strchr(temp, ':');
+      if (!colon || colon >= next_line) {
         temp = next_line + 2;
+        continue;
+      }
+
+      // Extract key
+      size_t key_len = colon - temp;
+      char *key = malloc(key_len + 1);
+      if (!key)
+        break;
+      memcpy(key, temp, key_len);
+      key[key_len] = '\0';
+
+      // Extract value (skip ': ')
+      char *value_start = colon + 1;
+      while (*value_start == ' ' || *value_start == '\t')
+        value_start++;
+
+      size_t value_len = next_line - value_start;
+      char *value = malloc(value_len + 1);
+      if (!value) {
+        free(key);
+        break;
+      }
+      memcpy(value, value_start, value_len);
+      value[value_len] = '\0';
+
+      client->response->headers[idx].key = key;
+      client->response->headers[idx].value = value;
+      idx++;
+
+      temp = next_line + 2;
     }
 
-    // Allocate headers
-    if (header_count > 0) {
-        client->response->headers = malloc(sizeof(MockHeaders) * header_count);
-        if (!client->response->headers)
-            return;
+    client->response->header_count = idx;
+  }
 
-        // Parse each header
-        size_t idx = 0;
-        temp = line;
-        while (temp < header_end && idx < header_count) {
-            char *next_line = strstr(temp, "\r\n");
-            if (!next_line || next_line >= header_end)
-                break;
+  // Parse body
+  body_start += 4;
+  size_t body_len = strlen(body_start);
 
-            char *colon = strchr(temp, ':');
-            if (!colon || colon >= next_line) {
-                temp = next_line + 2;
-                continue;
-            }
-
-            // Extract key
-            size_t key_len = colon - temp;
-            char *key = malloc(key_len + 1);
-            if (!key)
-                break;
-            memcpy(key, temp, key_len);
-            key[key_len] = '\0';
-
-            // Extract value (skip ': ')
-            char *value_start = colon + 1;
-            while (*value_start == ' ' || *value_start == '\t')
-                value_start++;
-
-            size_t value_len = next_line - value_start;
-            char *value = malloc(value_len + 1);
-            if (!value) {
-                free(key);
-                break;
-            }
-            memcpy(value, value_start, value_len);
-            value[value_len] = '\0';
-
-            client->response->headers[idx].key = key;
-            client->response->headers[idx].value = value;
-            idx++;
-
-            temp = next_line + 2;
-        }
-
-        client->response->header_count = idx;
+  if (body_len > 0) {
+    client->response->body = malloc(body_len + 1);
+    if (client->response->body) {
+      strcpy(client->response->body, body_start);
+      client->response->body_len = body_len;
     }
-
-    // Parse body
-    body_start += 4;
-    size_t body_len = strlen(body_start);
-
-    if (body_len > 0) {
-        client->response->body = malloc(body_len + 1);
-        if (client->response->body) {
-            strcpy(client->response->body, body_start);
-            client->response->body_len = body_len;
-        }
-    }
+  }
 }
 
-static bool wait_for_server_ready(void)
-{
-    for (int i = 0; i < MAX_RETRIES; i++) {
-        if (server_ready) {
-            MockParams params = {
-                .method = MOCK_GET,
-                .path = "/ecewo-test-check",
-                .body = NULL,
-                .headers = NULL,
-                .header_count = 0
-            };
-
-            MockResponse resp = request(&params);
-            if (resp.status_code == 200) {
-                free_request(&resp);
-                return true;
-            }
-            free_request(&resp);
-        }
-
-        uv_sleep(RETRY_DELAY_MS);
-    }
-
-    return false;
-}
-
-void free_request(MockResponse *res)
-{
-    if (!res)
-        return;
-
-    if (res->body) {
-        free(res->body);
-        res->body = NULL;
-        res->body_len = 0;
-    }
-
-    if (res->headers) {
-        for (size_t i = 0; i < res->header_count; i++) {
-            free((void *)res->headers[i].key);
-            free((void *)res->headers[i].value);
-        }
-        free(res->headers);
-        res->headers = NULL;
-        res->header_count = 0;
-    }
-}
-
-MockResponse request(MockParams *params)
-{
-    uint64_t start_time = uv_hrtime();
-
-    MockResponse response = { 0 };
-
-    char *request_data = build_http_request(params);
-    if (!request_data) {
-        response.status_code = -1;
-        return response;
-    }
-
-    uv_loop_t loop;
-    int result = uv_loop_init(&loop);
-    if (result < 0) {
-        LOG_ERROR("Failed to initialize event loop: %s\n", uv_strerror(result));
-        free(request_data);
-        response.status_code = -1;
-        return response;
-    }
-
-    http_client_t client = { 0 };
-    client.loop = &loop;
-    client.response = &response;
-    client.request_data = request_data;
-    client.response_capacity = BUFFER_SIZE;
-    client.response_buffer = malloc(client.response_capacity);
-    client.done = false;
-    client.status = 0;
-
-    if (!client.response_buffer) {
-        LOG_ERROR("Failed to allocate response buffer");
-        free(request_data);
-        uv_loop_close(&loop);
-        response.status_code = -1;
-        return response;
-    }
-
-    result = uv_tcp_init(&loop, &client.tcp);
-    if (result < 0) {
-        LOG_ERROR("Failed to initialize TCP handle: %s\n", uv_strerror(result));
-        free(request_data);
-        free(client.response_buffer);
-        uv_loop_close(&loop);
-        response.status_code = -1;
-        return response;
-    }
-
-    client.tcp.data = &client;
-    client.connect_req.data = &client;
-
-    struct sockaddr_in addr;
-    result = uv_ip4_addr("127.0.0.1", TEST_PORT, &addr);
-    if (result < 0) {
-        LOG_ERROR("Failed to create address: %s\n", uv_strerror(result));
-        free(request_data);
-        free(client.response_buffer);
-        uv_close((uv_handle_t *)&client.tcp, NULL);
-        uv_run(&loop, UV_RUN_DEFAULT);
-        uv_loop_close(&loop);
-        response.status_code = -1;
-        return response;
-    }
-
-    result = uv_tcp_connect(&client.connect_req,
-                            &client.tcp,
-                            (const struct sockaddr *)&addr,
-                            on_connect);
-
-    if (result < 0) {
-        LOG_ERROR("Failed to initiate connection: %s\n", uv_strerror(result));
-        free(request_data);
-        free(client.response_buffer);
-        uv_close((uv_handle_t *)&client.tcp, NULL);
-        uv_run(&loop, UV_RUN_DEFAULT);
-        uv_loop_close(&loop);
-        response.status_code = -1;
-        return response;
-    }
-
-    uint64_t loop_start = uv_now(&loop);
-    int no_events_count = 0;
-
-    while (!client.done && client.status == 0) {
-        int events = uv_run(&loop, UV_RUN_ONCE);
-
-        if (events == 0) {
-            no_events_count++;
-
-            if (no_events_count >= 10) {
-                client.status = -1;
-                break;
-            }
-
-            uv_sleep(1);
-        } else {
-            no_events_count = 0;
-        }
-
-        if ((uv_now(&loop) - loop_start) > 5000) {
-            client.status = -1;
-            break;
-        }
-    }
-
-    uint64_t end_time = uv_hrtime();
-    uint64_t duration_ms = (end_time - start_time) / 1000000;
-
-#ifdef ECEWO_DEBUG
-    printf("Request completed in %lu ms\n", (unsigned long)duration_ms);
-#else
-    (void)duration_ms;
-#endif
-
-    if (client.status == 0 && client.response_buffer) {
-        parse_response(&client);
-    } else if (client.status != 0) {
-        LOG_ERROR("Request failed with status %d\n", client.status);
-        response.status_code = -1;
-    }
-
-    free(request_data);
-    free(client.response_buffer);
-    uv_loop_close(&loop);
-
-    return response;
-}
-
-int mock_init(test_routes_cb_t routes_callback)
-{
-#ifdef _WIN32
-    _putenv_s("ECEWO_TEST_MODE", "1");
-#else
-    setenv("ECEWO_TEST_MODE", "1", 1);
-#endif
-
-    server_ready = false;
-    shutdown_requested = false;
-    test_routes = routes_callback;
-
-    int result = uv_thread_create(&server_thread, server_thread_fn, NULL);
-    if (result != 0) {
-        LOG_ERROR("Failed to create server thread: %s", uv_strerror(result));
-        return -1;
-    }
-
-    if (!wait_for_server_ready()) {
-        LOG_ERROR("Server failed to start within timeout!");
-        return -1;
-    }
-
-    return 0;
-}
-
-void mock_cleanup(void)
-{
-    MockParams params = {
+static bool wait_for_server_ready(void) {
+  for (int i = 0; i < MAX_RETRIES; i++) {
+    if (server_ready) {
+      MockParams params = {
         .method = MOCK_GET,
-        .path = "/ecewo-test-shutdown",
+        .path = "/ecewo-test-check",
         .body = NULL,
         .headers = NULL,
         .header_count = 0
-    };
-    MockResponse resp = request(&params);
-    free_request(&resp);
+      };
 
-    uv_thread_join(&server_thread);
-    uv_sleep(100);
-
-#ifdef _WIN32
-    _putenv_s("ECEWO_TEST_MODE", "");
-#else
-    unsetenv("ECEWO_TEST_MODE");
-#endif
-
-    return;
-}
-
-const char *mock_get_header(MockResponse *res, const char *key)
-{
-    if (!res || !res->headers || !key)
-        return NULL;
-
-    for (size_t i = 0; i < res->header_count; i++) {
-        if (strcasecmp(res->headers[i].key, key) == 0)
-            return res->headers[i].value;
+      MockResponse resp = request(&params);
+      if (resp.status_code == 200) {
+        free_request(&resp);
+        return true;
+      }
+      free_request(&resp);
     }
 
+    uv_sleep(RETRY_DELAY_MS);
+  }
+
+  return false;
+}
+
+void free_request(MockResponse *res) {
+  if (!res)
+    return;
+
+  if (res->body) {
+    free(res->body);
+    res->body = NULL;
+    res->body_len = 0;
+  }
+
+  if (res->headers) {
+    for (size_t i = 0; i < res->header_count; i++) {
+      free((void *)res->headers[i].key);
+      free((void *)res->headers[i].value);
+    }
+    free(res->headers);
+    res->headers = NULL;
+    res->header_count = 0;
+  }
+}
+
+MockResponse request(MockParams *params) {
+  uint64_t start_time = uv_hrtime();
+
+  MockResponse response = { 0 };
+
+  char *request_data = build_http_request(params);
+  if (!request_data) {
+    response.status_code = -1;
+    return response;
+  }
+
+  uv_loop_t loop;
+  int result = uv_loop_init(&loop);
+  if (result < 0) {
+    LOG_ERROR("Failed to initialize event loop: %s\n", uv_strerror(result));
+    free(request_data);
+    response.status_code = -1;
+    return response;
+  }
+
+  http_client_t client = { 0 };
+  client.loop = &loop;
+  client.response = &response;
+  client.request_data = request_data;
+  client.response_capacity = BUFFER_SIZE;
+  client.response_buffer = malloc(client.response_capacity);
+  client.done = false;
+  client.status = 0;
+
+  if (!client.response_buffer) {
+    LOG_ERROR("Failed to allocate response buffer");
+    free(request_data);
+    uv_loop_close(&loop);
+    response.status_code = -1;
+    return response;
+  }
+
+  result = uv_tcp_init(&loop, &client.tcp);
+  if (result < 0) {
+    LOG_ERROR("Failed to initialize TCP handle: %s\n", uv_strerror(result));
+    free(request_data);
+    free(client.response_buffer);
+    uv_loop_close(&loop);
+    response.status_code = -1;
+    return response;
+  }
+
+  client.tcp.data = &client;
+  client.connect_req.data = &client;
+
+  struct sockaddr_in addr;
+  result = uv_ip4_addr("127.0.0.1", TEST_PORT, &addr);
+  if (result < 0) {
+    LOG_ERROR("Failed to create address: %s\n", uv_strerror(result));
+    free(request_data);
+    free(client.response_buffer);
+    uv_close((uv_handle_t *)&client.tcp, NULL);
+    uv_run(&loop, UV_RUN_DEFAULT);
+    uv_loop_close(&loop);
+    response.status_code = -1;
+    return response;
+  }
+
+  result = uv_tcp_connect(&client.connect_req,
+                          &client.tcp,
+                          (const struct sockaddr *)&addr,
+                          on_connect);
+
+  if (result < 0) {
+    LOG_ERROR("Failed to initiate connection: %s\n", uv_strerror(result));
+    free(request_data);
+    free(client.response_buffer);
+    uv_close((uv_handle_t *)&client.tcp, NULL);
+    uv_run(&loop, UV_RUN_DEFAULT);
+    uv_loop_close(&loop);
+    response.status_code = -1;
+    return response;
+  }
+
+  uint64_t loop_start = uv_now(&loop);
+  int no_events_count = 0;
+
+  while (!client.done && client.status == 0) {
+    int events = uv_run(&loop, UV_RUN_ONCE);
+
+    if (events == 0) {
+      no_events_count++;
+
+      if (no_events_count >= 10) {
+        client.status = -1;
+        break;
+      }
+
+      uv_sleep(1);
+    } else {
+      no_events_count = 0;
+    }
+
+    if ((uv_now(&loop) - loop_start) > 5000) {
+      client.status = -1;
+      break;
+    }
+  }
+
+  uint64_t end_time = uv_hrtime();
+  uint64_t duration_ms = (end_time - start_time) / 1000000;
+
+#ifdef ECEWO_DEBUG
+  printf("Request completed in %lu ms\n", (unsigned long)duration_ms);
+#else
+  (void)duration_ms;
+#endif
+
+  if (client.status == 0 && client.response_buffer) {
+    parse_response(&client);
+  } else if (client.status != 0) {
+    LOG_ERROR("Request failed with status %d\n", client.status);
+    response.status_code = -1;
+  }
+
+  free(request_data);
+  free(client.response_buffer);
+  uv_loop_close(&loop);
+
+  return response;
+}
+
+int mock_init(test_routes_cb_t routes_callback) {
+#ifdef _WIN32
+  _putenv_s("ECEWO_TEST_MODE", "1");
+#else
+  setenv("ECEWO_TEST_MODE", "1", 1);
+#endif
+
+  server_ready = false;
+  shutdown_requested = false;
+  test_routes = routes_callback;
+
+  int result = uv_thread_create(&server_thread, server_thread_fn, NULL);
+  if (result != 0) {
+    LOG_ERROR("Failed to create server thread: %s", uv_strerror(result));
+    return -1;
+  }
+
+  if (!wait_for_server_ready()) {
+    LOG_ERROR("Server failed to start within timeout!");
+    return -1;
+  }
+
+  return 0;
+}
+
+void mock_cleanup(void) {
+  MockParams params = {
+    .method = MOCK_GET,
+    .path = "/ecewo-test-shutdown",
+    .body = NULL,
+    .headers = NULL,
+    .header_count = 0
+  };
+  MockResponse resp = request(&params);
+  free_request(&resp);
+
+  uv_thread_join(&server_thread);
+  uv_sleep(100);
+
+#ifdef _WIN32
+  _putenv_s("ECEWO_TEST_MODE", "");
+#else
+  unsetenv("ECEWO_TEST_MODE");
+#endif
+
+  return;
+}
+
+const char *mock_get_header(MockResponse *res, const char *key) {
+  if (!res || !res->headers || !key)
     return NULL;
+
+  for (size_t i = 0; i < res->header_count; i++) {
+    if (strcasecmp(res->headers[i].key, key) == 0)
+      return res->headers[i].value;
+  }
+
+  return NULL;
 }

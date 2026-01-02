@@ -4,35 +4,35 @@
 #include <stdint.h>
 
 typedef enum {
-    MOCK_GET,
-    MOCK_POST,
-    MOCK_PUT,
-    MOCK_DELETE,
-    MOCK_PATCH
+  MOCK_GET,
+  MOCK_POST,
+  MOCK_PUT,
+  MOCK_DELETE,
+  MOCK_PATCH
 } MockMethod;
 
 typedef struct
 {
-    const char *key;
-    const char *value;
+  const char *key;
+  const char *value;
 } MockHeaders;
 
 typedef struct
 {
-    uint16_t status_code;
-    char *body;
-    size_t body_len;
-    MockHeaders *headers;
-    size_t header_count;
+  uint16_t status_code;
+  char *body;
+  size_t body_len;
+  MockHeaders *headers;
+  size_t header_count;
 } MockResponse;
 
 typedef struct
 {
-    MockMethod method;
-    const char *path;
-    const char *body;
-    MockHeaders *headers;
-    size_t header_count;
+  MockMethod method;
+  const char *path;
+  const char *body;
+  MockHeaders *headers;
+  size_t header_count;
 } MockParams;
 
 #define TEST_PORT 8888

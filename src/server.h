@@ -11,27 +11,27 @@
 #endif
 
 struct client_s {
-    uv_tcp_t handle;
-    uv_buf_t read_buf;
-    char buffer[READ_BUFFER_SIZE];
-    bool closing;
-    uint64_t last_activity;
-    bool keep_alive_enabled;
-    struct client_s *next;
+  uv_tcp_t handle;
+  uv_buf_t read_buf;
+  char buffer[READ_BUFFER_SIZE];
+  bool closing;
+  uint64_t last_activity;
+  bool keep_alive_enabled;
+  struct client_s *next;
 
-    Arena *connection_arena; // Lives for the duration of the connection
+  Arena *connection_arena; // Lives for the duration of the connection
 
-    // Connection-scoped parser and context
-    llhttp_t persistent_parser;
-    llhttp_settings_t persistent_settings;
-    http_context_t persistent_context; // Lives in connection_arena
-    bool parser_initialized;
-    bool request_in_progress; // True while parsing a multi-packet request
+  // Connection-scoped parser and context
+  llhttp_t persistent_parser;
+  llhttp_settings_t persistent_settings;
+  http_context_t persistent_context; // Lives in connection_arena
+  bool parser_initialized;
+  bool request_in_progress; // True while parsing a multi-packet request
 
-    bool taken_over;
-    void *takeover_user_data;
+  bool taken_over;
+  void *takeover_user_data;
 
-    uv_timer_t *request_timeout_timer;
+  uv_timer_t *request_timeout_timer;
 };
 
 typedef struct client_s client_t;

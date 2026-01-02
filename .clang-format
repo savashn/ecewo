@@ -2,8 +2,12 @@
 BasedOnStyle: WebKit
 Language: C
 
+BreakBeforeBraces: Attach
 PointerAlignment: Right
 ReferenceAlignment: Right
 SortIncludes: Never
 AlignAfterOpenBracket: Align
 BinPackParameters: false
+IndentWidth: 2
+TabWidth: 2
+UseTab: Never

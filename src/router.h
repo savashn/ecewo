@@ -5,9 +5,9 @@
 #include "server.h"
 
 typedef enum RouterResult {
-    REQUEST_KEEP_ALIVE,
-    REQUEST_CLOSE,
-    REQUEST_PENDING
+  REQUEST_KEEP_ALIVE,
+  REQUEST_CLOSE,
+  REQUEST_PENDING
 } RouterResult;
 
 int router(client_t *client, const char *request_data, size_t request_len);

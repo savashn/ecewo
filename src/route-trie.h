@@ -12,68 +12,68 @@
 #endif
 
 typedef enum {
-    METHOD_INDEX_DELETE,
-    METHOD_INDEX_GET,
-    METHOD_INDEX_HEAD,
-    METHOD_INDEX_POST,
-    METHOD_INDEX_PUT,
-    METHOD_INDEX_OPTIONS,
-    METHOD_INDEX_PATCH
+  METHOD_INDEX_DELETE,
+  METHOD_INDEX_GET,
+  METHOD_INDEX_HEAD,
+  METHOD_INDEX_POST,
+  METHOD_INDEX_PUT,
+  METHOD_INDEX_OPTIONS,
+  METHOD_INDEX_PATCH
 } http_method_index_t;
 
 typedef struct
 {
-    const char *start;
-    size_t len;
-    bool is_param;
-    bool is_wildcard;
+  const char *start;
+  size_t len;
+  bool is_param;
+  bool is_wildcard;
 } path_segment_t;
 
 typedef struct
 {
-    path_segment_t *segments;
-    uint8_t count;
-    uint8_t capacity;
+  path_segment_t *segments;
+  uint8_t count;
+  uint8_t capacity;
 } tokenized_path_t;
 
 typedef struct trie_node {
-    struct trie_node *children[128]; // ASCII characters
-    struct trie_node *param_child; // For :param segments
-    struct trie_node *wildcard_child; // For * wildcard
-    char *param_name; // Name of parameter if this is a param node
-    bool is_end; // Marks end of a route
-    RequestHandler handlers[METHOD_COUNT]; // Handlers for different HTTP methods
-    void *middleware_ctx[METHOD_COUNT]; // Middleware context for each method
+  struct trie_node *children[128]; // ASCII characters
+  struct trie_node *param_child; // For :param segments
+  struct trie_node *wildcard_child; // For * wildcard
+  char *param_name; // Name of parameter if this is a param node
+  bool is_end; // Marks end of a route
+  RequestHandler handlers[METHOD_COUNT]; // Handlers for different HTTP methods
+  void *middleware_ctx[METHOD_COUNT]; // Middleware context for each method
 } trie_node_t;
 
 typedef struct
 {
-    trie_node_t *root;
-    size_t route_count;
+  trie_node_t *root;
+  size_t route_count;
 } route_trie_t;
 
 extern route_trie_t *global_route_trie;
 
 typedef struct
 {
-    const char *data;
-    size_t len;
+  const char *data;
+  size_t len;
 } string_view_t;
 
 typedef struct
 {
-    string_view_t key;
-    string_view_t value;
+  string_view_t key;
+  string_view_t value;
 } param_match_t;
 
 typedef struct
 {
-    RequestHandler handler;
-    void *middleware_ctx;
-    param_match_t inline_params[MAX_INLINE_PARAMS]; // On stack
-    param_match_t *params; // On heap
-    uint8_t param_count;
-    uint8_t param_capacity; // For dynamic allocation
+  RequestHandler handler;
+  void *middleware_ctx;
+  param_match_t inline_params[MAX_INLINE_PARAMS]; // On stack
+  param_match_t *params; // On heap
+  uint8_t param_count;
+  uint8_t param_capacity; // For dynamic allocation
 } route_match_t;
 
 bool route_trie_match(route_trie_t *trie,

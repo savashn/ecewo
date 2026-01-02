@@ -5,50 +5,50 @@
 #include "llhttp.h"
 
 typedef enum {
-    PARSE_SUCCESS = 0, // Parsing completed successfully
-    PARSE_INCOMPLETE = 1, // Need more data
-    PARSE_ERROR = -1, // Parse error occurred
-    PARSE_OVERFLOW = -2 // Buffer overflow or size limit exceeded
+  PARSE_SUCCESS = 0, // Parsing completed successfully
+  PARSE_INCOMPLETE = 1, // Need more data
+  PARSE_ERROR = -1, // Parse error occurred
+  PARSE_OVERFLOW = -2 // Buffer overflow or size limit exceeded
 } parse_result_t;
 
 typedef struct
 {
-    Arena *arena;
-    llhttp_t *parser;
-    llhttp_settings_t *settings;
+  Arena *arena;
+  llhttp_t *parser;
+  llhttp_settings_t *settings;
 
-    // Dynamic URL parsing state
-    char *url;
-    size_t url_length;
-    size_t url_capacity;
-    size_t path_length;
+  // Dynamic URL parsing state
+  char *url;
+  size_t url_length;
+  size_t url_capacity;
+  size_t path_length;
 
-    char *method;
-    size_t method_length;
-    size_t method_capacity;
+  char *method;
+  size_t method_length;
+  size_t method_capacity;
 
-    request_t headers;
-    request_t query_params;
-    request_t url_params;
+  request_t headers;
+  request_t query_params;
+  request_t url_params;
 
-    char *body;
-    size_t body_length;
-    size_t body_capacity;
+  char *body;
+  size_t body_length;
+  size_t body_capacity;
 
-    uint8_t http_major;
-    uint8_t http_minor;
-    uint16_t status_code;
+  uint8_t http_major;
+  uint8_t http_minor;
+  uint16_t status_code;
 
-    bool message_complete;
-    bool keep_alive;
-    bool headers_complete;
+  bool message_complete;
+  bool keep_alive;
+  bool headers_complete;
 
-    char *current_header_field;
-    size_t header_field_length;
-    size_t header_field_capacity;
+  char *current_header_field;
+  size_t header_field_length;
+  size_t header_field_capacity;
 
-    llhttp_errno_t last_error;
-    const char *error_reason;
+  llhttp_errno_t last_error;
+  const char *error_reason;
 } http_context_t;
 
 // Using in router.c

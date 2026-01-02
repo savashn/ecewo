@@ -35,65 +35,65 @@
 // =============================================================================
 
 enum TestStatus {
-    TEST_OK = 0,
-    TEST_SKIP = 1
+  TEST_OK = 0,
+  TEST_SKIP = 1
 };
 
-#define RETURN_OK()     \
-    do {                \
-        return TEST_OK; \
-    } while (0)
+#define RETURN_OK() \
+  do {              \
+    return TEST_OK; \
+  } while (0)
 
-#define RETURN_SKIP(explanation)              \
-    do {                                      \
-        fprintf(stderr, "%s\n", explanation); \
-        fflush(stderr);                       \
-        return TEST_SKIP;                     \
-    } while (0)
+#define RETURN_SKIP(explanation)          \
+  do {                                    \
+    fprintf(stderr, "%s\n", explanation); \
+    fflush(stderr);                       \
+    return TEST_SKIP;                     \
+  } while (0)
 
-#define RUN_TEST(test_func)                   \
-    do {                                      \
-        printf("Running %s... ", #test_func); \
-        fflush(stdout);                       \
-        int result = test_func();             \
-        if (result == TEST_OK) {              \
-            printf("PASSED\n");               \
-        } else if (result == TEST_SKIP) {     \
-            printf("SKIPPED\n");              \
-        } else {                              \
-            printf("FAILED\n");               \
-        }                                     \
-    } while (0)
+#define RUN_TEST(test_func)               \
+  do {                                    \
+    printf("Running %s... ", #test_func); \
+    fflush(stdout);                       \
+    int result = test_func();             \
+    if (result == TEST_OK) {              \
+      printf("PASSED\n");                 \
+    } else if (result == TEST_SKIP) {     \
+      printf("SKIPPED\n");                \
+    } else {                              \
+      printf("FAILED\n");                 \
+    }                                     \
+  } while (0)
 
 // =============================================================================
 // BASE MACROS
 // =============================================================================
 
-#define ASSERT_BASE(a, operator, b, type, conv)                      \
-    do {                                                             \
-        type const eval_a = (a);                                     \
-        type const eval_b = (b);                                     \
-        if (!(eval_a operator eval_b)) {                             \
-            fprintf(stderr,                                          \
-                    "Assertion failed in %s on line %d: `%s %s %s` " \
-                    "(%" conv " %s %" conv ")\n",                    \
-                    __FILE__, __LINE__, #a, #operator, #b,           \
-                    eval_a, #operator, eval_b);                      \
-            abort();                                                 \
-        }                                                            \
-    } while (0)
+#define ASSERT_BASE(a, operator, b, type, conv)                \
+  do {                                                         \
+    type const eval_a = (a);                                   \
+    type const eval_b = (b);                                   \
+    if (!(eval_a operator eval_b)) {                           \
+      fprintf(stderr,                                          \
+              "Assertion failed in %s on line %d: `%s %s %s` " \
+              "(%" conv " %s %" conv ")\n",                    \
+              __FILE__, __LINE__, #a, #operator, #b,           \
+              eval_a, #operator, eval_b);                      \
+      abort();                                                 \
+    }                                                          \
+  } while (0)
 
-#define ASSERT_BASE_STR(expr, a, operator, b, type, conv)            \
-    do {                                                             \
-        if (!(expr)) {                                               \
-            fprintf(stderr,                                          \
-                    "Assertion failed in %s on line %d: `%s %s %s` " \
-                    "(%" conv " %s %" conv ")\n",                    \
-                    __FILE__, __LINE__, #a, #operator, #b,           \
-                    (type)a, #operator, (type)b);                    \
-            abort();                                                 \
-        }                                                            \
-    } while (0)
+#define ASSERT_BASE_STR(expr, a, operator, b, type, conv)      \
+  do {                                                         \
+    if (!(expr)) {                                             \
+      fprintf(stderr,                                          \
+              "Assertion failed in %s on line %d: `%s %s %s` " \
+              "(%" conv " %s %" conv ")\n",                    \
+              __FILE__, __LINE__, #a, #operator, #b,           \
+              (type)a, #operator, (type)b);                    \
+      abort();                                                 \
+    }                                                          \
+  } while (0)
 
 // =============================================================================
 // BOOLEAN ASSERTIONS
@@ -123,6 +123,6 @@ enum TestStatus {
 // =============================================================================
 
 #define ASSERT_EQ_STR(a, b) \
-    ASSERT_BASE_STR(strcmp(a, b) == 0, a, ==, b, char *, "s")
+  ASSERT_BASE_STR(strcmp(a, b) == 0, a, ==, b, char *, "s")
 
 #endif
