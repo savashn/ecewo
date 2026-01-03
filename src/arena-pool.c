@@ -139,18 +139,23 @@ void arena_pool_init(void) {
 
   const char *env_prealloc = getenv("ECEWO_ARENA_PREALLOC");
   if (env_prealloc) {
-    uint16_t env_val = atoi(env_prealloc);
-
-    if (env_val <= 0) {
+    char *endptr;
+    long val = strtol(env_prealloc, &endptr, 10);
+    
+    if (endptr == env_prealloc || *endptr != '\0' || val <= 0 || val > UINT16_MAX) {
       LOG_DEBUG("Invalid ECEWO_ARENA_PREALLOC='%s', using default: %d",
                 env_prealloc, preallocate);
-    } else if (env_val > ARENA_POOL_SIZE) {
-      LOG_DEBUG("ECEWO_ARENA_PREALLOC=%d exceeds maximum %d, capping to %d",
-                env_val, ARENA_POOL_SIZE, ARENA_POOL_SIZE);
-      preallocate = ARENA_POOL_SIZE;
     } else {
-      preallocate = env_val;
-      LOG_DEBUG("Using ECEWO_ARENA_PREALLOC=%d from environment", preallocate);
+      uint16_t env_val = (uint16_t)val;
+      
+      if (env_val > ARENA_POOL_SIZE) {
+        LOG_DEBUG("ECEWO_ARENA_PREALLOC=%d exceeds maximum %d, capping to %d",
+                  env_val, ARENA_POOL_SIZE, ARENA_POOL_SIZE);
+        preallocate = ARENA_POOL_SIZE;
+      } else {
+        preallocate = env_val;
+        LOG_DEBUG("Using ECEWO_ARENA_PREALLOC=%d from environment", preallocate);
+      }
     }
   }
 

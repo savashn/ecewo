@@ -373,11 +373,6 @@ static void close_walk_cb(uv_handle_t *handle, void *arg) {
         free(data);
       uv_close(handle, (uv_close_cb)free);
     }
-  } else if (handle->type == UV_POLL) {
-    uv_poll_stop((uv_poll_t *)handle);
-    uv_close(handle, NULL);
-  } else if (handle->type == UV_ASYNC) {
-    uv_close(handle, NULL);
   } else if (handle->type == UV_SIGNAL) {
     uv_signal_stop((uv_signal_t *)handle);
     uv_close(handle, NULL);
