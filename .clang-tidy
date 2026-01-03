@@ -1,7 +1,15 @@
 Checks: >
   -*,
   clang-analyzer-*,
-  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-multi-level-implicit-pointer-conversion,
+  cert-*,
+  -cert-err33-c,
+  concurrency-*
 
 WarningsAsErrors: clang-analyzer-*
 HeaderFilterRegex: '^(src|include)/'
+SystemHeaders: false
+FormatStyle: none
