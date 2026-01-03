@@ -1,6 +1,9 @@
-.PHONY: lint lint-fix lint-verbose clean-lint help
+.PHONY: format lint lint-fix lint-verbose clean-lint help
 
 SOURCES := $(shell find src include -type f \( -name "*.c" -o -name "*.h" \))
+
+format:
+	@clang-format -i $(SOURCES)
 
 lint:
 	@echo "Running clang-tidy on $(words $(SOURCES)) files..."
@@ -30,6 +33,7 @@ clean-lint:
 
 help:
 	@echo "Available targets:"
+	@echo "  make format        - Run clang-format"
 	@echo "  make lint          - Run clang-tidy (quiet mode, recommended)"
 	@echo "  make lint-verbose  - Run clang-tidy with detailed output"
 	@echo "  make lint-fix      - Auto-fix issues where possible"
