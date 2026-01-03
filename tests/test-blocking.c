@@ -115,7 +115,7 @@ int test_spawn_thread_ids(void) {
   uint64_t server_main_thread;
   sscanf(main_res.body, "%" SCNu64, &server_main_thread);
 
-  printf("\n  Server main thread: %" PRIu64 "\n", server_main_thread);
+  // printf("\n  Server main thread: %" PRIu64 "\n", server_main_thread);
   free_request(&main_res);
 
   MockParams spawn_params = {
@@ -136,9 +136,9 @@ int test_spawn_thread_ids(void) {
 
   ASSERT_EQ(3, parsed);
 
-  printf("  Handler thread: %" PRIu64 "\n", handler_tid);
-  printf("  Work thread:    %" PRIu64 "\n", work_tid);
-  printf("  Done thread:    %" PRIu64 "\n", done_tid);
+  // printf("  Handler thread: %" PRIu64 "\n", handler_tid);
+  // printf("  Work thread:    %" PRIu64 "\n", work_tid);
+  // printf("  Done thread:    %" PRIu64 "\n", done_tid);
 
   ASSERT_EQ(server_main_thread, handler_tid);
   ASSERT_NE(server_main_thread, work_tid);
@@ -169,9 +169,6 @@ int test_spawn_not_blocking(void) {
 
   uv_thread_join(&thread);
 
-  printf("\n  Spawn request: %" PRIu64 " ms\n", slow_ctx.duration_ms);
-  printf("  Fast request: %" PRIu64 " ms (should be <50ms)\n", fast_duration);
-
   ASSERT_EQ(200, slow_ctx.response.status_code);
   ASSERT_EQ(200, fast_res.status_code);
   ASSERT_TRUE(fast_duration < 50);
@@ -201,9 +198,6 @@ int test_sync_blocking(void) {
   uint64_t fast_duration = get_time_ms() - fast_start;
 
   uv_thread_join(&thread);
-
-  printf("\n  Sync request: %" PRIu64 " ms\n", slow_ctx.duration_ms);
-  printf("  Fast request: %" PRIu64 " ms (should be >=200ms)\n", fast_duration);
 
   ASSERT_EQ(200, slow_ctx.response.status_code);
   ASSERT_EQ(200, fast_res.status_code);
