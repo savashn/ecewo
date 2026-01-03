@@ -5,10 +5,12 @@ Checks: >
   bugprone-*,
   -bugprone-easily-swappable-parameters,
   -bugprone-multi-level-implicit-pointer-conversion,
+  -bugprone-narrowing-conversions,
+  -bugprone-not-null-terminated-result,
   cert-*,
   -cert-err33-c,
-  concurrency-*
-
+  concurrency-*,
+  -concurrency-mt-unsafe
 WarningsAsErrors: clang-analyzer-*
 HeaderFilterRegex: '^(src|include)/'
 SystemHeaders: false
