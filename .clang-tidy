@@ -1,0 +1,7 @@
+Checks: >
+  -*,
+  clang-analyzer-*,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
+
+WarningsAsErrors: clang-analyzer-*
+HeaderFilterRegex: '^(src|include)/'
