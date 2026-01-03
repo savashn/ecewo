@@ -122,6 +122,7 @@ static int add_param_to_match(route_match_t *match,
   if (!match)
     return -1;
 
+  // Inline storage
   if (match->param_count < MAX_INLINE_PARAMS && !match->params) {
     param_match_t *param = &match->inline_params[match->param_count];
     param->key.data = key_data;
@@ -132,6 +133,7 @@ static int add_param_to_match(route_match_t *match,
     return 0;
   }
 
+  // Switching to the dynamic allocation
   if (match->param_count == MAX_INLINE_PARAMS && !match->params) {
     uint8_t new_capacity = MAX_INLINE_PARAMS * 2;
     param_match_t *new_params = arena_alloc(arena, sizeof(param_match_t) * new_capacity);
@@ -150,6 +152,7 @@ static int add_param_to_match(route_match_t *match,
               new_capacity);
   }
 
+  // Capacity control and reallocation for dynamic storage
   if (match->params && match->param_count >= match->param_capacity) {
     uint8_t new_capacity = match->param_capacity * 2;
 
@@ -171,8 +174,12 @@ static int add_param_to_match(route_match_t *match,
     match->param_capacity = new_capacity;
   }
 
-  param_match_t *target = match->params ? &match->params[match->param_count] : &match->inline_params[match->param_count];
+  if (!match->params) {
+    LOG_ERROR("Unexpected NULL params pointer with param_count=%d", match->param_count);
+    return -1;
+  }
 
+  param_match_t *target = &match->params[match->param_count];
   target->key.data = key_data;
   target->key.len = key_len;
   target->value.data = value_data;
