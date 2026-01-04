@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <inttypes.h>
+#include <stdatomic.h>
 #include "server.h"
 #include "route-trie.h"
 #include "middleware.h"
@@ -61,7 +62,7 @@ static struct
   bool running;
   bool shutdown_requested;
   int active_connections;
-  int pending_async_work;
+  atomic_uint_fast16_t pending_async_work;
 
   uv_loop_t *loop;
   uv_tcp_t *server;
@@ -206,16 +207,40 @@ static void stop_cleanup_timer(void) {
 }
 
 void increment_async_work(void) {
-  g_server.pending_async_work++;
+  uint_fast16_t new_val = atomic_fetch_add_explicit(
+                              &g_server.pending_async_work,
+                              1,
+                              memory_order_relaxed)
+      + 1;
+
+#ifdef ECEWO_DEBUG
+  LOG_DEBUG("Async work count: %" PRIuFAST16, new_val);
+#endif
+
+  (void)new_val;
 }
 
 void decrement_async_work(void) {
-  if (g_server.pending_async_work > 0)
-    g_server.pending_async_work--;
+  uint_fast16_t prev = atomic_fetch_sub_explicit(
+      &g_server.pending_async_work,
+      1,
+      memory_order_acq_rel);
+
+  if (prev == 0) {
+    LOG_ERROR("Async work counter underflow!");
+    atomic_store_explicit(&g_server.pending_async_work, 0, memory_order_release);
+    return;
+  }
+
+  if (prev == 1 && g_server.shutdown_requested) {
+    uv_async_send(&g_server.shutdown_async);
+  }
 }
 
 int get_pending_async_work(void) {
-  return g_server.pending_async_work;
+  return (int)atomic_load_explicit(
+      &g_server.pending_async_work,
+      memory_order_acquire);
 }
 
 static int client_connection_init(client_t *client) {
@@ -401,9 +426,6 @@ void server_shutdown(void) {
     g_server.shutdown_callback();
 
   stop_cleanup_timer();
-
-  if (!uv_is_closing((uv_handle_t *)&g_server.shutdown_async))
-    uv_close((uv_handle_t *)&g_server.shutdown_async, NULL);
 
   const char *is_worker = getenv("ECEWO_WORKER");
   bool in_cluster = (is_worker && strcmp(is_worker, "1") == 0);
@@ -645,6 +667,8 @@ int server_init(void) {
 
   if (uv_async_init(g_server.loop, &g_server.shutdown_async, on_async_shutdown) != 0)
     return SERVER_INIT_FAILED;
+
+  atomic_store_explicit(&g_server.pending_async_work, 0, memory_order_relaxed);
 
   if (router_init() != 0)
     return SERVER_INIT_FAILED;
