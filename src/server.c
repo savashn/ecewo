@@ -452,40 +452,33 @@ void server_shutdown(void) {
     current = next;
   }
 
+  // STEP 1: Wait for external async work (Postgres, Redis, etc.)
   uint64_t start = uv_now(ecewo_server.loop);
-
+  
   while (get_pending_async_work() > 0) {
     if ((uv_now(ecewo_server.loop) - start) >= SHUTDOWN_TIMEOUT_MS) {
-      LOG_DEBUG("Shutdown timeout: %d operations abandoned",
+      LOG_DEBUG("External async timeout: %d operations abandoned",
                 get_pending_async_work());
       break;
     }
-
     uv_run(ecewo_server.loop, UV_RUN_ONCE);
   }
 
+  // STEP 2: Close all remaining handles
   uv_walk(ecewo_server.loop, close_walk_cb, NULL);
 
-  // Run loop until all close callbacks complete
+  // STEP 3: Wait for libuv cleanup (timers, work queue, etc.)
   start = uv_now(ecewo_server.loop);
-  int empty_iterations = 0;
-
-  while (ecewo_server.active_connections > 0 && empty_iterations < 100) {
+  
+  while (uv_loop_alive(ecewo_server.loop)) {
     if ((uv_now(ecewo_server.loop) - start) >= SHUTDOWN_TIMEOUT_MS) {
-      LOG_DEBUG("Shutdown timeout: %d connections remaining", ecewo_server.active_connections);
+      LOG_DEBUG("libuv cleanup timeout, forcing close");
       break;
     }
-
-    int result = uv_run(ecewo_server.loop, UV_RUN_ONCE);
-
-    if (result == 0) {
-      empty_iterations++;
-      uv_sleep(1);
-    } else {
-      empty_iterations = 0;
-    }
+    uv_run(ecewo_server.loop, UV_RUN_ONCE);
   }
 
+  // STEP 4: Cleanup taken-over connections
   // Some clients may have been taken over by external modules (e.g., WebSocket)
   // Their handles are already closed, but client structs are still in the list
   current = ecewo_server.client_list_head;
@@ -506,7 +499,8 @@ void server_shutdown(void) {
   }
 
   if (ecewo_server.active_connections > 0)
-    LOG_DEBUG("Warning: %d connections not properly closed", ecewo_server.active_connections);
+    LOG_DEBUG("Warning: %d connections not properly closed", 
+              ecewo_server.active_connections);
 }
 
 static void router_cleanup(void) {

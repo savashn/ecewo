@@ -26,7 +26,6 @@ static void spawn_async_cb(uv_async_t *handle) {
   if (t->result_fn)
     t->result_fn(t->context);
 
-  decrement_async_work();
   uv_close((uv_handle_t *)handle, spawn_cleanup_cb);
 }
 
@@ -66,8 +65,6 @@ int spawn(void *context, spawn_handler_t work_fn, spawn_handler_t done_fn) {
   task->work_fn = work_fn;
   task->result_fn = done_fn;
 
-  increment_async_work();
-
   int result = uv_queue_work(
       uv_default_loop(),
       &task->work,
@@ -76,7 +73,6 @@ int spawn(void *context, spawn_handler_t work_fn, spawn_handler_t done_fn) {
 
   if (result != 0) {
     uv_close((uv_handle_t *)&task->async_send, NULL);
-    decrement_async_work();
     free(task);
     return result;
   }
