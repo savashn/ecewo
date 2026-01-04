@@ -1,8 +1,5 @@
 <div align="center">
     <img src="https://raw.githubusercontent.com/savashn/ecewo/main/.github/assets/ecewo.svg" />
-</div>
-
-<div align="center">
     <h1>Express-C Effect for Web Operations</h1>
     A web framework for C — inspired by <a href="https://expressjs.com">express.js</a>
 </div>
@@ -21,10 +18,14 @@
 - [Contributing](#contributing)
 - [License](#license)
 
+---
+
 ## Requirements
 
 - A C compiler (GCC or Clang)
 - CMake version 3.14 or higher
+
+---
 
 ## Quick Start
 
@@ -56,7 +57,7 @@ int main(void) {
 ```
 
 **CMakeLists.txt:**
-```cmake
+```shell
 cmake_minimum_required(VERSION 3.14)
 project(app VERSION 1.0.0 LANGUAGES C)
 
@@ -65,7 +66,7 @@ include(FetchContent)
 FetchContent_Declare(
     ecewo
     GIT_REPOSITORY https://github.com/savashn/ecewo.git
-    GIT_TAG v3.0.0
+    GIT_TAG v3.0.1
 )
 
 FetchContent_MakeAvailable(ecewo)
@@ -87,6 +88,8 @@ cmake --build .
 ./app
 ```
 
+---
+
 ## Benchmarks
 
 Here are "Hello World" benchmark results comparing several frameworks with ecewo. See the source code of the [benchmark test](https://github.com/savashn/ecewo-benchmarks).
@@ -102,9 +105,13 @@ Here are "Hello World" benchmark results comparing several frameworks with ecewo
 | go        | 893,248   | 115.85 MB    |
 | express   | 93,214    | 23.20 MB     |
 
+---
+
 ## Dependencies
 
 ecewo is built on top of [libuv](https://github.com/libuv/libuv) and [llhttp](https://github.com/nodejs/llhttp). They are fetched automatically by CMake, so no manual installation is required.
+
+---
 
 ## Running Tests
 
@@ -116,9 +123,13 @@ cmake --build .
 ctest
 ```
 
+---
+
 ## Documentation
 
 Refer to the [docs](/docs/) for usage.
+
+---
 
 ## Modules
 
@@ -132,6 +143,8 @@ Refer to the [docs](/docs/) for usage.
 - [`ecewo-session`](https://github.com/savashn/ecewo-modules/tree/main/src/session) for session management.
 - [`ecewo-static`](https://github.com/savashn/ecewo-modules/tree/main/src/static) for static file serving.
 
+---
+
 ## Future Features
 
 - WebSocket
@@ -140,13 +153,19 @@ Refer to the [docs](/docs/) for usage.
 - HTTP/2
 - C++ wrapper
 
+---
+
 ## Example App
 
 [Here](https://github.com/savashn/ecewo-example) is an example blog app built with ecewo and PostgreSQL.
 
+---
+
 ## Contributing
 
-Contributions are welcome. Please feel free to submit a pull requests or open issues for feature requests or bugs. See the [CONTRIBUTING.md](/CONTRIBUTING.md).
+Contributions are welcome. Please feel free to submit pull requests or open issues. See the [CONTRIBUTING.md](/CONTRIBUTING.md).
+
+---
 
 ## License
 

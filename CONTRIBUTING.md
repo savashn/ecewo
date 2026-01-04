@@ -5,7 +5,7 @@ All kinds of contributions are welcome.
 Please follow the existing coding style. The project uses `clang-format` for code formatting. If you are not sure about the style of your code, you can format your changes by running:
 
 ```shell
-clang-format -i <path-to-file>
+make format
 ```
 
 ## Possible contribution ideas
@@ -15,7 +15,5 @@ clang-format -i <path-to-file>
 - Adding new features
 - Editing and adding documentation
 - Writing tests
-
-For adding new modules, please open a pull request in [ecewo-modules](https://github.com/savashn/ecewo-modules) repository.
 
 **Thank you for your contribution <3**
