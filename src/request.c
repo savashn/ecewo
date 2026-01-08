@@ -11,13 +11,13 @@ static const char *get_req(const request_t *request, const char *key, bool case_
   if (!request || !request->items || !key || request->count == 0)
     return NULL;
 
+  int (*cmp)(const char *, const char *) = case_insensitive ? strcasecmp : strcmp;
+
   for (uint16_t i = 0; i < request->count; i++) {
     if (!request->items[i].key)
       continue;
 
-    bool match = case_insensitive
-        ? (strcasecmp(request->items[i].key, key) == 0)
-        : (strcmp(request->items[i].key, key) == 0);
+    bool match = (cmp(request->items[i].key, key) == 0);
 
     if (match)
       return request->items[i].value;
