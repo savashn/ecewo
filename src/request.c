@@ -27,21 +27,21 @@ static const char *get_req(const request_t *request, const char *key, bool case_
 }
 
 const char *get_param(const Req *req, const char *key) {
-  if (!req || !key)
+  if (!req)
     return NULL;
 
   return get_req(&req->params, key, false);
 }
 
 const char *get_query(const Req *req, const char *key) {
-  if (!req || !key)
+  if (!req)
     return NULL;
 
   return get_req(&req->query, key, false);
 }
 
 const char *get_header(const Req *req, const char *key) {
-  if (!req || !key)
+  if (!req)
     return NULL;
 
   return get_req(&req->headers, key, true);
