@@ -73,6 +73,7 @@ if(NOT TARGET ecewo::ecewo)
     endif()
 
     add_library(ecewo::ecewo ALIAS ecewo)
+    include(${CMAKE_CURRENT_LIST_DIR}/cmake/plugins.cmake)
 
     if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_options(ecewo PRIVATE

@@ -44,3 +44,6 @@
     5. [Middleware](09.configurations.md#middleware)
     6. [Example Configuration](09.configurations.md#example-configuration)
     7. [Debugging Configuration Issues](09.configurations.md#debugging-configuration-issues)
+10. [Plugins](10.plugins.md)
+    1. [Adding One-By-One](10.plugins.md#adding-one-by-one)
+    2. [Adding Multiple](10.plugins.md#adding-multiple)

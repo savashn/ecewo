@@ -479,7 +479,7 @@ void server_shutdown(void) {
   }
 
   // STEP 4: Cleanup taken-over connections
-  // Some clients may have been taken over by external modules (e.g., WebSocket)
+  // Some clients may have been taken over by plugins (e.g., WebSocket)
   // Their handles are already closed, but client structs are still in the list
   current = ecewo_server.client_list_head;
   while (current) {

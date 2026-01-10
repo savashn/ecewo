@@ -269,7 +269,7 @@ void register_options(const char *path, int mw_count, ...);
 #define options(path, ...) \
   register_options(path, MW(__VA_ARGS__), __VA_ARGS__)
 
-// DEVELOPMENT FUNCTIONS FOR EXTERNAL MODULES
+// DEVELOPMENT FUNCTIONS FOR PLUGINS
 void increment_async_work(void);
 void decrement_async_work(void);
 uv_loop_t *get_loop(void);

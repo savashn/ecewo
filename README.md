@@ -12,7 +12,7 @@
 - [Dependencies](#dependencies)
 - [Running Tests](#running-tests)
 - [Documentation](#documentation)
-- [Modules](#modules)
+- [Plugins](#plugins)
 - [Future Features](#future-features)
 - [Example App](#example-app)
 - [Contributing](#contributing)
@@ -92,7 +92,7 @@ cmake --build .
 
 ## Benchmarks
 
-Here are "Hello World" benchmark results comparing several frameworks with ecewo. See the source code of the [benchmark test](https://github.com/savashn/ecewo-benchmarks).
+Here are "Hello World" benchmark results comparing several frameworks with ecewo. See the source code of the [benchmark test](https://github.com/ecewo/ecewo-benchmarks).
 
 - **Machine:** 12th Gen Intel Core i7-12700F x 20, 32GB RAM, SSD
 - **OS:** Fedora Workstation 43
@@ -131,17 +131,17 @@ Refer to the [docs](/docs/) for usage.
 
 ---
 
-## Modules
+## Plugins
 
-- [`ecewo-cluster`](https://github.com/savashn/ecewo-modules/tree/main/src/cluster) for multithreading.
-- [`ecewo-cookie`](https://github.com/savashn/ecewo-modules/tree/main/src/cookie) for cookie management.
-- [`ecewo-cors`](https://github.com/savashn/ecewo-modules/tree/main/src/cors) for CORS impelentation.
-- [`ecewo-fs`](https://github.com/savashn/ecewo-modules/tree/main/src/fs) for file operations.
-- [`ecewo-helmet`](https://github.com/savashn/ecewo-modules/tree/main/src/helmet) for automatically setting safety headers.
-- [`ecewo-mock`](https://github.com/savashn/ecewo-modules/tree/main/src/mock) for mocking requests.
-- [`ecewo-postgres`](https://github.com/savashn/ecewo-modules/tree/main/src/postgres) for async PostgreSQL integration.
-- [`ecewo-session`](https://github.com/savashn/ecewo-modules/tree/main/src/session) for session management.
-- [`ecewo-static`](https://github.com/savashn/ecewo-modules/tree/main/src/static) for static file serving.
+- [`ecewo-cluster`](https://github.com/ecewo/ecewo-modules/tree/main/src/cluster) for multithreading.
+- [`ecewo-cookie`](https://github.com/ecewo/ecewo-modules/tree/main/src/cookie) for cookie management.
+- [`ecewo-cors`](https://github.com/ecewo/ecewo-modules/tree/main/src/cors) for CORS impelentation.
+- [`ecewo-fs`](https://github.com/ecewo/ecewo-modules/tree/main/src/fs) for file operations.
+- [`ecewo-helmet`](https://github.com/ecewo/ecewo-modules/tree/main/src/helmet) for automatically setting safety headers.
+- [`ecewo-mock`](https://github.com/ecewo/ecewo-modules/tree/main/src/mock) for mocking requests.
+- [`ecewo-postgres`](https://github.com/ecewo/ecewo-modules/tree/main/src/postgres) for async PostgreSQL integration.
+- [`ecewo-session`](https://github.com/ecewo/ecewo-modules/tree/main/src/session) for session management.
+- [`ecewo-static`](https://github.com/ecewo/ecewo-modules/tree/main/src/static) for static file serving.
 
 ---
 
@@ -157,7 +157,7 @@ Refer to the [docs](/docs/) for usage.
 
 ## Example App
 
-[Here](https://github.com/savashn/ecewo-example) is an example blog app built with ecewo and PostgreSQL.
+[Here](https://github.com/ecewo/ecewo-example) is an example blog app built with ecewo and PostgreSQL.
 
 ---
 
