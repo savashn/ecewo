@@ -225,38 +225,14 @@ jobs:
     - name: Build
       run: cmake --build build --config Debug
     
-    - name: Run Valgrind on ecewo_test
+    - name: Run tests with Valgrind
       working-directory: build
       run: |
-        VALGRIND_OPTS="--leak-check=full \
-                      --error-exitcode=1 \
-                      --show-leak-kinds=definite,indirect,possible \
-                      --track-origins=yes \
-                      --verbose"
-        
-        echo "Running valgrind on: ecewo_test"
-        
-        if [ -x "ecewo_test" ]; then
-          timeout 300 valgrind $VALGRIND_OPTS ./ecewo_test || {
-            EXIT_CODE=$?
-            if [ $EXIT_CODE -eq 124 ]; then
-              echo "TIMEOUT: Test exceeded 300 seconds"
-            else
-              echo "FAILED: Test exited with code $EXIT_CODE"
-            fi
-            exit $EXIT_CODE
-          }
-        else
-          echo "ERROR: ecewo_test executable not found"
-          exit 1
-        fi
-    
-    - name: Upload Valgrind logs
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: valgrind-logs
-        path: build/*.log
+        ctest -C Debug \
+          --output-on-failure \
+          --verbose \
+          -T memcheck \
+          --timeout 300
 
   sanitizers:
     name: ASAN/UBSAN
@@ -287,52 +263,6 @@ jobs:
     - name: Run tests with ASAN/UBSAN
       working-directory: build
       env:
-        ASAN_OPTIONS: "detect_leaks=1:halt_on_error=1:abort_on_error=1:fast_unwind_on_malloc=0:symbolize=1:alloc_dealloc_mismatch=1:strict_string_checks=1:quarantine_size_mb=64"
-        UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1:silence_unsigned_overflow=0"
-      run: |
-        echo "Running ASAN/UBSAN on: ecewo_test"
-        
-        if [ ! -x "ecewo_test" ]; then
-          echo "ERROR: ecewo_test executable not found"
-          ls -la
-          exit 1
-        fi
-        
-        ./ecewo_test 2>&1 | tee test_output.log
-        EXIT_CODE=${PIPESTATUS[0]}
-        
-        echo ""
-        echo "Test exit code: $EXIT_CODE"
-        
-        if grep -q "runtime error:" test_output.log; then
-          echo ""
-          echo "UNDEFINED BEHAVIOR DETECTED:"
-          grep -B 2 -A 10 "runtime error:" test_output.log
-          exit 1
-        fi
-        
-        if grep -q "Direct leak\|Indirect leak\|ERROR: LeakSanitizer" test_output.log; then
-          echo ""
-          echo "MEMORY LEAK DETECTED:"
-          grep -B 2 -A 30 "Direct leak\|Indirect leak\|ERROR: LeakSanitizer" test_output.log
-          exit 1
-        fi
-        
-        if grep -q "ERROR: AddressSanitizer" test_output.log; then
-          echo ""
-          echo "ADDRESS SANITIZER ERROR:"
-          grep -B 5 -A 20 "ERROR: AddressSanitizer" test_output.log
-          exit 1
-        fi
-        
-        if [ $EXIT_CODE -ne 0 ]; then
-          echo "Tests failed but no sanitizer issues detected"
-          exit $EXIT_CODE
-        fi
-        
-    - name: Upload sanitizer logs
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: combined-sanitizers-logs
-        path: build/test_output.log
+        ASAN_OPTIONS: "detect_leaks=1:halt_on_error=1:abort_on_error=1"
+        UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1"
+      run: ctest -C Debug --output-on-failure --verbose
