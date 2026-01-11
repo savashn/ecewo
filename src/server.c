@@ -454,7 +454,7 @@ void server_shutdown(void) {
 
   // STEP 1: Wait for external async work (Postgres, Redis, etc.)
   uint64_t start = uv_now(ecewo_server.loop);
-  
+
   while (get_pending_async_work() > 0) {
     if ((uv_now(ecewo_server.loop) - start) >= SHUTDOWN_TIMEOUT_MS) {
       LOG_DEBUG("External async timeout: %d operations abandoned",
@@ -469,7 +469,7 @@ void server_shutdown(void) {
 
   // STEP 3: Wait for libuv cleanup (timers, work queue, etc.)
   start = uv_now(ecewo_server.loop);
-  
+
   while (uv_loop_alive(ecewo_server.loop)) {
     if ((uv_now(ecewo_server.loop) - start) >= SHUTDOWN_TIMEOUT_MS) {
       LOG_DEBUG("libuv cleanup timeout, forcing close");
@@ -499,7 +499,7 @@ void server_shutdown(void) {
   }
 
   if (ecewo_server.active_connections > 0)
-    LOG_DEBUG("Warning: %d connections not properly closed", 
+    LOG_DEBUG("Warning: %d connections not properly closed",
               ecewo_server.active_connections);
 }
 

@@ -133,6 +133,13 @@ static int populate_req_from_context(Req *req, http_context_t *ctx, const char *
   return 0;
 }
 
+// Empty handler for running global middleware only
+// it is needed for OPTIONS preflight CORS
+static void noop_route_handler(Req *req, Res *res) {
+  (void)req;
+  (void)res;
+}
+
 int router(client_t *client, const char *request_data, size_t request_len) {
   uv_tcp_t *handle = (uv_tcp_t *)&client->handle;
   http_context_t *persistent_ctx = &client->persistent_context;
@@ -238,14 +245,41 @@ int router(client_t *client, const char *request_data, size_t request_len) {
     return REQUEST_CLOSE;
   }
 
+  if (populate_req_from_context(req, persistent_ctx, path, path_len) != 0) {
+    send_error(request_arena, handle, 500);
+    return REQUEST_CLOSE;
+  }
+
+  res->is_head_request = req->is_head_request;
+
   route_match_t match;
-  if (!route_trie_match(global_route_trie, persistent_ctx->parser, &tokenized_path, &match, request_arena)) {
+  if (!route_trie_match(global_route_trie,
+                        persistent_ctx->parser,
+                        &tokenized_path,
+                        &match,
+                        request_arena)) {
+
     LOG_DEBUG("Route not found: %s %s", persistent_ctx->method, path);
 
+    // If this is an OPTIONS preflight, run the global middleware
+    // so middleware like CORS can reply without requiring an OPTIONS route
+    if (persistent_ctx->method_length == 7 && memcmp(persistent_ctx->method, "OPTIONS", 7) == 0) {
+      // Create a small dummy MiddlewareInfo with a no-op handler.
+      MiddlewareInfo dummy_mw;
+      dummy_mw.middleware = NULL;
+      dummy_mw.middleware_count = 0;
+      dummy_mw.handler = noop_route_handler;
+
+      chain_start(req, res, &dummy_mw);
+
+      if (res->replied) {
+        return res->keep_alive ? REQUEST_KEEP_ALIVE : REQUEST_CLOSE;
+      }
+    }
+
     bool keep_alive = res->keep_alive;
-    const char *not_found_msg = "404 Not Found";
     set_header(res, "Content-Type", "text/plain");
-    reply(res, 404, not_found_msg, strlen(not_found_msg));
+    reply(res, 404, "404 Not Found", 13);
     return keep_alive ? REQUEST_KEEP_ALIVE : REQUEST_CLOSE;
   }
 
@@ -253,13 +287,6 @@ int router(client_t *client, const char *request_data, size_t request_len) {
     send_error(request_arena, handle, 500);
     return REQUEST_CLOSE;
   }
-
-  if (populate_req_from_context(req, persistent_ctx, path, path_len) != 0) {
-    send_error(request_arena, handle, 500);
-    return REQUEST_CLOSE;
-  }
-
-  res->is_head_request = req->is_head_request;
 
   if (!match.handler) {
     send_error(request_arena, handle, 500);
@@ -275,7 +302,6 @@ int router(client_t *client, const char *request_data, size_t request_len) {
   }
 
   chain_start(req, res, middleware_info);
-
   if (!res->replied)
     return REQUEST_PENDING;
 
