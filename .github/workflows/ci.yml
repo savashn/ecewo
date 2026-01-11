@@ -229,10 +229,16 @@ jobs:
       working-directory: build
       run: |
         ctest -C Debug \
+          -T memcheck \
           --output-on-failure \
           --verbose \
-          -T memcheck \
-          --timeout 300
+          --timeout 300 \
+          --overwrite MemoryCheckCommand=valgrind \
+          --overwrite MemoryCheckCommandOptions="
+            --leak-check=full
+            --show-leak-kinds=definite,indirect
+            --error-exitcode=1
+          "
 
   sanitizers:
     name: ASAN/UBSAN
