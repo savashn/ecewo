@@ -91,3 +91,24 @@ int test_post_with_body(void) {
   free_request(&res);
   RETURN_OK();
 }
+
+static void setup_routes(void) {
+  get("/method", handler_method_echo);
+  post("/method", handler_method_echo);
+  put("/method", handler_method_echo);
+  del("/method", handler_method_echo);
+  patch("/method", handler_method_echo);
+  post("/echo-body", handler_post_body);
+}
+
+int main(void) {
+  mock_init(setup_routes);
+  RUN_TEST(test_method_get);
+  RUN_TEST(test_method_post);
+  RUN_TEST(test_method_put);
+  RUN_TEST(test_method_delete);
+  RUN_TEST(test_method_patch);
+  RUN_TEST(test_post_with_body);
+  mock_cleanup();
+  return 0;
+}

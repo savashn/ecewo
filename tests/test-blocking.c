@@ -17,8 +17,7 @@ static uint64_t get_thread_id(void) {
 // Spawn Thread ID Test
 // ============================================================================
 
-typedef struct
-{
+typedef struct {
   Res *res;
   uint64_t main_thread_id;
   uint64_t work_thread_id;
@@ -79,8 +78,7 @@ void handler_slow(Req *req, Res *res) {
 // Background Request Helper
 // ============================================================================
 
-typedef struct
-{
+typedef struct {
   const char *path;
   MockResponse response;
   uint64_t duration_ms;
@@ -206,4 +204,20 @@ int test_sync_blocking(void) {
   free_request(&slow_ctx.response);
   free_request(&fast_res);
   RETURN_OK();
+}
+
+static void setup_routes(void) {
+  get("/thread-test", handler_thread_test);
+  get("/main-thread", handler_get_main_thread);
+  get("/fast", handler_fast);
+  get("/slow", handler_slow);
+}
+
+int main(void) {
+  mock_init(setup_routes);
+  RUN_TEST(test_spawn_thread_ids);
+  RUN_TEST(test_spawn_not_blocking);
+  RUN_TEST(test_sync_blocking);
+  mock_cleanup();
+  return 0;
 }

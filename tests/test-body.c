@@ -32,3 +32,14 @@ int test_large_body(void) {
   free_request(&res);
   RETURN_OK();
 }
+
+static void setup_routes(void) {
+  post("/large-body", handler_large_body);
+}
+
+int main(void) {
+  mock_init(setup_routes);
+  RUN_TEST(test_large_body);
+  mock_cleanup();
+  return 0;
+}

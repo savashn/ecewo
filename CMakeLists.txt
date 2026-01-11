@@ -125,44 +125,51 @@ endif()
 
 if(ECEWO_BUILD_TESTS)
     enable_testing()
-
-    add_executable(ecewo_test
-        tests/runner.c
-        tests/ecewo-mock.c
-        tests/test-async-middleware.c
-        tests/test-body.c
-        tests/test-blocking.c
-        tests/test-concurrent-request.c
-        tests/test-context.c
-        tests/test-fire-and-forget.c
-        tests/test-headers.c
-        tests/test-methods.c
-        tests/test-middleware.c
-        tests/test-params.c
-        tests/test-query.c
-        tests/test-redirect.c
-        tests/test-response.c
-        tests/test-root.c
-        tests/test-task-parallel.c
-        tests/test-task.c
-    )
-
-    target_include_directories(ecewo_test PRIVATE
-        ${CMAKE_SOURCE_DIR}/tests
-    )
-
-    target_link_libraries(ecewo_test PRIVATE ecewo)
     
-    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-        target_compile_options(ecewo_test PRIVATE
-            -Wall
-            -Wextra
-            -Werror
-            -Wstrict-prototypes
-            -Wincompatible-pointer-types
-            -Wno-unused-parameter
+    ecewo_add_plugin(mock)
+    
+    function(ecewo_test test_name)
+        set(target_name ecewo_test_${test_name})
+        
+        add_executable(${target_name}
+            tests/test-${test_name}.c
         )
-    endif()
+        
+        target_link_libraries(${target_name} PRIVATE
+            ecewo::ecewo
+            ecewo::mock
+        )
+        
+        target_include_directories(${target_name} PRIVATE
+            ${CMAKE_SOURCE_DIR}/tests
+        )
+        
+        if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+            target_compile_options(${target_name} PRIVATE
+                -Wall -Wextra -Werror
+                -Wstrict-prototypes
+                -Wincompatible-pointer-types
+                -Wno-unused-parameter
+            )
+        endif()
+        
+        add_test(NAME ${test_name} COMMAND ${target_name})
+    endfunction()
     
-    add_test(NAME ecewo_all_tests COMMAND ecewo_test)
+    ecewo_test(async-middleware)
+    ecewo_test(body)
+    ecewo_test(blocking)
+    ecewo_test(concurrent-request)
+    ecewo_test(context)
+    ecewo_test(fire-and-forget)
+    ecewo_test(headers)
+    ecewo_test(methods)
+    ecewo_test(middleware)
+    ecewo_test(params)
+    ecewo_test(query)
+    ecewo_test(redirect)
+    ecewo_test(response)
+    ecewo_test(root)
+    ecewo_test(task-parallel)
+    ecewo_test(task)
 endif()

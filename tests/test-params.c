@@ -108,3 +108,19 @@ int test_overflow_param(void) {
   free_request(&res);
   RETURN_OK();
 }
+
+static void setup_routes(void) {
+  get("/param/:id1/:id2/:id3/:id4/:id5/:id6/:id7/:id8/:id9/:id10", handler_overflow_param);
+  get("/users/:userId/posts/:postId/comments/:commentId", handler_multi_param);
+  get("/users/:userId", handler_single_param);
+}
+
+int main(void) {
+  mock_init(setup_routes);
+  RUN_TEST(test_single_param);
+  RUN_TEST(test_multi_param);
+  RUN_TEST(test_param_special_chars);
+  RUN_TEST(test_overflow_param);
+  mock_cleanup();
+  return 0;
+}

@@ -21,3 +21,14 @@ int test_root_path(void) {
   free_request(&res);
   RETURN_OK();
 }
+
+static void setup_routes(void) {
+  get("/", handler_root);
+}
+
+int main(void) {
+  mock_init(setup_routes);
+  RUN_TEST(test_root_path);
+  mock_cleanup();
+  return 0;
+}

@@ -28,3 +28,14 @@ int test_sequential_requests(void) {
 
   RETURN_OK();
 }
+
+static void setup_routes(void) {
+  get("/counter", handler_counter);
+}
+
+int main(void) {
+  mock_init(setup_routes);
+  RUN_TEST(test_sequential_requests);
+  mock_cleanup();
+  return 0;
+}

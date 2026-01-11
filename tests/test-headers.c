@@ -97,3 +97,18 @@ int test_header_injection(void) {
   free_request(&res);
   RETURN_OK();
 }
+
+static void setup_routes(void) {
+  get("/headers", handler_echo_headers);
+  get("/custom-headers", handler_set_headers);
+  get("/header-injection", handler_header_injection);
+}
+
+int main(void) {
+  mock_init(setup_routes);
+  RUN_TEST(test_request_headers);
+  RUN_TEST(test_set_headers);
+  RUN_TEST(test_header_injection);
+  mock_cleanup();
+  return 0;
+}

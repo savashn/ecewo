@@ -61,3 +61,18 @@ int test_query_no_params(void) {
   free_request(&res);
   RETURN_OK();
 }
+
+static void setup_routes(void) {
+  get("/search", handler_query_params);
+}
+
+int main(void) {
+  mock_init(setup_routes);
+
+  RUN_TEST(test_query_multiple);
+  RUN_TEST(test_query_empty_value);
+  RUN_TEST(test_query_no_params);
+
+  mock_cleanup();
+  return 0;
+}

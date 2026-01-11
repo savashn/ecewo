@@ -3,15 +3,13 @@
 #include "tester.h"
 #include "uv.h"
 
-typedef struct
-{
+typedef struct {
   Req *req;
   Res *res;
   Next next;
 } mw_ctx_t;
 
-typedef struct
-{
+typedef struct {
   char *user_id;
   char *role;
 } user_ctx_t;
@@ -99,4 +97,18 @@ int test_async_auth_no_token(void) {
 
   free_request(&res);
   RETURN_OK();
+}
+
+static void setup_routes(void) {
+  get("/mw-async", middleware_async_auth, handler_protected);
+}
+
+int main(void) {
+  mock_init(setup_routes);
+
+  RUN_TEST(test_async_auth_middleware);
+  RUN_TEST(test_async_auth_no_token);
+
+  mock_cleanup();
+  return 0;
 }

@@ -2,8 +2,7 @@
 #include "ecewo-mock.h"
 #include "tester.h"
 
-typedef struct
-{
+typedef struct {
   Res *res;
   int total;
   int completed;
@@ -71,4 +70,15 @@ int test_spawn_parallel(void) {
 
   free_request(&res);
   RETURN_OK();
+}
+
+static void setup_routes(void) {
+  get("/parallel", handler_parallel);
+}
+
+int main(void) {
+  mock_init(setup_routes);
+  RUN_TEST(test_spawn_parallel);
+  mock_cleanup();
+  return 0;
 }

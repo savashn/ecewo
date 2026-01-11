@@ -81,3 +81,18 @@ int test_middleware_abort(void) {
   free_request(&res);
   RETURN_OK();
 }
+
+static void setup_routes(void) {
+  get("/mw-order", middleware_first, middleware_second, middleware_third, handler_middleware_order);
+  get("/mw-abort", middleware_abort, handler_should_not_reach);
+}
+
+int main(void) {
+  mock_init(setup_routes);
+
+  RUN_TEST(test_middleware_execution_order);
+  RUN_TEST(test_middleware_abort);
+
+  mock_cleanup();
+  return 0;
+}

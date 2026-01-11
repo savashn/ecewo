@@ -315,3 +315,30 @@ int test_context_unauthorized(void) {
   free_request(&res);
   RETURN_OK();
 }
+
+static void setup_routes(void) {
+  get("/context", context_middleware, context_handler);
+  get("/no-middleware", handler_no_middleware);
+  get("/nonexistent-key", handler_nonexistent_key);
+  get("/overwrite", handler_overwrite);
+  get("/multiple-keys", handler_multiple_keys);
+  get("/null-data", handler_null_data);
+  get("/chain-context", middleware_first_ctx, middleware_second_ctx, handler_chain_context);
+  get("/complex-data", handler_complex_data);
+}
+
+int main(void) {
+  mock_init(setup_routes);
+
+  RUN_TEST(test_context_basic);
+  RUN_TEST(test_context_missing);
+  RUN_TEST(test_context_nonexistent_key);
+  RUN_TEST(test_context_overwrite);
+  RUN_TEST(test_context_multiple_keys);
+  RUN_TEST(test_context_null_data);
+  RUN_TEST(test_context_middleware_chain);
+  RUN_TEST(test_context_unauthorized);
+
+  mock_cleanup();
+  return 0;
+}

@@ -121,3 +121,25 @@ int test_404_wrong_method(void) {
   free_request(&res);
   RETURN_OK();
 }
+
+static void setup_routes(void) {
+  get("/json-response", handler_json_response);
+  get("/html-response", handler_html_response);
+  get("/status", handler_status_codes);
+}
+
+int main(void) {
+  mock_init(setup_routes);
+
+  // Response Types
+  RUN_TEST(test_json_content_type);
+  RUN_TEST(test_html_content_type);
+  RUN_TEST(test_status_201);
+  RUN_TEST(test_status_404);
+  RUN_TEST(test_status_500);
+  RUN_TEST(test_404_unknown_path);
+  RUN_TEST(test_404_wrong_method);
+
+  mock_cleanup();
+  return 0;
+}

@@ -5,8 +5,7 @@
 
 static int background_counter = 0;
 
-typedef struct
-{
+typedef struct {
   Arena *arena;
   int increment;
 } background_ctx_t;
@@ -61,4 +60,16 @@ int test_spawn_fire_and_forget(void) {
   free_request(&res2);
 
   RETURN_OK();
+}
+
+static void setup_routes(void) {
+  post("/background", handler_fire_and_forget);
+  get("/check-counter", handler_check_counter);
+}
+
+int main(void) {
+  mock_init(setup_routes);
+  RUN_TEST(test_spawn_fire_and_forget);
+  mock_cleanup();
+  return 0;
 }

@@ -2,8 +2,7 @@
 #include "ecewo-mock.h"
 #include "tester.h"
 
-typedef struct
-{
+typedef struct {
   Res *res;
   int result;
 } compute_ctx_t;
@@ -42,4 +41,15 @@ int test_spawn_with_response(void) {
 
   free_request(&res);
   RETURN_OK();
+}
+
+static void setup_routes(void) {
+  get("/compute", handler_compute);
+}
+
+int main(void) {
+  mock_init(setup_routes);
+  RUN_TEST(test_spawn_with_response);
+  mock_cleanup();
+  return 0;
 }

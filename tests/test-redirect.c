@@ -65,3 +65,17 @@ int test_redirect_injection(void) {
   free_request(&res);
   RETURN_OK();
 }
+
+static void setup_routes(void) {
+  get("/old-path", handler_redirect);
+  get("/new-location", handler_new_location);
+  get("/redirect-injection", handler_redirect_injection);
+}
+
+int main(void) {
+  mock_init(setup_routes);
+  RUN_TEST(test_redirect);
+  RUN_TEST(test_redirect_injection);
+  mock_cleanup();
+  return 0;
+}
