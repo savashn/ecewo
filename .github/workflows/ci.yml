@@ -220,7 +220,9 @@ jobs:
       run: |
         cmake -B build \
           -DCMAKE_BUILD_TYPE=Debug \
-          -DECEWO_BUILD_TESTS=ON
+          -DECEWO_BUILD_TESTS=ON \
+          -DCTEST_MEMORYCHECK_COMMAND=valgrind \
+          -DCTEST_MEMORYCHECK_COMMAND_OPTIONS="--leak-check=full;--show-leak-kinds=definite,indirect;--error-exitcode=1"
     
     - name: Build
       run: cmake --build build --config Debug
@@ -229,16 +231,10 @@ jobs:
       working-directory: build
       run: |
         ctest -C Debug \
-          -T memcheck \
           --output-on-failure \
           --verbose \
-          --timeout 300 \
-          --overwrite MemoryCheckCommand=valgrind \
-          --overwrite MemoryCheckCommandOptions="
-            --leak-check=full
-            --show-leak-kinds=definite,indirect
-            --error-exitcode=1
-          "
+          -T memcheck \
+          --timeout 300
 
   sanitizers:
     name: ASAN/UBSAN
