@@ -124,6 +124,7 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
 endif()
 
 if(ECEWO_BUILD_TESTS)
+    include(CTest)
     enable_testing()
     
     ecewo_add_plugin(mock)
