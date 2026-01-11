@@ -23,7 +23,7 @@ function(ecewo_define_plugin NAME)
     endif()
 endfunction()
 
-function(ecewo_add_plugin NAME)
+function(ecewo_plugin NAME)
     set(oneValueArgs VERSION REPO)
     cmake_parse_arguments(P "" "${oneValueArgs}" "" ${ARGN})
 
@@ -65,11 +65,11 @@ function(ecewo_add_plugin NAME)
 
     if(NOT TARGET ecewo::${NAME})
         message(FATAL_ERROR
-            "${NAME} plugin  did not define target ecewo::${NAME}")
+            "${NAME} plugin did not define target ecewo::${NAME}")
     endif()
 endfunction()
 
-function(ecewo_add_plugins)
+function(ecewo_plugins)
     foreach(entry IN LISTS ARGN)
 
         string(FIND "${entry}" "@" at_pos)
@@ -85,9 +85,9 @@ function(ecewo_add_plugins)
                     "Expected format: name@version")
             endif()
 
-            ecewo_add_plugin(${plugin} VERSION ${version})
+            ecewo_plugin(${plugin} VERSION ${version})
         else()
-            ecewo_add_plugin(${entry})
+            ecewo_plugin(${entry})
         endif()
 
     endforeach()
