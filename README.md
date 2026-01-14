@@ -57,7 +57,7 @@ int main(void) {
 ```
 
 **CMakeLists.txt:**
-```shell
+```sh
 cmake_minimum_required(VERSION 3.14)
 project(app VERSION 1.0.0 LANGUAGES C)
 
@@ -133,25 +133,29 @@ Refer to the [docs](/docs/) for usage.
 
 ## Plugins
 
-- [`ecewo-cluster`](https://github.com/ecewo/ecewo-modules/tree/main/src/cluster) for multithreading.
-- [`ecewo-cookie`](https://github.com/ecewo/ecewo-modules/tree/main/src/cookie) for cookie management.
-- [`ecewo-cors`](https://github.com/ecewo/ecewo-modules/tree/main/src/cors) for CORS impelentation.
-- [`ecewo-fs`](https://github.com/ecewo/ecewo-modules/tree/main/src/fs) for file operations.
-- [`ecewo-helmet`](https://github.com/ecewo/ecewo-modules/tree/main/src/helmet) for automatically setting safety headers.
-- [`ecewo-mock`](https://github.com/ecewo/ecewo-modules/tree/main/src/mock) for mocking requests.
-- [`ecewo-postgres`](https://github.com/ecewo/ecewo-modules/tree/main/src/postgres) for async PostgreSQL integration.
-- [`ecewo-session`](https://github.com/ecewo/ecewo-modules/tree/main/src/session) for session management.
-- [`ecewo-static`](https://github.com/ecewo/ecewo-modules/tree/main/src/static) for static file serving.
+- [`ecewo-cluster`](https://github.com/ecewo/ecewo-cluster) for multithreading.
+- [`ecewo-cookie`](https://github.com/ecewo/ecewo-cookie) for cookie management.
+- [`ecewo-cors`](https://github.com/ecewo/ecewo-cors) for CORS impelentation.
+- [`ecewo-fs`](https://github.com/ecewo/ecewo-fs) for file operations.
+- [`ecewo-helmet`](https://github.com/ecewo/ecewo-helmet) for automatically setting safety headers.
+- [`ecewo-mock`](https://github.com/ecewo/ecewo-mock) for mocking requests.
+- [`ecewo-postgres`](https://github.com/ecewo/ecewo-postgres) for async PostgreSQL integration.
+- [`ecewo-session`](https://github.com/ecewo/ecewo-session) for session management.
+- [`ecewo-static`](https://github.com/ecewo/ecewo-static) for static file serving.
 
 ---
 
 ## Future Features
 
+I'm not giving my word, but I'm planning to add these features in the future:
+
+- Rate limiter
 - WebSocket
 - TLS
 - SSE
 - HTTP/2
-- C++ wrapper
+- C++ and Nim bindings
+- Redis plugin
 
 ---
 
