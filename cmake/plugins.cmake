@@ -54,14 +54,16 @@ function(ecewo_plugin NAME)
         )
     endif()
 
+    set(plugin_name ecewo-${NAME})
+
     FetchContent_Declare(
-        ECEWO_PLUGIN_${NAME}
+        ${plugin_name}
         GIT_REPOSITORY ${PLUGIN_REPO}
         GIT_TAG ${PLUGIN_TAG}
         GIT_SHALLOW TRUE
     )
 
-    FetchContent_MakeAvailable(ECEWO_PLUGIN_${NAME})
+    FetchContent_MakeAvailable(${plugin_name})
 
     if(NOT TARGET ecewo::${NAME})
         message(FATAL_ERROR
