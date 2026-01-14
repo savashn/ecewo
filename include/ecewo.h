@@ -22,15 +22,13 @@ typedef struct Arena {
 } Arena;
 
 // Internal struct, do not use it
-typedef struct
-{
+typedef struct {
   const char *key;
   const char *value;
 } request_item_t;
 
 // Internal struct, do not use it
-typedef struct
-{
+typedef struct {
   request_item_t *items;
   uint16_t count;
   uint16_t capacity;
@@ -38,8 +36,7 @@ typedef struct
 
 typedef struct context_t context_t;
 
-typedef struct
-{
+typedef struct {
   Arena *arena;
   uv_tcp_t *client_socket;
   char *method;
@@ -57,14 +54,12 @@ typedef struct
 } Req;
 
 // Internal struct, do not use it
-typedef struct
-{
+typedef struct {
   const char *name;
   const char *value;
 } http_header_t;
 
-typedef struct
-{
+typedef struct {
   Arena *arena;
   uv_tcp_t *client_socket;
   uint16_t status;
