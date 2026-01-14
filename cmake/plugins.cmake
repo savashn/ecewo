@@ -24,6 +24,10 @@ function(ecewo_define_plugin NAME)
 endfunction()
 
 function(ecewo_plugin NAME)
+    if(TARGET ecewo::${NAME})
+        return()
+    endif()
+
     set(oneValueArgs VERSION REPO)
     cmake_parse_arguments(P "" "${oneValueArgs}" "" ${ARGN})
 
