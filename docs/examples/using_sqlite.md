@@ -47,8 +47,7 @@ Let's make the configuration of database:
 sqlite3 *db = NULL;
 
 // Create a user table
-int create_table(void)
-{
+int create_table(void) {
     const char *create_table =
         "CREATE TABLE IF NOT EXISTS users ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -61,8 +60,7 @@ int create_table(void)
 
     int rc = sqlite3_exec(db, create_table, 0, 0, &err_msg);
 
-    if (rc != SQLITE_OK)
-    {
+    if (rc != SQLITE_OK) {
         fprintf(stderr, "Cannot create the table: %s\n", err_msg);
         sqlite3_free(err_msg);
         return 1;
@@ -73,12 +71,10 @@ int create_table(void)
 }
 
 // Connection
-int db_init(void)
-{
+int db_init(void) {
     int rc = sqlite3_open("sql.db", &db);
 
-    if (rc != SQLITE_OK)
-    {
+    if (rc != SQLITE_OK) {
         fprintf(stderr, "Cannot open the database: %s\n", sqlite3_errmsg(db));
         return 1;
     }
@@ -146,16 +142,14 @@ typedef struct {
 } AddUserContext;
 
 // Worker function - runs in thread pool (safe to block)
-void add_user_work(void *context)
-{
+void add_user_work(void *context) {
     AddUserContext *ctx = (AddUserContext *)context;
     
     const char *sql = "INSERT INTO users (name, username, password) VALUES (?, ?, ?);";
     sqlite3_stmt *stmt;
     int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
 
-    if (rc != SQLITE_OK)
-    {
+    if (rc != SQLITE_OK) {
         ctx->status = 500;
         ctx->message = "DB prepare failed";
         return;
@@ -168,8 +162,7 @@ void add_user_work(void *context)
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
 
-    if (rc != SQLITE_DONE)
-    {
+    if (rc != SQLITE_DONE) {
         ctx->status = 500;
         ctx->message = "DB insert failed";
         return;
@@ -180,27 +173,23 @@ void add_user_work(void *context)
 }
 
 // Callback function - runs on main thread
-void add_user_done(void *context)
-{
+void add_user_done(void *context) {
     AddUserContext *ctx = (AddUserContext *)context;
     send_text(ctx->res, ctx->status, ctx->message);
 }
 
 // Handler function - runs on main thread
-void add_user(Req *req, Res *res)
-{
+void add_user(Req *req, Res *res) {
     const char *body = req->body;
 
-    if (body == NULL)
-    {
+    if (body == NULL) {
         send_text(res, 400, "Missing request body");
         return;
     }
 
     cJSON *json = cJSON_Parse(body);
 
-    if (!json)
-    {
+    if (!json) {
         send_text(res, 400, "Invalid JSON");
         return;
     }
@@ -209,8 +198,7 @@ void add_user(Req *req, Res *res)
     const char *username = cJSON_GetObjectItem(json, "username")->valuestring;
     const char *password = cJSON_GetObjectItem(json, "password")->valuestring;
 
-    if (!name || !username || !password)
-    {
+    if (!name || !username || !password) {
         cJSON_Delete(json);
         send_text(res, 400, "Missing fields");
         return;
@@ -266,16 +254,14 @@ typedef struct {
 } GetUsersContext;
 
 // Worker function - runs in thread pool
-void get_users_work(void *context)
-{
+void get_users_work(void *context) {
     GetUsersContext *ctx = (GetUsersContext *)context;
     
     const char *sql = "SELECT * FROM users;";
     sqlite3_stmt *stmt;
     int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
 
-    if (rc != SQLITE_OK)
-    {
+    if (rc != SQLITE_OK) {
         ctx->status = 500;
         ctx->error_message = "DB prepare failed";
         return;
@@ -283,8 +269,7 @@ void get_users_work(void *context)
 
     ctx->json_array = cJSON_CreateArray();
 
-    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW)
-    {
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         const int id = sqlite3_column_int(stmt, 0);
         const char *name = (const char *)sqlite3_column_text(stmt, 1);
         const char *username = (const char *)sqlite3_column_text(stmt, 2);
@@ -299,8 +284,7 @@ void get_users_work(void *context)
 
     sqlite3_finalize(stmt);
 
-    if (rc != SQLITE_DONE)
-    {
+    if (rc != SQLITE_DONE) {
         ctx->status = 500;
         ctx->error_message = "DB step failed";
         cJSON_Delete(ctx->json_array);
@@ -312,12 +296,10 @@ void get_users_work(void *context)
 }
 
 // Callback - runs on main thread
-void get_users_done(void *context)
-{
+void get_users_done(void *context) {
     GetUsersContext *ctx = (GetUsersContext *)context;
 
-    if (ctx->status != 200 || !ctx->json_array)
-    {
+    if (ctx->status != 200 || !ctx->json_array) {
         send_text(ctx->res, ctx->status, ctx->error_message);
         return;
     }
@@ -330,8 +312,7 @@ void get_users_done(void *context)
 }
 
 // Handler - runs on main thread
-void get_all_users(Req *req, Res *res)
-{
+void get_all_users(Req *req, Res *res) {
     GetUsersContext *ctx = arena_alloc(res->arena, sizeof(GetUsersContext));
     ctx->res = res;
     ctx->json_array = NULL;
@@ -353,21 +334,17 @@ void get_all_users(Req *req, Res *res)
 #include "db/db.h"
 #include <stdio.h>
 
-void destroy_app(void)
-{
+void destroy_app(void) {
     sqlite3_close(db);
 }
 
-int main(void)
-{
-    if (server_init() != 0)
-    {
+int main(void) {
+    if (server_init() != 0) {
         fprintf(stderr, "Failed to initialize server\n");
         return 1;
     }
 
-    if (db_init() != 0)
-    {
+    if (db_init() != 0) {
         fprintf(stderr, "Failed to initialize database\n");
         return 1;
     }
@@ -378,8 +355,7 @@ int main(void)
 
     server_atexit(destroy_app);
 
-    if (server_listen(3000) != 0)
-    {
+    if (server_listen(3000) != 0) {
         fprintf(stderr, "Failed to start server\n");
         return 1;
     }

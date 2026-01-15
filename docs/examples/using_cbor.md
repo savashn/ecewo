@@ -33,8 +33,7 @@ We did this with JSON in [this example](/examples/using-json#creating-json). Now
 #include "cbor.h"
 #include <stdio.h>
 
-void hello_world_cbor(Req *req, Res *res)
-{
+void hello_world_cbor(Req *req, Res *res) {
     uint8_t buffer[128]; // Temporary buffer for CBOR output
     // Normally it should be allocated dynamically
 
@@ -57,18 +56,15 @@ void hello_world_cbor(Req *req, Res *res)
     reply(res, 200, buffer, len);
 }
 
-int main(void)
-{
-    if (server_init() != 0)
-    {
+int main(void) {
+    if (server_init() != 0) {
         fprintf(stderr, "Failed to initialize server\n");
         return 1;
     }
 
     get("/cbor", hello_world_cbor);
 
-    if (server_listen(3000) != 0)
-    {
+    if (server_listen(3000) != 0) {
         fprintf(stderr, "Failed to start server\n");
         return 1;
     }
@@ -89,13 +85,11 @@ You can see [the exact example](/examples/using-json/#parsing-json) with JSON.
 #include "cbor.h"
 #include <stdio.h>
 
-void handle_user_cbor(Req *req, Res *res)
-{
+void handle_user_cbor(Req *req, Res *res) {
     const uint8_t *data = (const uint8_t *)req->body;
     size_t data_len = req->body_len; // Length in bytes of the incoming body
 
-    if (!data || data_len == 0)
-    {
+    if (!data || data_len == 0) {
         send_text(res, 400, "Missing request body");
         return;
     }
@@ -104,15 +98,13 @@ void handle_user_cbor(Req *req, Res *res)
     CborParser parser;
     CborValue it;
     CborError err = cbor_parser_init(data, data_len, 0, &parser, &it);
-    if (err != CborNoError)
-    {
+    if (err != CborNoError) {
         send_text(res, 400, "Invalid CBOR");
         return;
     }
 
     // Check that the outermost item is a map (dictionary)
-    if (!cbor_value_is_map(&it))
-    {
+    if (!cbor_value_is_map(&it)) {
         send_text(res, 400, "Expected CBOR map");
         return;
     }
@@ -125,42 +117,36 @@ void handle_user_cbor(Req *req, Res *res)
 
     // name
     err = cbor_value_map_find_value(&map, "name", &val);
-    if (err != CborNoError || !cbor_value_is_text_string(&val))
-    {
+    if (err != CborNoError || !cbor_value_is_text_string(&val)) {
         send_text(res, 400, "Missing or invalid 'name'");
         goto cleanup;
     }
     err = cbor_value_dup_text_string(&val, &name, &len, &it);
-    if (err != CborNoError)
-    {
+    if (err != CborNoError) {
         send_text(res, 400, "Failed to read 'name'");
         goto cleanup;
     }
 
     // surname
     err = cbor_value_map_find_value(&map, "surname", &val);
-    if (err != CborNoError || !cbor_value_is_text_string(&val))
-    {
+    if (err != CborNoError || !cbor_value_is_text_string(&val)) {
         send_text(res, 400, "Missing or invalid 'surname'");
         goto cleanup;
     }
     err = cbor_value_dup_text_string(&val, &surname, &len, &it);
-    if (err != CborNoError)
-    {
+    if (err != CborNoError) {
         send_text(res, 400, "Failed to read 'surname'");
         goto cleanup;
     }
 
     // username
     err = cbor_value_map_find_value(&map, "username", &val);
-    if (err != CborNoError || !cbor_value_is_text_string(&val))
-    {
+    if (err != CborNoError || !cbor_value_is_text_string(&val)) {
         send_text(res, 400, "Missing or invalid 'username'");
         goto cleanup;
     }
     err = cbor_value_dup_text_string(&val, &username, &len, &it);
-    if (err != CborNoError)
-    {
+    if (err != CborNoError) {
         send_text(res, 400, "Failed to read 'username'");
         goto cleanup;
     }
@@ -181,18 +167,15 @@ cleanup:
         free(username);
 }
 
-int main(void)
-{
-    if (server_init() != 0)
-    {
+int main(void) {
+    if (server_init() != 0) {
         fprintf(stderr, "Failed to initialize server\n");
         return 1;
     }
 
     post("/cbor", handle_user_cbor);
 
-    if (server_listen(3000) != 0)
-    {
+    if (server_listen(3000) != 0) {
         fprintf(stderr, "Failed to start server\n");
         return 1;
     }

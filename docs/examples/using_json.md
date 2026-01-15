@@ -19,8 +19,7 @@ Let's write our `hello world` example again, but this time it will send a JSON o
 #include "cJSON.h"
 #include <stdio.h>
 
-void hello_world(Req *req, Res *res)
-{
+void hello_world(Req *req, Res *res) {
     // Create a JSON object
     cJSON *json = cJSON_CreateObject();
 
@@ -38,18 +37,15 @@ void hello_world(Req *req, Res *res)
     free(json_string);
 }
 
-int main(void)
-{
-    if (server_init() != 0)
-    {
+int main(void) {
+    if (server_init() != 0) {
         fprintf(stderr, "Failed to initialize server\n");
         return 1;
     }
 
     get("/", hello_world);
 
-    if (server_listen(3000) != 0)
-    {
+    if (server_listen(3000) != 0) {
         fprintf(stderr, "Failed to start server\n");
         return 1;
     }
@@ -76,20 +72,17 @@ This time, let's take a JSON and print it to console.
 #include "cJSON.h"
 #include <stdio.h>
 
-void handle_user(Req *req, Res *res)
-{
+void handle_user(Req *req, Res *res) {
     const char *body = req->body;
 
-    if (body == NULL)
-    {
+    if (body == NULL) {
         send_text(res, 400, "Missing request body");
         return;
     }
 
     cJSON *json = cJSON_Parse(body);
 
-    if (!json)
-    {
+    if (!json) {
         send_text(res, 400, "Invalid JSON");
         return;
     }
@@ -98,8 +91,7 @@ void handle_user(Req *req, Res *res)
     const char *surname = cJSON_GetObjectItem(json, "surname")->valuestring;
     const char *username = cJSON_GetObjectItem(json, "username")->valuestring;
 
-    if (!name || !surname || !username)
-    {
+    if (!name || !surname || !username) {
         cJSON_Delete(json);
         send_text(res, 400, "Missing fields");
         return;
@@ -113,18 +105,15 @@ void handle_user(Req *req, Res *res)
     send_text(res, 200, "Success!");
 }
 
-int main(void)
-{
-    if (server_init() != 0)
-    {
+int main(void) {
+    if (server_init() != 0) {
         fprintf(stderr, "Failed to initialize server\n");
         return 1;
     }
 
     post("/user", handle_user);
 
-    if (server_listen(3000) != 0)
-    {
+    if (server_listen(3000) != 0) {
         fprintf(stderr, "Failed to start server\n");
         return 1;
     }

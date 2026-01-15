@@ -1,7 +1,7 @@
 <div align="center">
-    <img src="https://raw.githubusercontent.com/savashn/ecewo/main/.github/assets/ecewo.svg" />
-    <h1>Express-C Effect for Web Operations</h1>
-    A web framework for C — inspired by <a href="https://expressjs.com">express.js</a>
+  <img src="https://raw.githubusercontent.com/savashn/ecewo/main/.github/assets/ecewo.svg" />
+  <h1>Express-C Effect for Web Operations</h1>
+  A web framework for C — inspired by <a href="https://expressjs.com">express.js</a>
 </div>
 
 ## Table of Contents
@@ -35,24 +35,24 @@
 #include <stdio.h>
 
 void hello_world(Req *req, Res *res) {
-    send_text(res, OK, "Hello, World!");
+  send_text(res, OK, "Hello, World!");
 }
 
 int main(void) {
-    if (server_init() != 0) {
-        fprintf(stderr, "Failed to initialize server\n");
-        return 1;
-    }
+  if (server_init() != 0) {
+    fprintf(stderr, "Failed to initialize server\n");
+    return -1;
+  }
 
-    get("/", hello_world);
+  get("/", hello_world);
 
-    if (server_listen(3000) != 0) {
-        fprintf(stderr, "Failed to start server\n");
-        return 1;
-    }
+  if (server_listen(3000) != 0) {
+    fprintf(stderr, "Failed to start server\n");
+    return -1;
+  }
 
-    server_run();
-    return 0;
+  server_run();
+  return 0;
 }
 ```
 
@@ -64,15 +64,15 @@ project(app VERSION 1.0.0 LANGUAGES C)
 include(FetchContent)
 
 FetchContent_Declare(
-    ecewo
-    GIT_REPOSITORY https://github.com/savashn/ecewo.git
-    GIT_TAG v3.0.1
+  ecewo
+  GIT_REPOSITORY https://github.com/savashn/ecewo.git
+  GIT_TAG v3.1.0
 )
 
 FetchContent_MakeAvailable(ecewo)
 
 add_executable(${PROJECT_NAME}
-    main.c
+  main.c
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE ecewo)
@@ -92,7 +92,7 @@ cmake --build .
 
 ## Benchmarks
 
-Here are "Hello World" benchmark results comparing several frameworks with ecewo. See the source code of the [benchmark test](https://github.com/ecewo/ecewo-benchmarks).
+Here are "Hello World" benchmark results comparing several frameworks with ecewo. See the source code of the [benchmark test](https://github.com/ecewo/benchmarks).
 
 - **Machine:** 12th Gen Intel Core i7-12700F x 20, 32GB RAM, SSD
 - **OS:** Fedora Workstation 43

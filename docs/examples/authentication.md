@@ -18,8 +18,7 @@ const char *STATIC_USERNAME = "johndoe";
 const char *STATIC_PASSWORD = "123123";
 const char *STATIC_USER_ID = "1";
 
-void handle_login(Req *req, Res *res)
-{
+void handle_login(Req *req, Res *res) {
    const char *body = req->body;
    if (!body)
    {
@@ -86,8 +85,7 @@ void cleanup_app(void) {
     session_cleanup();
 }
 
-int main(void)
-{
+int main(void) {
     server_init();
     session_init();
 
@@ -120,13 +118,11 @@ If login is successful, we'll see a `Login successful!` response and a header li
 
 // Add this handler:
 
-void handle_logout(Req *req, Res *res)
-{
+void handle_logout(Req *req, Res *res) {
     // First, check if the user has session
     Session *session = session_get(req);
 
-    if (!session)
-    {
+    if (!session) {
         send_text(res, 400, "You have to login first");
     }
     else
@@ -149,8 +145,7 @@ void cleanup_app(void) {
     session_cleanup();
 }
 
-int main(void)
-{
+int main(void) {
     server_init();
     session_init();
 
@@ -191,8 +186,7 @@ We added 3 data to the session in the Login handler: name, username and theme. L
 // [handle_login and handle_logout is here]
 // ...
 
-void handle_session_data(Req *req, Res *res)
-{
+void handle_session_data(Req *req, Res *res) {
    Session *session = session_get(req);
 
    if (!session)
@@ -237,8 +231,7 @@ void cleanup_app(void) {
     session_cleanup();
 }
 
-int main(void)
-{
+int main(void) {
     server_init();
     session_init();
 
@@ -273,8 +266,7 @@ Let's say that we want some pages to be available for authenticated users only. 
 ```c
 // <-- Here are the other handlers -->
 
-void handle_protected_route(Req *req, Res *res)
-{
+void handle_protected_route(Req *req, Res *res) {
    // Get session from request
    Session *sess = session_get(req);
    if (!sess)
@@ -304,8 +296,7 @@ void cleanup_app(void) {
     session_cleanup();
 }
 
-int main(void)
-{
+int main(void) {
     server_init();
     session_init();
 
