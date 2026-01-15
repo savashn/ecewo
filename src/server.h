@@ -24,7 +24,7 @@ struct client_s {
   // Connection-scoped parser and context
   llhttp_t persistent_parser;
   llhttp_settings_t persistent_settings;
-  http_context_t persistent_context; // Lives in connection_arena
+  http_context_t persistent_context; // Struct embedded in client; its buffers live in connection_arena
   bool parser_initialized;
   bool request_in_progress; // True while parsing a multi-packet request
 

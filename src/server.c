@@ -251,14 +251,6 @@ static int client_connection_init(client_t *client) {
   if (!client->connection_arena)
     return -1;
 
-  http_context_t *ctx = arena_alloc(client->connection_arena, sizeof(http_context_t));
-  if (!ctx) {
-    arena_return(client->connection_arena);
-    client->connection_arena = NULL;
-    return -1;
-  }
-
-  memcpy(&client->persistent_context, ctx, sizeof(http_context_t));
   return 0;
 }
 
@@ -289,49 +281,14 @@ static void client_context_init(client_t *client) {
   if (!client || !client->connection_arena)
     return;
 
-  http_context_t *ctx = &client->persistent_context;
+  if (!client->parser_initialized) {
+    client_parser_init(client);
+  }
 
-  memset(ctx, 0, sizeof(http_context_t));
-  ctx->arena = client->connection_arena;
-  ctx->parser = &client->persistent_parser;
-  ctx->settings = &client->persistent_settings;
-
-  client->persistent_parser.data = ctx;
-
-  ctx->url_capacity = 512;
-  ctx->url = arena_alloc(client->connection_arena, ctx->url_capacity);
-  if (ctx->url)
-    ctx->url[0] = '\0';
-
-  ctx->method_capacity = 32;
-  ctx->method = arena_alloc(client->connection_arena, ctx->method_capacity);
-  if (ctx->method)
-    ctx->method[0] = '\0';
-
-  ctx->header_field_capacity = 128;
-  ctx->current_header_field = arena_alloc(client->connection_arena, ctx->header_field_capacity);
-  if (ctx->current_header_field)
-    ctx->current_header_field[0] = '\0';
-
-  ctx->body_capacity = 1024;
-  ctx->body = arena_alloc(client->connection_arena, ctx->body_capacity);
-  if (ctx->body)
-    ctx->body[0] = '\0';
-
-  ctx->headers.capacity = 32;
-  ctx->headers.items = arena_alloc(client->connection_arena,
-                                   ctx->headers.capacity * sizeof(request_item_t));
-  if (ctx->headers.items)
-    memset(ctx->headers.items, 0, ctx->headers.capacity * sizeof(request_item_t));
-
-  memset(&ctx->query_params, 0, sizeof(request_t));
-  memset(&ctx->url_params, 0, sizeof(request_t));
-
-  ctx->keep_alive = 1;
-  ctx->message_complete = 0;
-  ctx->headers_complete = 0;
-  ctx->last_error = HPE_OK;
-  ctx->error_reason = NULL;
+  http_context_init(&client->persistent_context,
+                    client->connection_arena,
+                    &client->persistent_parser,
+                    &client->persistent_settings);
 }
 
 static void client_context_reset(client_t *client) {
@@ -339,43 +296,13 @@ static void client_context_reset(client_t *client) {
     return;
 
   arena_reset(client->connection_arena);
-  client_context_init(client);
-
-  http_context_t *ctx = &client->persistent_context;
-
-  ctx->url_length = 0;
-  ctx->method_length = 0;
-  ctx->body_length = 0;
-  ctx->header_field_length = 0;
-
-  ctx->headers.count = 0;
-  ctx->headers.capacity = 0;
-  ctx->headers.items = NULL;
-
-  ctx->query_params.count = 0;
-  ctx->query_params.capacity = 0;
-  ctx->query_params.items = NULL;
-
-  ctx->url_params.count = 0;
-  ctx->url_params.capacity = 0;
-  ctx->url_params.items = NULL;
-
-  ctx->message_complete = 0;
-  ctx->headers_complete = 0;
-  ctx->keep_alive = 1;
-  ctx->last_error = HPE_OK;
-  ctx->error_reason = NULL;
-
-  if (ctx->url)
-    ctx->url[0] = '\0';
-  if (ctx->method)
-    ctx->method[0] = '\0';
-  if (ctx->body)
-    ctx->body[0] = '\0';
-  if (ctx->current_header_field)
-    ctx->current_header_field[0] = '\0';
 
   llhttp_reset(&client->persistent_parser);
+
+  http_context_init(&client->persistent_context,
+                    client->connection_arena,
+                    &client->persistent_parser,
+                    &client->persistent_settings);
 }
 
 static void close_walk_cb(uv_handle_t *handle, void *arg) {
