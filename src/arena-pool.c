@@ -122,6 +122,13 @@ static void arena_pool_try_shrink(void) {
 
 static inline uint16_t get_arena_preallocation() {
   uint16_t preallocate = PREALLOCATED_ARENA;
+
+  if (preallocate > ARENA_POOL_CAP) {
+    LOG_DEBUG("%d exceeds maximum %d, capping to %d",
+              preallocate, ARENA_POOL_CAP, ARENA_POOL_CAP);
+    preallocate = ARENA_POOL_CAP;
+  }
+
   const char *env_prealloc = getenv("ECEWO_ARENA_PREALLOC");
 
   if (env_prealloc) {
