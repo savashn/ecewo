@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#ifndef ARENA_POOL_SIZE
-#define ARENA_POOL_SIZE 1024
+#ifndef ARENA_POOL_CAP
+#define ARENA_POOL_CAP 1024 /* Maximum allocatable arena count */
 #endif
 
 #ifndef PREALLOCATED_ARENA
@@ -26,7 +26,7 @@
 
 typedef struct
 {
-  Arena *arenas[ARENA_POOL_SIZE];
+  Arena *arenas[ARENA_POOL_CAP];
   uint16_t head;
   uint16_t peak_usage;
   uint16_t total_allocated;
@@ -45,7 +45,7 @@ static void arena_pool_try_grow(void) {
   if (arena_pool.head > ARENA_POOL_LOW_WATERMARK)
     return;
 
-  uint16_t space_available = ARENA_POOL_SIZE - arena_pool.head;
+  uint16_t space_available = ARENA_POOL_CAP - arena_pool.head;
   if (space_available == 0)
     return;
 
@@ -120,6 +120,34 @@ static void arena_pool_try_shrink(void) {
   }
 }
 
+static inline uint16_t get_arena_preallocation() {
+  uint16_t preallocate = PREALLOCATED_ARENA;
+  const char *env_prealloc = getenv("ECEWO_ARENA_PREALLOC");
+
+  if (env_prealloc) {
+    char *endptr;
+    long val = strtol(env_prealloc, &endptr, 10);
+
+    if (endptr == env_prealloc || *endptr != '\0' || val <= 0 || val > UINT16_MAX) {
+      LOG_DEBUG("Invalid ECEWO_ARENA_PREALLOC='%s', using default: %d",
+                env_prealloc, preallocate);
+    } else {
+      uint16_t env_val = (uint16_t) val;
+
+      if (env_val > ARENA_POOL_CAP) {
+        LOG_DEBUG("ECEWO_ARENA_PREALLOC=%d exceeds maximum %d, capping to %d",
+                  env_val, ARENA_POOL_CAP, ARENA_POOL_CAP);
+        preallocate = ARENA_POOL_CAP;
+      } else {
+        preallocate = env_val;
+        LOG_DEBUG("Using ECEWO_ARENA_PREALLOC=%d from environment", preallocate);
+      }
+    }
+  }
+
+  return preallocate;
+}
+
 void arena_pool_init(void) {
   if (arena_pool.initialized)
     return;
@@ -135,29 +163,7 @@ void arena_pool_init(void) {
     abort();
   }
 
-  uint16_t preallocate = PREALLOCATED_ARENA;
-
-  const char *env_prealloc = getenv("ECEWO_ARENA_PREALLOC");
-  if (env_prealloc) {
-    char *endptr;
-    long val = strtol(env_prealloc, &endptr, 10);
-
-    if (endptr == env_prealloc || *endptr != '\0' || val <= 0 || val > UINT16_MAX) {
-      LOG_DEBUG("Invalid ECEWO_ARENA_PREALLOC='%s', using default: %d",
-                env_prealloc, preallocate);
-    } else {
-      uint16_t env_val = (uint16_t)val;
-
-      if (env_val > ARENA_POOL_SIZE) {
-        LOG_DEBUG("ECEWO_ARENA_PREALLOC=%d exceeds maximum %d, capping to %d",
-                  env_val, ARENA_POOL_SIZE, ARENA_POOL_SIZE);
-        preallocate = ARENA_POOL_SIZE;
-      } else {
-        preallocate = env_val;
-        LOG_DEBUG("Using ECEWO_ARENA_PREALLOC=%d from environment", preallocate);
-      }
-    }
-  }
+  const uint16_t preallocate = get_arena_preallocation();
 
 // Pre-allocate arenas
 #ifdef ECEWO_DEBUG
@@ -266,7 +272,7 @@ Arena *arena_borrow(void) {
   }
 
   // Pool is empty, check if we can grow
-  if (arena_pool.total_allocated < ARENA_POOL_SIZE) {
+  if (arena_pool.total_allocated < ARENA_POOL_CAP) {
     // Allocate new arena
     arena = malloc(sizeof(Arena));
     if (arena) {
@@ -324,7 +330,7 @@ void arena_return(Arena *arena) {
 
   uv_mutex_lock(&arena_pool.mutex);
 
-  if (arena_pool.head < ARENA_POOL_SIZE) {
+  if (arena_pool.head < ARENA_POOL_CAP) {
     // Return to pool
     arena_pool.arenas[arena_pool.head++] = arena;
 
