@@ -77,7 +77,7 @@ static void arena_pool_try_grow(void) {
     LOG_DEBUG("Arena pool grew: +%d arenas (now %d/%d available)",
               allocated,
               arena_pool.head,
-              ARENA_POOL_SIZE);
+              ARENA_POOL_CAP);
   }
 }
 
@@ -116,7 +116,7 @@ static void arena_pool_try_shrink(void) {
   if (freed > 0) {
     arena_pool.shrink_count++;
     LOG_DEBUG("Arena pool shrunk: -%d arenas (now %d/%d available)",
-              freed, arena_pool.head, ARENA_POOL_SIZE);
+              freed, arena_pool.head, ARENA_POOL_CAP);
   }
 }
 
@@ -209,7 +209,7 @@ void arena_pool_init(void) {
   double allocated_mb = (allocated * ARENA_REGION_SIZE) / (1024.0 * 1024.0);
   LOG_DEBUG("Arena pool initialized: %d/%d arenas (%.2f MB)",
             allocated,
-            ARENA_POOL_SIZE,
+            ARENA_POOL_CAP,
             allocated_mb);
 #endif
 }
@@ -293,14 +293,14 @@ Arena *arena_borrow(void) {
           arena_pool.peak_usage = in_use;
 
         LOG_DEBUG("Arena pool: allocated new arena (total=%d/%d)",
-                  arena_pool.total_allocated, ARENA_POOL_SIZE);
+                  arena_pool.total_allocated, ARENA_POOL_CAP);
       } else {
         free(arena);
         arena = NULL;
       }
     }
   } else {
-    LOG_DEBUG("Arena pool exhausted! (max %d reached)", ARENA_POOL_SIZE);
+    LOG_DEBUG("Arena pool exhausted! (max %d reached)", ARENA_POOL_CAP);
   }
 
   uv_mutex_unlock(&arena_pool.mutex);
