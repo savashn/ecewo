@@ -56,7 +56,7 @@ static void arena_pool_try_grow(void) {
   uint8_t allocated = 0;
 
   for (uint8_t i = 0; i < to_allocate; i++) {
-    Arena *arena = calloc(1, sizeof(Arena));
+    Arena *arena = malloc(sizeof(Arena));
     if (!arena)
       break;
 
@@ -165,7 +165,7 @@ void arena_pool_init(void) {
 #endif
 
   for (uint16_t i = 0; i < preallocate; i++) {
-    Arena *arena = calloc(1, sizeof(Arena));
+    Arena *arena = malloc(sizeof(Arena));
     if (!arena) {
       LOG_DEBUG("Failed to allocate arena %d/%d, stopping pre-allocation",
                 i + 1, preallocate);
@@ -268,7 +268,7 @@ Arena *arena_borrow(void) {
   // Pool is empty, check if we can grow
   if (arena_pool.total_allocated < ARENA_POOL_SIZE) {
     // Allocate new arena
-    arena = calloc(1, sizeof(Arena));
+    arena = malloc(sizeof(Arena));
     if (arena) {
       arena->end = new_region(ARENA_REGION_SIZE);
       if (arena->end) {
