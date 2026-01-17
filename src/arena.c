@@ -25,9 +25,10 @@ static inline void free_region(ArenaRegion *r) {
 
 bool new_region_to(ArenaRegion **begin, ArenaRegion **end, size_t capacity) {
   ArenaRegion *region = new_region(capacity);
-  if (!region)
+  if (!region) {
     *end = NULL;
     return false;
+  }
 
   *end = region;
   *begin = region;
