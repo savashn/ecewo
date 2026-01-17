@@ -28,10 +28,14 @@ typedef struct
 {
   Arena *arenas[ARENA_POOL_CAP];
   uint16_t head;
-  uint16_t peak_usage;
   uint16_t total_allocated;
+
+#ifdef ECEWO_DEBUG
+  uint16_t peak_usage;
   uint16_t grow_count;
   uint16_t shrink_count;
+#endif
+
   uv_mutex_t mutex;
   bool initialized;
 } arena_pool_t;
@@ -69,6 +73,8 @@ static void arena_pool_try_grow(void) {
     arena->begin = arena->end;
     arena_pool.arenas[arena_pool.head++] = arena;
     arena_pool.total_allocated++;
+
+#ifdef ECEWO_DEBUG
     allocated++;
   }
 
@@ -78,6 +84,7 @@ static void arena_pool_try_grow(void) {
               allocated,
               arena_pool.head,
               ARENA_POOL_CAP);
+#endif
   }
 }
 
@@ -99,7 +106,10 @@ static void arena_pool_try_shrink(void) {
   if (to_free < ARENA_POOL_GROW_BATCH)
     to_free = ARENA_POOL_GROW_BATCH;
 
+#ifdef ECEWO_DEBUG
   uint16_t freed = 0;
+#endif
+
   while (to_free > 0 && arena_pool.head > target) {
     Arena *arena = arena_pool.arenas[--arena_pool.head];
     arena_pool.arenas[arena_pool.head] = NULL;
@@ -107,17 +117,22 @@ static void arena_pool_try_shrink(void) {
     if (arena) {
       arena_free(arena);
       free(arena);
+
+#ifdef ECEWO_DEBUG
       freed++;
+#endif
     }
 
     to_free--;
   }
 
+#ifdef ECEWO_DEBUG
   if (freed > 0) {
     arena_pool.shrink_count++;
     LOG_DEBUG("Arena pool shrunk: -%d arenas (now %d/%d available)",
               freed, arena_pool.head, ARENA_POOL_CAP);
   }
+#endif
 }
 
 static inline uint16_t get_arena_preallocation() {
@@ -160,10 +175,13 @@ void arena_pool_init(void) {
     return;
 
   arena_pool.head = 0;
-  arena_pool.peak_usage = 0;
   arena_pool.total_allocated = 0;
+
+#ifdef ECEWO_DEBUG
+  arena_pool.peak_usage = 0;
   arena_pool.grow_count = 0;
   arena_pool.shrink_count = 0;
+#endif
 
   if (uv_mutex_init(&arena_pool.mutex) != 0) {
     LOG_ERROR("Failed to initialize arena pool mutex");
@@ -266,9 +284,11 @@ Arena *arena_borrow(void) {
     arena_pool.arenas[arena_pool.head] = NULL;
 
     // Update peak usage
+#ifdef ECEWO_DEBUG
     int in_use = arena_pool.total_allocated - arena_pool.head;
     if (in_use > arena_pool.peak_usage)
       arena_pool.peak_usage = in_use;
+#endif
 
     // Try to grow if running low
     arena_pool_try_grow();
@@ -288,12 +308,14 @@ Arena *arena_borrow(void) {
         arena->begin = arena->end;
         arena_pool.total_allocated++;
 
+#ifdef ECEWO_DEBUG
         int in_use = arena_pool.total_allocated - arena_pool.head;
         if (in_use > arena_pool.peak_usage)
           arena_pool.peak_usage = in_use;
 
         LOG_DEBUG("Arena pool: allocated new arena (total=%d/%d)",
                   arena_pool.total_allocated, ARENA_POOL_CAP);
+#endif
       } else {
         free(arena);
         arena = NULL;
