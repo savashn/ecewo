@@ -15,7 +15,7 @@ struct ArenaRegion {
 };
 
 void arena_reset(Arena *a);
-ArenaRegion *new_region(size_t capacity);
+bool new_region_to(ArenaRegion **begin, ArenaRegion **end, size_t capacity);
 
 // Pool
 void arena_pool_init(void);

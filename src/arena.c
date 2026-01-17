@@ -3,9 +3,10 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include "arena.h"
 
-ArenaRegion *new_region(size_t capacity) {
+static inline ArenaRegion *new_region(size_t capacity) {
   size_t size_bytes = sizeof(ArenaRegion) + sizeof(uintptr_t) * capacity;
   ArenaRegion *r = (ArenaRegion *)malloc(size_bytes);
 
@@ -18,8 +19,20 @@ ArenaRegion *new_region(size_t capacity) {
   return r;
 }
 
-static void free_region(ArenaRegion *r) {
+static inline void free_region(ArenaRegion *r) {
   free(r);
+}
+
+bool new_region_to(ArenaRegion **begin, ArenaRegion **end, size_t capacity) {
+  ArenaRegion *region = new_region(capacity);
+  if (!region)
+    *end = NULL;
+    return false;
+
+  *end = region;
+  *begin = region;
+
+  return true;
 }
 
 void *arena_alloc(Arena *a, size_t size_bytes) {
@@ -27,12 +40,12 @@ void *arena_alloc(Arena *a, size_t size_bytes) {
 
   if (a->end == NULL) {
     size_t capacity = ARENA_REGION_SIZE;
+
     if (capacity < size)
       capacity = size;
-    a->end = new_region(capacity);
-    if (!a->end)
+
+    if (!new_region_to(&a->begin, &a->end, capacity))
       return NULL;
-    a->begin = a->end;
   }
 
   while (a->end->count + size > a->end->capacity && a->end->next != NULL) {
@@ -43,10 +56,9 @@ void *arena_alloc(Arena *a, size_t size_bytes) {
     size_t capacity = ARENA_REGION_SIZE;
     if (capacity < size)
       capacity = size;
-    a->end->next = new_region(capacity);
-    if (!a->end->next)
+
+    if (!new_region_to(&a->end, &a->end->next, capacity))
       return NULL;
-    a->end = a->end->next;
   }
 
   void *result = &a->end->data[a->end->count];
