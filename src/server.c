@@ -795,15 +795,13 @@ int server_listen(uint16_t port) {
 #endif
 
   if (uv_tcp_bind(ecewo_server.server, (const struct sockaddr *)&addr, flags) != 0) {
-    free(ecewo_server.server);
-    ecewo_server.server = NULL;
+    uv_close((uv_handle_t *)ecewo_server.server, on_server_closed);
     LOG_ERROR("Failed to bind to port %" PRIu16 " (may be in use)", port);
     return SERVER_BIND_FAILED;
   }
 
   if (uv_listen((uv_stream_t *)ecewo_server.server, LISTEN_BACKLOG, on_connection) != 0) {
-    free(ecewo_server.server);
-    ecewo_server.server = NULL;
+    uv_close((uv_handle_t *)ecewo_server.server, on_server_closed);
     LOG_ERROR("Failed to listen on port %" PRIu16, port);
     return SERVER_LISTEN_FAILED;
   }
