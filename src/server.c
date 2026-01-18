@@ -789,7 +789,7 @@ int server_listen(uint16_t port) {
   const char *is_test = getenv("ECEWO_TEST_MODE");
   unsigned int flags = 0;
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__APPLE__)
   if (!is_test || strcmp(is_test, "1") != 0)
     flags = UV_TCP_REUSEPORT;
 #endif
