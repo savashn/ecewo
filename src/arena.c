@@ -58,8 +58,11 @@ void *arena_alloc(Arena *a, size_t size_bytes) {
     if (capacity < size)
       capacity = size;
 
-    if (!new_region_to(&a->end, &a->end->next, capacity))
+    a->end->next = new_region(capacity);
+    if (!a->end->next)
       return NULL;
+
+    a->end = a->end->next;
   }
 
   void *result = &a->end->data[a->end->count];
