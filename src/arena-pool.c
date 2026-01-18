@@ -57,7 +57,9 @@ static void arena_pool_try_grow(void) {
   if (to_allocate > space_available)
     to_allocate = space_available;
 
+#ifdef ECEWO_DEBUG
   uint8_t allocated = 0;
+#endif
 
   for (uint8_t i = 0; i < to_allocate; i++) {
     Arena *arena = malloc(sizeof(Arena));
